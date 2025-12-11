@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use clap::Parser;
 
 /// http server for handling attestation document requests
@@ -33,18 +33,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or(Vec::new())
         .leak::<'static>();
 
-    println!("pub key: {:02x?}", pub_key);
-
     let app = Router::new()
         .route(
             "/attestation/raw",
-            get(|| async { oyster_attestation_server::get_attestation_doc(pub_key, user_data) }),
+            get(|| async { attestation_server::get_attestation_doc(pub_key, user_data) }),
         )
         .route(
             "/attestation/hex",
-            get(|| async {
-                oyster_attestation_server::get_hex_attestation_doc(pub_key, user_data)
-            }),
+            get(|| async { attestation_server::get_hex_attestation_doc(pub_key, user_data) }),
         );
     let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
 
