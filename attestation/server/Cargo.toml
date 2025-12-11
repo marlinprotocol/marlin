@@ -5,10 +5,10 @@ edition = "2024"
 license = "Apache-2.0"
 
 [dependencies]
-axum = "0.7.4"
-clap = { version = "4.0.18", features = ["derive"] }
+axum = "0.8.7"
+clap = { version = "4.5.53", features = ["derive"] }
 hex = "0.4.3"
-nitro-tpm-attest = "1.0.0"
+nitro-tpm-attest = "1.0.1"
 tokio = { version = "1", features = ["full"] }
 
 [profile.release]
