@@ -85,6 +85,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "attestation-server"
+version = "2.1.0"
+dependencies = [
+ "aws-nitro-enclaves-nsm-api",
+ "axum",
+ "clap",
+ "hex",
+ "nitro-tpm-attest",
+ "serde_bytes",
+ "tokio",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -703,19 +716,6 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
-
-[[package]]
-name = "oyster-attestation-server"
-version = "2.1.0"
-dependencies = [
- "aws-nitro-enclaves-nsm-api",
- "axum",
- "clap",
- "hex",
- "nitro-tpm-attest",
- "serde_bytes",
- "tokio",
-]
 
 [[package]]
 name = "parking_lot"
