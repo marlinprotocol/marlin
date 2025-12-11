@@ -5,12 +5,10 @@ edition = "2024"
 license = "Apache-2.0"
 
 [dependencies]
-aws-nitro-enclaves-nsm-api = "0.4.0"
 axum = "0.7.4"
 clap = { version = "4.0.18", features = ["derive"] }
 hex = "0.4.3"
 nitro-tpm-attest = "1.0.0"
-serde_bytes = "0.11"
 tokio = { version = "1", features = ["full"] }
 
 [profile.release]
