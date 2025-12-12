@@ -31,8 +31,16 @@ in rec {
       pkgs.pkg-config
     ];
     buildInputs = [
-      pkgs.tpm2-tss
+      pkgs.pkgsStatic.tpm2-tss
+      pkgs.pkgsStatic.openssl
     ];
+
+    PKG_CONFIG_ALL_STATIC = 1;
+
+    postConfigure = ''
+      ar rcs libdl.a
+      export LIBRARY_PATH="$PWD:$LIBRARY_PATH"
+    '';
   };
 
   compressed =
