@@ -29,18 +29,12 @@ in rec {
     nativeBuildInputs = [
       cc
       pkgs.pkg-config
+      pkgs.autoPatchelfHook
     ];
     buildInputs = [
-      pkgs.pkgsStatic.tpm2-tss
-      pkgs.pkgsStatic.openssl
+      pkgs.tpm2-tss
+      pkgs.libgcc
     ];
-
-    PKG_CONFIG_ALL_STATIC = 1;
-
-    postConfigure = ''
-      ar rcs libdl.a
-      export LIBRARY_PATH="$PWD:$LIBRARY_PATH"
-    '';
   };
 
   compressed =
