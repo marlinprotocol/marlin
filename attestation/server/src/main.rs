@@ -43,6 +43,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             get(|| async { attestation_server::get_hex_attestation_doc(pub_key, user_data) }),
         )
         .route("/health", get(|| async { StatusCode::OK }));
+
+    println!("Listening on {}", cli.ip_addr);
     let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
 
     axum::serve(listener, app).await?;
