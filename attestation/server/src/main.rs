@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use axum::{Router, routing::get};
+use axum::{Router, http::StatusCode, routing::get};
 use clap::Parser;
 
 /// http server for handling attestation document requests
@@ -41,7 +41,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route(
             "/attestation/hex",
             get(|| async { attestation_server::get_hex_attestation_doc(pub_key, user_data) }),
-        );
+        )
+        .route("/health", get(|| async { StatusCode::OK }));
     let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
 
     axum::serve(listener, app).await?;
