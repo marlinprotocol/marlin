@@ -3,7 +3,21 @@
   systemConfig,
   fenix,
   naersk,
-}: let
+}:
+if systemConfig.static
+then
+  throw ''
+
+    ---------------------------------------------------------------
+    ERROR: Non-static build detected.
+
+    This project cannot produce a static build.
+
+    Current system: ${systemConfig.system}
+    Current target: ${systemConfig.rust_target}
+    ---------------------------------------------------------------
+  ''
+else let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
   target = systemConfig.rust_target;
