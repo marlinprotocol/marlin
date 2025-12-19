@@ -2,12 +2,12 @@
 {
   nixpkgs,
   systemConfig,
+  keygen-x25519,
+  attestation-server,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  nixosConfig = {
-    ...
-  }: {
+  nixosConfig = {...}: {
     imports = [
       # build as a green image
       (./. + "/../configs/green.nix")
@@ -54,6 +54,7 @@
       lib = pkgs.lib;
       modulesPath = "${nixpkgs}/nixos/modules";
       systemConfig = systemConfig;
+      inherit keygen-x25519 attestation-server;
     };
   };
 in {
