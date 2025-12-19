@@ -3,7 +3,21 @@
   systemConfig,
   fenix,
   naersk,
-}: let
+}:
+if systemConfig.static
+then
+  throw ''
+
+    ---------------------------------------------------------------
+    ERROR: Non-static build detected.
+
+    This project cannot produce a static build.
+
+    Current system: ${systemConfig.system}
+    Current target: ${systemConfig.rust_target}
+    ---------------------------------------------------------------
+  ''
+else let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
   target = systemConfig.rust_target;
@@ -26,7 +40,15 @@ in rec {
     src = ./.;
     CARGO_BUILD_TARGET = target;
     TARGET_CC = "${cc}/bin/${cc.targetPrefix}cc";
-    nativeBuildInputs = [cc];
+    nativeBuildInputs = [
+      cc
+      pkgs.pkg-config
+      pkgs.autoPatchelfHook
+    ];
+    buildInputs = [
+      pkgs.tpm2-tss
+      pkgs.libgcc
+    ];
   };
 
   compressed =

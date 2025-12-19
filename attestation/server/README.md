@@ -2,9 +2,11 @@
 
 # Attestation Server
 
-The attestation server generates attestations using the AWS Nitro Secure Module (NSM) API and makes them available using a HTTP server. It includes a public key that can be used to extend the chain of trust of the attestation by other enclave applications. Intended to be run inside an enclave.
+The attestation server generates EC2 instance attestations using the AWS Nitro TPM and makes them available using a HTTP server. It includes a public key that can be used to extend the chain of trust of the attestation by other applications. Intended to be run inside an EC2 instance with a TPM2-enabled AMI.
 
 ## Build
+
+Prerequisites: tss2 libraries
 
 ```bash
 cargo build --release
@@ -20,7 +22,8 @@ nix build -v .#<flavor>.attestation.server.<output>
 
 Supported flavors:
 - `gnu`
-- `musl`
+
+The tpm2-tss library does not play well with static musl builds hence it is not supported currently.
 
 Supported outputs:
 - `default`, same as `compressed`
@@ -30,10 +33,10 @@ Supported outputs:
 ## Usage
 
 ```
-$ ./target/release/oyster-attestation-server --help
+$ ./target/release/attestation-server --help
 http server for handling attestation document requests
 
-Usage: oyster-attestation-server --ip-addr <IP_ADDR> --pub-key <PUB_KEY>
+Usage: attestation-server [OPTIONS] --ip-addr <IP_ADDR> --pub-key <PUB_KEY>
 
 Options:
   -i, --ip-addr <IP_ADDR>      ip address of the server (e.g. 127.0.0.1:1300)
@@ -111,4 +114,4 @@ $ curl <ip:port>/attestation/hex -vs
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE.txt](./LICENSE.txt).
+This project is licensed under the GNU AGPLv3 or any later version. See [LICENSE.txt](./LICENSE.txt).
