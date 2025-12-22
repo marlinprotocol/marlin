@@ -259,6 +259,7 @@
         inherit nixpkgs systemConfig;
         keygen-x25519 = initialization.keygen.compressed;
         attestation-server = attestation.server.compressed;
+        nitrotpm-tools = external.nitrotpm-tools.default;
       };
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
         inherit nixpkgs systemConfig naersk;
