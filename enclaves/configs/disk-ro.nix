@@ -37,8 +37,8 @@
 
   # use image.repart to create the nixos data partition and the dm-verity hash partition
   # ref: https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/image/repart-verity-store.nix#L92
-  image.repart.name = "marlin-green";
-  image.repart.version = "v0.1.0";
+  image.repart.name = config.system.image.id;
+  image.repart.version = config.system.image.version;
   # image.repart.sectorSize = 4096;
   image.repart.partitions = {
     # esp partition

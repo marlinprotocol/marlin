@@ -2,6 +2,7 @@
 {
   nixpkgs,
   systemConfig,
+  nitrotpm-tools,
   keygen-x25519,
   attestation-server,
 }: let
@@ -57,8 +58,16 @@
       inherit keygen-x25519 attestation-server;
     };
   };
+  measurement = pkgs.runCommand "measurement" {} ''
+    mkdir $out
+    ${nitrotpm-tools}/bin/nitro-tpm-pcr-compute -i ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} > $out/measurement.json
+  '';
 in {
-  default = nixosSystem.config.system.build.finalImage;
-  uki = nixosSystem.config.system.build.uki;
-  cmdline = nixosSystem.config.boot.kernelParams;
+  default = pkgs.symlinkJoin {
+    name = "measured-image";
+    paths = [
+      nixosSystem.config.system.build.finalImage
+      measurement
+    ];
+  };
 }
