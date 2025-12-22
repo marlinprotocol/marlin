@@ -260,6 +260,9 @@
         keygen-x25519 = initialization.keygen.compressed;
         attestation-server = attestation.server.compressed;
       };
+      external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
+        inherit nixpkgs systemConfig naersk;
+      };
     };
   in {
     formatter = {
