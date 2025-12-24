@@ -67,7 +67,7 @@ in rec {
     systemd.services.${service-name} = {
       description = "Run KMS creator";
       wantedBy = ["multi-user.target"];
-      after = ["local-fs.target"];
+      after = ["local-fs.target" "network-online.target"];
       serviceConfig = {
         Type = "simple";
         ExecStart = ''
