@@ -61,6 +61,7 @@ in rec {
     listen-addr = args.listen-addr or "0.0.0.0:1100";
     signer = args.signer or "/root/secp256k1.sec";
     condition-path = args.condition-path or "/root/init-params";
+    port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" listen-addr));
   in {
     # systemd service
     systemd.services.${service-name} = {
@@ -79,5 +80,8 @@ in rec {
         Restart = "always";
       };
     };
+
+    # firewall rule
+    networking.firewall.allowedTCPPorts = [port];
   };
 }
