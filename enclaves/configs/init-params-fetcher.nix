@@ -7,7 +7,7 @@ in {
   systemd.services.${service-name} = {
     description = "Retrieve init params";
     wantedBy = ["multi-user.target"];
-    after = ["local-fs.target"];
+    after = ["local-fs.target" "network.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
