@@ -1,7 +1,6 @@
 # base config
 # build as minimal an image as possible
 {
-  # lib,
   modulesPath,
   ...
 }: {
