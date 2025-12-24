@@ -76,7 +76,13 @@ in rec {
       after = ["local-fs.target"];
       serviceConfig = {
         Type = "simple";
-        ExecStart = "${uncompressed}/bin/attestation-server --ip-addr ${ip-addr} --pub-key ${pub-key} --user-data ${user-data}";
+        ExecStart = ''
+          ${uncompressed}/bin/attestation-server \
+            --ip-addr ${ip-addr} \
+            --pub-key ${pub-key} \
+            --user-data ${user-data}
+        '';
+        Restart = "always";
       };
     };
   };
