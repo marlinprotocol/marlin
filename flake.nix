@@ -29,53 +29,17 @@
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
         inherit nixpkgs systemConfig naersk;
       };
-      external.dnsproxy = import ./external/dnsproxy.nix {
-        inherit nixpkgs systemConfig;
-      };
-      external.supervisord = import ./external/supervisord.nix {
-        inherit nixpkgs systemConfig;
-      };
       attestation.server = import ./attestation/server {
         inherit nixpkgs systemConfig fenix naersk;
       };
-      attestation.server-custom = import ./attestation/server-custom {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      attestation.server-custom-mock = import ./attestation/server-custom-mock {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      attestation.server-mock = import ./attestation/server-mock {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      attestation.verifier = import ./attestation/verifier {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      initialization.init-params-decoder = import ./initialization/init-params-decoder {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      initialization.init-server = import ./initialization/init-server {
-        inherit nixpkgs systemConfig fenix naersk;
+      enclaves.testing.green = import ./enclaves/testing/green.nix {
+        inherit nixpkgs systemConfig;
+        keygen-x25519 = initialization.keygen.x25519.service;
+        attestation-server = attestation.server.service;
+        nitrotpm-tools = external.nitrotpm-tools.default;
       };
       initialization.keygen = import ./initialization/keygen {
         inherit nixpkgs systemConfig fenix naersk;
-      };
-      initialization.vet = import ./initialization/vet {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      initialization.logger = import ./initialization/logger {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      initialization.pcr-utils = import ./initialization/pcr-utils {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      kernels.vanilla = import ./kernels/vanilla.nix {
-        inherit nixpkgs systemConfig;
-      };
-      kernels.tuna = import ./kernels/tuna.nix {
-        inherit nixpkgs systemConfig;
-      };
-      kernels.serverless = import ./kernels/serverless.nix {
-        inherit nixpkgs systemConfig;
       };
       kms.creator = import ./kms/creator {
         inherit nixpkgs systemConfig fenix naersk;
@@ -86,180 +50,6 @@
         keygen-secp256k1 = initialization.keygen.secp256k1.service;
         attestation-server = attestation.server.service;
         creator = kms.creator.service;
-      };
-      kms.creator-verifier = import ./kms/creator-verifier {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      kms.derive-server = import ./kms/derive-server {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      kms.derive-server-mock = import ./kms/derive-server-mock {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      kms.derive-server-enclave = import ./kms/derive-server-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        kernels = kernels.tuna;
-        derive-server = kms.derive-server.compressed;
-      };
-      kms.root-server = import ./kms/root-server {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      kms.root-server-enclave = import ./kms/root-server-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        kernels = kernels.tuna;
-        root-server = kms.root-server.compressed;
-      };
-      kms.root-server-contract = import ./kms/root-server-contract {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      kms.root-server-arbone-enclave = import ./kms/root-server-arbone-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        kernels = kernels.tuna;
-        root-server-contract = kms.root-server-contract.compressed;
-      };
-      local.dev-image = nixpkgs.legacyPackages.${systemConfig.system}.callPackage ./local/dev-image {
-        inherit nixpkgs systemConfig;
-        supervisord = external.supervisord.compressed;
-        keygen = initialization.keygen.compressed;
-        attestation-server-mock = attestation.server-mock.compressed;
-        derive-server-mock = kms.derive-server-mock.compressed;
-      };
-      networking.raw-proxy = import ./networking/raw-proxy {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      networking.tcp-proxy = import ./networking/tcp-proxy {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      operator.arb-indexer = import ./operator/market-indexer/arb {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      operator.sui-indexer = import ./operator/market-indexer/sui {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      operator.control-plane = import ./operator/control-plane {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      operator.setup-aws = import ./operator/setup-aws {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      attestation.verifier-enclave = import ./attestation/verifier-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        tcp-proxy = networking.tcp-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        attestation-verifier = attestation.verifier.compressed;
-        kernels = kernels.vanilla;
-      };
-      networking.iperf3-enclave.salmon = import ./networking/iperf3-enclave/salmon {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        tcp-proxy = networking.tcp-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        kernels = kernels.vanilla;
-      };
-      networking.iperf3-enclave.tuna = import ./networking/iperf3-enclave/tuna {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        kernels = kernels.tuna;
-      };
-      sdks.docker-enclave = nixpkgs.legacyPackages.${systemConfig.system}.callPackage ./sdks/docker-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        derive-server = kms.derive-server.compressed;
-        init-params-decoder = initialization.init-params-decoder.compressed;
-        kernels = kernels.tuna;
-      };
-      enclaves.blue = nixpkgs.legacyPackages.${systemConfig.system}.callPackage ./enclaves/blue {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        derive-server = kms.derive-server.compressed;
-        init-params-decoder = initialization.init-params-decoder.compressed;
-        kernels = kernels.tuna;
-        pcr-utils = initialization.pcr-utils.compressed;
-      };
-      cli.oyster-cvm = import ./cli/oyster-cvm {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      cli.oyster-serverless = import ./cli/oyster-serverless {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      serverless.executor = import ./serverless/executor {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      serverless.executor-enclave = import ./serverless/executor-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        tcp-proxy = networking.tcp-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        executor = serverless.executor.compressed;
-        secret-store = serverless.secret-store.compressed;
-        kernels = kernels.serverless;
-        workerd = serverless.workerd;
-      };
-      serverless.gateway = import ./serverless/gateway {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      serverless.gateway-enclave = import ./serverless/gateway-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        dnsproxy = external.dnsproxy.compressed;
-        keygen = initialization.keygen.compressed;
-        tcp-proxy = networking.tcp-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        gateway = serverless.gateway.compressed;
-        kernels = kernels.vanilla;
-      };
-      serverless.http-on-vsock-client = import ./serverless/http-on-vsock-client {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      serverless.secret-store = import ./serverless/secret-store {
-        inherit nixpkgs systemConfig fenix naersk;
-      };
-      serverless.workerd = ./. + "/serverless/executor/runtime/workerd";
-      enclaves.testing.green = import ./enclaves/testing/green.nix {
-        inherit nixpkgs systemConfig;
-        keygen-x25519 = initialization.keygen.x25519.service;
-        attestation-server = attestation.server.service;
-        nitrotpm-tools = external.nitrotpm-tools.default;
       };
     };
   in {
