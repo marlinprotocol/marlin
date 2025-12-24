@@ -26,6 +26,9 @@
     nitro-util,
   }: let
     systemBuilder = systemConfig: rec {
+      external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
+        inherit nixpkgs systemConfig naersk;
+      };
       external.dnsproxy = import ./external/dnsproxy.nix {
         inherit nixpkgs systemConfig;
       };
@@ -257,9 +260,6 @@
         keygen-x25519 = initialization.keygen.x25519.service;
         attestation-server = attestation.server.service;
         nitrotpm-tools = external.nitrotpm-tools.default;
-      };
-      external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
-        inherit nixpkgs systemConfig naersk;
       };
     };
   in {
