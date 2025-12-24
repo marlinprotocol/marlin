@@ -257,7 +257,7 @@
       serverless.workerd = ./. + "/serverless/executor/runtime/workerd";
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
-        keygen-x25519 = initialization.keygen.service;
+        keygen-x25519 = initialization.keygen.x25519.service;
         attestation-server = attestation.server.service;
         nitrotpm-tools = external.nitrotpm-tools.default;
       };

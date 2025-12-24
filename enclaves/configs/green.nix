@@ -13,7 +13,12 @@
 # - an esp partition with a unified kernel image (UKI)
 # - a verity partition to hold dm-verity info
 # - a data partition
-{lib, keygen-x25519, attestation-server, ...}: {
+{
+  lib,
+  keygen-x25519,
+  attestation-server,
+  ...
+}: {
   imports = [
     # base config
     (./. + "/base.nix")
