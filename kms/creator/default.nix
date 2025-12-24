@@ -60,7 +60,7 @@ in rec {
     service-name = args.service-name or "kms-creator";
     listen-addr = args.listen-addr or "0.0.0.0:1100";
     signer = args.signer or "/root/secp256k1.sec";
-    condition-path = args.condition-path or /root/init-params;
+    condition-path = args.condition-path or "/root/init-params";
   in {
     # systemd service
     systemd.services.${service-name} = {
