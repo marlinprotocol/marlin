@@ -73,7 +73,7 @@ in rec {
     systemd.services.${service-name} = {
       description = "Run attestation server";
       wantedBy = ["multi-user.target"];
-      after = ["local-fs.target" "network-online.target" "tpm2.target"];
+      after = ["local-fs.target" "network.target" "tpm2.target"];
       serviceConfig = {
         Type = "simple";
         ExecStart = ''
