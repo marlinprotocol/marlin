@@ -78,14 +78,11 @@
         inherit nixpkgs systemConfig fenix naersk;
       };
       kms.creator-enclave = import ./kms/creator-enclave {
-        inherit nixpkgs systemConfig nitro-util;
-        supervisord = external.supervisord.compressed;
-        keygen = initialization.keygen.compressed;
-        raw-proxy = networking.raw-proxy.compressed;
-        attestation-server = attestation.server.compressed;
-        vet = initialization.vet.compressed;
-        kernels = kernels.tuna;
-        creator = kms.creator.compressed;
+        inherit nixpkgs systemConfig;
+        nitrotpm-tools = external.nitrotpm-tools.default;
+        keygen-secp256k1 = initialization.keygen.secp256k1.service;
+        attestation-server = attestation.server.service;
+        creator = kms.creator.service;
       };
       kms.creator-verifier = import ./kms/creator-verifier {
         inherit nixpkgs systemConfig fenix naersk;
@@ -257,8 +254,8 @@
       serverless.workerd = ./. + "/serverless/executor/runtime/workerd";
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
-        keygen-x25519 = initialization.keygen.compressed;
-        attestation-server = attestation.server.compressed;
+        keygen-x25519 = initialization.keygen.x25519.service;
+        attestation-server = attestation.server.service;
         nitrotpm-tools = external.nitrotpm-tools.default;
       };
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
