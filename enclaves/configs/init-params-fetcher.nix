@@ -1,6 +1,6 @@
 # init params fetcher
 # fetch init params from metadata endpoint
-{...} @ args: let
+{pkgs, ...} @ args: let
   service-name = args.service-name or "init-params-fetcher";
 in {
   # systemd service
@@ -12,7 +12,7 @@ in {
       Type = "oneshot";
       RemainAfterExit = true;
       ExecStart = ''
-        curl http://169.254.169.254/latest/user-data > /root/init-params
+        ${pkgs.curl}/bin/curl http://169.254.169.254/latest/user-data -o /root/init-params
       '';
     };
   };
