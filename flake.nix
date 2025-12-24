@@ -13,17 +13,12 @@
       url = "github:nix-community/naersk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nitro-util = {
-      url = "github:monzo/aws-nitro-util";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
   outputs = {
     self,
     nixpkgs,
     fenix,
     naersk,
-    nitro-util,
   }: let
     systemBuilder = systemConfig: rec {
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
