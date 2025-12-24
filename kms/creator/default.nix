@@ -55,4 +55,30 @@ in rec {
     '';
 
   default = compressed;
+
+  service = {...} @ args: let
+    service-name = args.service-name or "kms-creator";
+    listen-addr = args.listen-addr or "0.0.0.0:1100";
+    signer = args.signer or "/root/secp256k1.sec";
+    condition-path = args.condition-path or /root/init-params;
+    dkg-public-key = args.dkg-public-key or "868c3d012a5d524f0939e4ee4d60b738b4c44448ec286a5361e15ffbf2641e2df25363a204a738231e5f1a9621999741";
+  in {
+    # systemd service
+    systemd.services.${service-name} = {
+      description = "Run KMS creator";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target"];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = ''
+          ${uncompressed}/bin/kms-creator \
+            --listen-addr ${listen-addr} \
+            --signer ${signer} \
+            --dkg-public-key ${dkg-public-key} \
+            --condition-path ${condition-path}
+        '';
+        Restart = "always";
+      };
+    };
+  };
 }
