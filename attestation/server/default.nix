@@ -68,6 +68,7 @@ in rec {
     ip-addr = args.ip-addr or "0.0.0.0:1300";
     pub-key = args.pub-key or "/root/x25519.pub";
     user-data = args.user-data or "/dev/null";
+    port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" ip-addr));
   in {
     # systemd service
     systemd.services.${service-name} = {
@@ -85,5 +86,8 @@ in rec {
         Restart = "always";
       };
     };
+
+    # firewall rule
+    networking.firewall.allowedTCPPorts = [port];
   };
 }
