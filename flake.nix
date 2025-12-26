@@ -5,10 +5,6 @@
   };
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     naersk = {
       url = "github:nix-community/naersk";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -17,7 +13,6 @@
   outputs = {
     self,
     nixpkgs,
-    fenix,
     naersk,
   }: let
     systemBuilder = systemConfig: rec {
