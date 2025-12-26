@@ -34,7 +34,7 @@
         nitrotpm-tools = external.nitrotpm-tools.default;
       };
       initialization.keygen = import ./initialization/keygen {
-        inherit nixpkgs systemConfig fenix naersk;
+        inherit nixpkgs systemConfig naersk;
       };
       kms.creator = import ./kms/creator {
         inherit nixpkgs systemConfig fenix naersk;

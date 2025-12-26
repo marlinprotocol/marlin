@@ -1,26 +1,11 @@
 {
   nixpkgs,
   systemConfig,
-  fenix,
   naersk,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  target = systemConfig.rust_target;
-  toolchain = with fenix.packages.${system};
-    combine [
-      stable.cargo
-      stable.rustc
-      targets.${target}.stable.rust-std
-    ];
-  naersk' = naersk.lib.${system}.override {
-    cargo = toolchain;
-    rustc = toolchain;
-  };
-  cc =
-    if systemConfig.static
-    then pkgs.pkgsStatic.stdenv.cc
-    else pkgs.stdenv.cc;
+  naersk' = pkgs.callPackage naersk {};
   service = {
     binaries,
     key-type,
@@ -42,35 +27,19 @@
     };
   };
 in rec {
-  uncompressed = naersk'.buildPackage {
+  default = naersk'.buildPackage {
     src = ./.;
-    CARGO_BUILD_TARGET = target;
-    TARGET_CC = "${cc}/bin/${cc.targetPrefix}cc";
-    nativeBuildInputs = [cc];
   };
-
-  compressed =
-    pkgs.runCommand "compressed" {
-      nativeBuildInputs = [pkgs.upx];
-    } ''
-      mkdir -p $out/bin
-      cp ${uncompressed}/bin/* $out/bin/
-      chmod +w $out/bin/*
-      upx $out/bin/*
-    '';
-
-  default = compressed;
-
   x25519.service = service {
-    binaries = uncompressed;
+    binaries = default;
     key-type = "x25519";
   };
   secp256k1.service = service {
-    binaries = uncompressed;
+    binaries = default;
     key-type = "secp256k1";
   };
   ed25519.service = service {
-    binaries = uncompressed;
+    binaries = default;
     key-type = "ed25519";
   };
 }
