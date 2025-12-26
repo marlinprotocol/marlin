@@ -1,4 +1,4 @@
-![Marlin Oyster Logo](./logo.svg)
+![Marlin Logo](../../logo.svg)
 
 # Attestation Server
 

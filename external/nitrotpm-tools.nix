@@ -3,7 +3,6 @@
   systemConfig,
   naersk,
 }: let
-  # this is meant for local usage, ignore static requirements
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
   src = pkgs.fetchFromGitHub {
