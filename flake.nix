@@ -25,7 +25,7 @@
         inherit nixpkgs systemConfig naersk;
       };
       attestation.server = import ./attestation/server {
-        inherit nixpkgs systemConfig fenix naersk;
+        inherit nixpkgs systemConfig naersk;
       };
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
