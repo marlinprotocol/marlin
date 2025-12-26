@@ -37,7 +37,7 @@
         inherit nixpkgs systemConfig naersk;
       };
       kms.creator = import ./kms/creator {
-        inherit nixpkgs systemConfig fenix naersk;
+        inherit nixpkgs systemConfig naersk;
       };
       kms.creator-enclave = import ./kms/creator-enclave {
         inherit nixpkgs systemConfig;
