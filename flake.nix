@@ -53,63 +53,21 @@
       "aarch64-linux" = nixpkgs.legacyPackages."aarch64-linux".alejandra;
     };
     packages = {
-      "x86_64-linux" = rec {
-        gnu = systemBuilder {
-          system = "x86_64-linux";
-          rust_target = "x86_64-unknown-linux-gnu";
-          eif_arch = "x86_64";
-          static = false;
-          efi_arch = "x64";
-          repart_arch = "x86-64";
-        };
-        musl = systemBuilder {
-          system = "x86_64-linux";
-          rust_target = "x86_64-unknown-linux-musl";
-          eif_arch = "x86_64";
-          static = true;
-          efi_arch = "x64";
-          repart_arch = "x86-64";
-        };
-        default = musl;
+      "x86_64-linux" = systemBuilder {
+        system = "x86_64-linux";
+        rust_target = "x86_64-unknown-linux-gnu";
+        eif_arch = "x86_64";
+        static = false;
+        efi_arch = "x64";
+        repart_arch = "x86-64";
       };
-      "aarch64-linux" = rec {
-        gnu = systemBuilder {
-          system = "aarch64-linux";
-          rust_target = "aarch64-unknown-linux-gnu";
-          eif_arch = "aarch64";
-          static = false;
-          efi_arch = "aa64";
-          repart_arch = "arm64";
-        };
-        musl = systemBuilder {
-          system = "aarch64-linux";
-          rust_target = "aarch64-unknown-linux-musl";
-          eif_arch = "aarch64";
-          static = true;
-          efi_arch = "aa64";
-          repart_arch = "arm64";
-        };
-        default = musl;
-      };
-      "aarch64-darwin" = rec {
-        gnu = systemBuilder {
-          system = "aarch64-darwin";
-          rust_target = "aarch64-apple-darwin";
-          eif_arch = "aarch64";
-          static = false;
-          efi_arch = "aa64";
-          repart_arch = "arm64";
-        };
-        # TODO: Figure out how to organize this properly
-        musl = systemBuilder {
-          system = "aarch64-darwin";
-          rust_target = "aarch64-apple-darwin";
-          eif_arch = "aarch64";
-          static = false;
-          efi_arch = "aa64";
-          repart_arch = "arm64";
-        };
-        default = musl;
+      "aarch64-linux" = systemBuilder {
+        system = "aarch64-linux";
+        rust_target = "aarch64-unknown-linux-gnu";
+        eif_arch = "aarch64";
+        static = false;
+        efi_arch = "aa64";
+        repart_arch = "arm64";
       };
     };
   };
