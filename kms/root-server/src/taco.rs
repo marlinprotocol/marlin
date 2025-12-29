@@ -73,7 +73,7 @@ sol! {
 
 pub async fn get_taco_nodes(args: &Args) -> Result<HashMap<Address, SessionStaticKey>> {
     let provider =
-        ProviderBuilder::new().on_http(args.rpc.parse().context("failed to parse rpc url")?);
+        ProviderBuilder::new().connect_http(args.rpc.parse().context("failed to parse rpc url")?);
     let contract = Coordinator::new(
         args.coordinator
             .parse()
@@ -93,7 +93,7 @@ pub async fn get_taco_nodes(args: &Args) -> Result<HashMap<Address, SessionStati
         .await
         .context("failed to get participants")?;
 
-    Ok(HashMap::from_iter(participants._0.into_iter().filter_map(
+    Ok(HashMap::from_iter(participants.into_iter().filter_map(
         |p| {
             Some((
                 p.provider,
