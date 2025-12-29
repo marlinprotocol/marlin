@@ -41,6 +41,9 @@
         attestation-server = attestation.server.service;
         kms-creator = kms.creator.service;
       };
+      kms.derive-server = import ./kms/derive-server {
+        inherit nixpkgs systemConfig naersk;
+      };
       kms.root-server = import ./kms/root-server {
         inherit nixpkgs systemConfig naersk;
       };
