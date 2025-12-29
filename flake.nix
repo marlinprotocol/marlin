@@ -39,7 +39,7 @@
         nitrotpm-tools = external.nitrotpm-tools.default;
         keygen-secp256k1 = initialization.keygen.secp256k1.service;
         attestation-server = attestation.server.service;
-        creator = kms.creator.service;
+        kms-creator = kms.creator.service;
       };
     };
   in {
