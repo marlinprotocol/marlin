@@ -2,11 +2,6 @@ use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
 use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl};
-use http_body_util::{BodyExt, Full};
-use hyper::Uri;
-use hyper::body::Bytes;
-use hyper_util::client::legacy::{Client, Error};
-use hyper_util::rt::TokioExecutor;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNumContext;
 use openssl::ec::{EcKey, PointConversionForm};
@@ -37,10 +32,6 @@ pub enum AttestationError {
     ParseFailed(String),
     #[error("failed to verify attestation: {0}")]
     VerifyFailed(String),
-    #[error("http client error")]
-    HttpClientError(#[from] Error),
-    #[error("http body error")]
-    HttpBodyError(#[from] hyper::Error),
 }
 
 #[derive(Debug, Default, Clone)]
