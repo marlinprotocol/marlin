@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
 };
 use kms_derive_utils::derive_enclave_seed;
-use oyster::axum::ScallopState;
+use marlin::axum::ScallopState;
 
 use crate::{AppState, scallop::AuthStoreState};
 

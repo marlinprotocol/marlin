@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use oyster::{
+use marlin::{
     attestation::{self, AWS_ROOT_KEY, AttestationExpectations},
     scallop::{Key, ScallopAuthStore},
 };

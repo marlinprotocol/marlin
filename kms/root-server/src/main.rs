@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use kms_derive_utils::{derive_path_seed, to_secp256k1_secret, to_x25519_secret};
-use oyster::axum::{ScallopListener, ScallopState};
+use marlin::axum::{ScallopListener, ScallopState};
 use reqwest::StatusCode;
 use scallop::{AuthStore, AuthStoreState};
 use taco::decrypt;
