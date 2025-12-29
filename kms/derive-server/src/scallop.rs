@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use anyhow::{Context, Result};
-use oyster::scallop::{Key, ScallopAuthStore, ScallopAuther};
+use marlin::scallop::{Key, ScallopAuthStore, ScallopAuther};
 
 #[derive(Clone)]
 pub struct AuthStore {
@@ -12,8 +12,8 @@ impl ScallopAuthStore for AuthStore {
     type State = ();
 
     // directly compare against the expected key for an early approve/reject
-    fn contains(&mut self, key: &Key) -> oyster::scallop::ContainsResponse<Self::State> {
-        use oyster::scallop::ContainsResponse::*;
+    fn contains(&mut self, key: &Key) -> marlin::scallop::ContainsResponse<Self::State> {
+        use marlin::scallop::ContainsResponse::*;
         if key == &self.pubkey {
             Approved(())
         } else {
