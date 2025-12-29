@@ -35,8 +35,7 @@ fn main() -> Result<()> {
     let sig_bytes = &bytes[bytes.len() - 65..];
 
     // Parse signature
-    let signature = Signature::from_bytes_and_parity(&sig_bytes[..64], (sig_bytes[64] - 27) == 1)
-        .context("Failed to parse signature")?;
+    let signature = Signature::from_bytes_and_parity(&sig_bytes[..64], (sig_bytes[64] - 27) == 1);
 
     // Recover signer address
     let signer = signature
