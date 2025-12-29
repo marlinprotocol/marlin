@@ -1,9 +1,6 @@
 # base config
 # build as minimal an image as possible
-{
-  modulesPath,
-  ...
-}: {
+{modulesPath, ...}: {
   # nixos has good presets to get started
   imports = [
     # use the minimal profile as the starting point
