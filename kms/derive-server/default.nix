@@ -24,6 +24,7 @@
 in rec {
   default = naersk'.buildPackage {
     src = combinedSrc;
+    nativeBuildInputs = [pkgs.perl];
   };
 
   service = {
