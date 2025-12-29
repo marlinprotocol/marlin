@@ -44,6 +44,13 @@
       kms.root-server = import ./kms/root-server {
         inherit nixpkgs systemConfig naersk;
       };
+      kms.root-server-enclave = import ./kms/root-server-enclave {
+        inherit nixpkgs systemConfig;
+        nitrotpm-tools = external.nitrotpm-tools.default;
+        keygen-secp256k1 = initialization.keygen.secp256k1.service;
+        attestation-server = attestation.server.service;
+        kms-root-server = kms.root-server.service;
+      };
     };
     check = {
       system,
