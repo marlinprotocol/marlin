@@ -1,26 +1,11 @@
 {
   nixpkgs,
   systemConfig,
-  fenix,
   naersk,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  target = systemConfig.rust_target;
-  toolchain = with fenix.packages.${system};
-    combine [
-      stable.cargo
-      stable.rustc
-      targets.${target}.stable.rust-std
-    ];
-  naersk' = naersk.lib.${system}.override {
-    cargo = toolchain;
-    rustc = toolchain;
-  };
-  cc =
-    if systemConfig.static
-    then pkgs.pkgsStatic.stdenv.cc
-    else pkgs.stdenv.cc;
+  naersk' = pkgs.callPackage naersk {};
   projectSrc = ./.;
   libSrc = ../derive-utils;
   combinedSrc = pkgs.runCommand "combined-src" {} ''
@@ -37,22 +22,47 @@
       --replace 'path = "../derive-utils"' 'path = "./libs/derive-utils"'
   '';
 in rec {
-  uncompressed = naersk'.buildPackage {
+  default = naersk'.buildPackage {
     src = combinedSrc;
-    CARGO_BUILD_TARGET = target;
-    TARGET_CC = "${cc}/bin/${cc.targetPrefix}cc";
-    nativeBuildInputs = [cc pkgs.perl];
   };
 
-  compressed =
-    pkgs.runCommand "compressed" {
-      nativeBuildInputs = [pkgs.upx];
-    } ''
-      mkdir -p $out/bin
-      cp ${uncompressed}/bin/* $out/bin/
-      chmod +w $out/bin/*
-      upx $out/bin/*
-    '';
-
-  default = compressed;
+  service = {
+    kms-endpoint,
+    kms-pubkey,
+    root-server-config,
+    contract-address-file,
+    ...
+  } @ args: let
+    service-name = args.service-name or "kms-derive-server";
+    listen-addr = args.listen-addr or "127.0.0.1:1100";
+    attestation-endpoint = args.attestation-endpoint or "http://127.0.0.1:1300/attestation/raw";
+    secret-path = args.secret-path or "/root/x25519.sec";
+  in {
+    # systemd service
+    systemd.services.${service-name} = {
+      description = "Run KMS derive server";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target" "network.target"];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = ''
+          ${default}/bin/kms-derive-server \
+            --listen-addr ${listen-addr} \
+            --attestation-endpoint ${attestation-endpoint} \
+            --secret-path ${secret-path} \
+            ${
+            if contract-address-file != null
+            then "--contract-address-file ${contract-address-file}"
+            else ""
+          } \
+            ${
+            if root-server-config != null
+            then "--root-server-config ${root-server-config}"
+            else "--kms-endpoint ${kms-endpoint} --kms-pubkey ${kms-pubkey}"
+          }
+        '';
+        Restart = "always";
+      };
+    };
+  };
 }
