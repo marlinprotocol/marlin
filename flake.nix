@@ -47,7 +47,7 @@
       "x86_64-linux" = nixpkgs.legacyPackages."x86_64-linux".alejandra;
       "aarch64-linux" = nixpkgs.legacyPackages."aarch64-linux".alejandra;
     };
-    packages = {
+    legacyPackages = {
       "x86_64-linux" = systemBuilder {
         system = "x86_64-linux";
         efi_arch = "x64";
