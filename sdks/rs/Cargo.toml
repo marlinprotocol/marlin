@@ -1,52 +1,74 @@
 [package]
-name = "oyster-sdk"
-version = "0.17.1"
+name = "marlin-sdk"
+version = "0.1.0"
 edition = "2024"
-description = "Oyster SDK"
+description = "Marlin SDK"
 license = "Apache-2.0"
 
 [dependencies]
-aws-nitro-enclaves-cose = "0.5.2"
-chrono = "0.4.40"
-clap = { version = "4.5.34", features = ["derive"] }
-hex = "0.4.3"
-hex-literal = "1.0.0"
-http-body-util = "0.1.3"
-hyper = { version = "1.6.0", features = ["client", "http1", "http2"] }
-hyper-util = { version = "0.1.11", features = ["full"] }
-libsodium-sys-stable = { version = "1.22.2" }
-openssl = { version = "0.10", features = ["vendored"] }
-serde = "1.0.219"
-serde_cbor = "0.11.2"
-serde_json = "1.0"
-snow = "0.9.6"
-thiserror = "2.0.12"
-tokio = { version = "1", features = ["full"] }
-# axum feature
+# Common
+thiserror = { version = "2.0.12" }
+
+# Feature: attestation
+aws-nitro-enclaves-cose = { version = "0.5.2", optional = true }
+openssl = { version = "0.10", features = ["vendored"], optional = true }
+serde_cbor = { version = "0.11.2", optional = true }
+hex-literal = { version = "1.0.0", optional = true }
+
+# Feature: scallop
+snow = { version = "0.9.6", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+
+# Feature: axum
 axum = { version = "0.8.3", optional = true }
 
 [dev-dependencies]
 http = "1.3.1"
+http-body-util = "0.1.3"
 hyper = { version = "1.6.0", features = ["client", "http1", "http2", "server"] }
+hyper-util = { version = "0.1.19", features = ["tokio"] }
+libsodium-sys-stable = { version = "1.22.2" }
+reqwest = { version = "0.12", features = ["json", "blocking"] }
 
 [features]
-axum = ["dep:axum"]
+default = ["attestation", "scallop", "axum"]
+attestation = [
+    "dep:aws-nitro-enclaves-cose",
+    "dep:openssl",
+    "dep:serde_cbor",
+    "dep:hex-literal",
+]
+scallop = [
+    "dep:snow",
+    "dep:tokio",
+]
+axum = [
+    "scallop",
+    "dep:axum",
+]
 
 [lib]
-name = "oyster"
+name = "marlin"
 
 [[example]]
 name = "scallop"
 path = "examples/scallop.rs"
+required-features = ["scallop"]
 
 [[example]]
 name = "hyper"
 path = "examples/hyper.rs"
+required-features = ["scallop"]
 
 [[example]]
 name = "axum"
 path = "examples/axum.rs"
 required-features = ["axum"]
+
+[[example]]
+name = "verifier"
+path = "examples/verifier.rs"
+required-features = ["attestation"]
 
 [profile.release]
 strip = true

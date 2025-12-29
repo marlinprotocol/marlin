@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 
-pub use oyster::scallop::*;
+pub use marlin::scallop::*;
 
 type Pcrs = [[u8; 48]; 3];
 

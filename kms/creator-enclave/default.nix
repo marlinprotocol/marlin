@@ -5,7 +5,7 @@
   nitrotpm-tools,
   keygen-secp256k1,
   attestation-server,
-  creator,
+  kms-creator,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
@@ -26,7 +26,7 @@
         pub-key = "/root/secp256k1.pub";
         user-data = "/root/init-params";
       })
-      (creator {
+      (kms-creator {
         dkg-public-key = "868c3d012a5d524f0939e4ee4d60b738b4c44448ec286a5361e15ffbf2641e2df25363a204a738231e5f1a9621999741";
       })
     ];

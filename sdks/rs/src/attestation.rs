@@ -2,22 +2,19 @@ use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
 use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl};
-use http_body_util::{BodyExt, Full};
-use hyper::Uri;
-use hyper::body::Bytes;
-use hyper_util::client::legacy::{Client, Error};
-use hyper_util::rt::TokioExecutor;
+use hex_literal::hex;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNumContext;
 use openssl::ec::{EcKey, PointConversionForm};
 use openssl::sha::Sha256;
 use openssl::x509::{X509, X509VerifyResult};
 use serde_cbor::{self, value, value::Value};
+use thiserror::Error;
 
-pub const AWS_ROOT_KEY: [u8; 96] = hex_literal::hex!(
+pub const AWS_ROOT_KEY: [u8; 96] = hex!(
     "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4"
 );
-pub const MOCK_ROOT_KEY: [u8; 96] = hex_literal::hex!(
+pub const MOCK_ROOT_KEY: [u8; 96] = hex!(
     "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410"
 );
 
@@ -31,16 +28,12 @@ pub struct AttestationDecoded {
     pub user_data: Box<[u8]>,
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum AttestationError {
     #[error("failed to parse: {0}")]
     ParseFailed(String),
     #[error("failed to verify attestation: {0}")]
     VerifyFailed(String),
-    #[error("http client error")]
-    HttpClientError(#[from] Error),
-    #[error("http body error")]
-    HttpBodyError(#[from] hyper::Error),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -75,27 +68,28 @@ pub fn verify(
     result.timestamp_ms = parse_timestamp(&mut attestation_doc)?;
 
     // check expected timestamp if exists
-    if let Some(expected_ts) = expectations.timestamp_ms {
-        if result.timestamp_ms != expected_ts {
-            return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
-        }
+    if let Some(expected_ts) = expectations.timestamp_ms
+        && result.timestamp_ms != expected_ts
+    {
+        return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
     }
 
     // check age if exists
-    if let Some((max_age, current_ts)) = expectations.age_ms {
-        if result.timestamp_ms <= current_ts && current_ts - result.timestamp_ms > max_age {
-            return Err(AttestationError::VerifyFailed("too old".into()));
-        }
+    if let Some((max_age, current_ts)) = expectations.age_ms
+        && result.timestamp_ms <= current_ts
+        && current_ts - result.timestamp_ms > max_age
+    {
+        return Err(AttestationError::VerifyFailed("too old".into()));
     }
 
     // parse pcrs
     result.pcrs = parse_pcrs(&mut attestation_doc)?;
 
     // check pcrs if exists
-    if let Some(pcrs) = expectations.pcrs {
-        if result.pcrs != pcrs {
-            return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
-        }
+    if let Some(pcrs) = expectations.pcrs
+        && result.pcrs != pcrs
+    {
+        return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
     }
 
     // compute image id
@@ -107,10 +101,10 @@ pub fn verify(
     result.image_id = hasher.finish();
 
     // check image id if exists
-    if let Some(image_id) = expectations.image_id {
-        if &result.image_id != image_id {
-            return Err(AttestationError::VerifyFailed("image id mismatch".into()));
-        }
+    if let Some(image_id) = expectations.image_id
+        && &result.image_id != image_id
+    {
+        return Err(AttestationError::VerifyFailed("image id mismatch".into()));
     }
 
     // verify signature and cert chain
@@ -118,34 +112,34 @@ pub fn verify(
         verify_root_of_trust(&mut attestation_doc, &cosesign1, result.timestamp_ms)?;
 
     // check root public key if exists
-    if let Some(root_public_key) = expectations.root_public_key {
-        if result.root_public_key.as_ref() != root_public_key {
-            return Err(AttestationError::VerifyFailed(
-                "root public key mismatch".into(),
-            ));
-        }
+    if let Some(root_public_key) = expectations.root_public_key
+        && result.root_public_key.as_ref() != root_public_key
+    {
+        return Err(AttestationError::VerifyFailed(
+            "root public key mismatch".into(),
+        ));
     }
 
     // return the enclave key
     result.public_key = parse_enclave_key(&mut attestation_doc)?;
 
     // check enclave public key if exists
-    if let Some(public_key) = expectations.public_key {
-        if result.public_key.as_ref() != public_key {
-            return Err(AttestationError::VerifyFailed(
-                "enclave public key mismatch".into(),
-            ));
-        }
+    if let Some(public_key) = expectations.public_key
+        && result.public_key.as_ref() != public_key
+    {
+        return Err(AttestationError::VerifyFailed(
+            "enclave public key mismatch".into(),
+        ));
     }
 
     // return the user data
     result.user_data = parse_user_data(&mut attestation_doc)?;
 
     // check user data if exists
-    if let Some(user_data) = expectations.user_data {
-        if result.user_data.as_ref() != user_data {
-            return Err(AttestationError::VerifyFailed("user data mismatch".into()));
-        }
+    if let Some(user_data) = expectations.user_data
+        && result.user_data.as_ref() != user_data
+    {
+        return Err(AttestationError::VerifyFailed("user data mismatch".into()));
     }
 
     Ok(result)
@@ -190,7 +184,7 @@ fn parse_pcrs(
     attestation_doc: &mut BTreeMap<Value, Value>,
 ) -> Result<[[u8; 48]; 4], AttestationError> {
     let pcrs_arr = attestation_doc
-        .remove(&"pcrs".to_owned().into())
+        .remove(&"nitrotpm_pcrs".to_owned().into())
         .ok_or(AttestationError::ParseFailed("pcrs not found".into()))?;
     let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr)
         .map_err(|e| AttestationError::ParseFailed(format!("pcrs: {e}")))?;
@@ -383,14 +377,6 @@ fn parse_user_data(
     })?;
 
     Ok(user_data.into_boxed_slice())
-}
-
-pub async fn get(endpoint: Uri) -> Result<Box<[u8]>, AttestationError> {
-    let client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-    let res = client.get(endpoint).await?;
-    let body = res.collect().await?.to_bytes();
-
-    Ok(body.to_vec().into_boxed_slice())
 }
 
 #[cfg(test)]
