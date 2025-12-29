@@ -184,7 +184,7 @@ fn parse_pcrs(
     attestation_doc: &mut BTreeMap<Value, Value>,
 ) -> Result<[[u8; 48]; 4], AttestationError> {
     let pcrs_arr = attestation_doc
-        .remove(&"pcrs".to_owned().into())
+        .remove(&"nitrotpm_pcrs".to_owned().into())
         .ok_or(AttestationError::ParseFailed("pcrs not found".into()))?;
     let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr)
         .map_err(|e| AttestationError::ParseFailed(format!("pcrs: {e}")))?;
