@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oyster::{
-    attestation::{self, AttestationExpectations, AWS_ROOT_KEY},
+    attestation::{self, AWS_ROOT_KEY, AttestationExpectations},
     scallop::{Key, ScallopAuthStore},
 };
 

@@ -5,7 +5,7 @@ use axum::{
 use kms_derive_utils::derive_enclave_seed;
 use oyster::axum::ScallopState;
 
-use crate::{scallop::AuthStoreState, AppState};
+use crate::{AppState, scallop::AuthStoreState};
 
 // derive keys after verifying attestations
 pub async fn derive(

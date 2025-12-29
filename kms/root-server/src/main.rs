@@ -5,7 +5,7 @@ use alloy::{
     signers::local::PrivateKeySigner,
 };
 use anyhow::{Context, Result};
-use axum::{middleware, routing::get, Router};
+use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use kms_derive_utils::{derive_path_seed, to_secp256k1_secret, to_x25519_secret};
 use oyster::axum::{ScallopListener, ScallopState};
