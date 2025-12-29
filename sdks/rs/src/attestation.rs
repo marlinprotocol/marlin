@@ -385,14 +385,6 @@ fn parse_user_data(
     Ok(user_data.into_boxed_slice())
 }
 
-pub async fn get(endpoint: Uri) -> Result<Box<[u8]>, AttestationError> {
-    let client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-    let res = client.get(endpoint).await?;
-    let body = res.collect().await?.to_bytes();
-
-    Ok(body.to_vec().into_boxed_slice())
-}
-
 #[cfg(test)]
 mod tests {
     use hex_literal::hex;
