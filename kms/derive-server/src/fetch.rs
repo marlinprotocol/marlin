@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use http_body_util::BodyExt;
 use hyper::{Request, StatusCode};
 use hyper_util::rt::TokioIo;
-use oyster::scallop::new_client_async_Noise_IX_25519_ChaChaPoly_BLAKE2b;
+use marlin::scallop::new_client_async_Noise_IX_25519_ChaChaPoly_BLAKE2b;
 use tokio::net::TcpStream;
 
 use crate::scallop::{AuthStore, Auther};
