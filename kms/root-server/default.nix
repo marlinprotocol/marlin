@@ -1,26 +1,11 @@
 {
   nixpkgs,
   systemConfig,
-  fenix,
   naersk,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  target = systemConfig.rust_target;
-  toolchain = with fenix.packages.${system};
-    combine [
-      stable.cargo
-      stable.rustc
-      targets.${target}.stable.rust-std
-    ];
-  naersk' = naersk.lib.${system}.override {
-    cargo = toolchain;
-    rustc = toolchain;
-  };
-  cc =
-    if systemConfig.static
-    then pkgs.pkgsStatic.stdenv.cc
-    else pkgs.stdenv.cc;
+  naersk' = pkgs.callPackage naersk {};
   projectSrc = ./.;
   libSrc = ../derive-utils;
   combinedSrc = pkgs.runCommand "combined-src" {} ''
@@ -37,22 +22,52 @@
       --replace 'path = "../derive-utils"' 'path = "./libs/derive-utils"'
   '';
 in rec {
-  uncompressed = naersk'.buildPackage {
+  default = naersk'.buildPackage {
     src = combinedSrc;
-    CARGO_BUILD_TARGET = target;
-    TARGET_CC = "${cc}/bin/${cc.targetPrefix}cc";
-    nativeBuildInputs = [cc pkgs.perl];
+    nativeBuildInputs = [pkgs.perl];
   };
 
-  compressed =
-    pkgs.runCommand "compressed" {
-      nativeBuildInputs = [pkgs.upx];
-    } ''
-      mkdir -p $out/bin
-      cp ${uncompressed}/bin/* $out/bin/
-      chmod +w $out/bin/*
-      upx $out/bin/*
-    '';
+  service = {
+    ritual,
+    threshold,
+    ...
+  } @ args: let
+    service-name = args.service-name or "kms-root-server";
+    seed-path = args.seed-path or "/root/init-params";
+    scallop-listen-addr = args.scallop-listen-addr or "0.0.0.0:1100";
+    public-listen-addr = args.public-listen-addr or "0.0.0.0:1101";
+    signer = args.signer or "/root/secp256k1.sec";
+    porter = args.porter or "https://porter.nucypher.io/decrypt";
+    coordinator = args.coordinator or "0xE74259e3dafe30bAA8700238e324b47aC98FE755";
+    rpc = args.rpc or "https://polygon-rpc.com";
+    delay = args.delay or "1800";
+    scallop-port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" scallop-listen-addr));
+    public-port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" public-listen-addr));
+  in {
+    # systemd service
+    systemd.services.${service-name} = {
+      description = "Run KMS root server";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target" "network.target"];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = ''
+          ${default}/bin/kms-root-server \
+            --seed-path ${seed-path} \
+            --scallop-listen-addr ${scallop-listen-addr} \
+            --public-listen-addr ${public-listen-addr} \
+            --signer ${signer} \
+            --porter ${porter} \
+            --coordinator ${coordinator} \
+            --rpc ${rpc} \
+            --threshold ${threshold} \
+            --delay ${delay}
+        '';
+        Restart = "always";
+      };
+    };
 
-  default = compressed;
+    # firewall rule
+    networking.firewall.allowedTCPPorts = [scallop-port public-port];
+  };
 }
