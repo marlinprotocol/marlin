@@ -1,8 +1,8 @@
 [package]
-name = "oyster-sdk"
-version = "0.17.1"
+name = "marlin-sdk"
+version = "0.1.0"
 edition = "2024"
-description = "Oyster SDK"
+description = "Marlin SDK"
 license = "Apache-2.0"
 
 [dependencies]
@@ -47,7 +47,7 @@ axum = [
 ]
 
 [lib]
-name = "oyster"
+name = "marlin"
 
 [[example]]
 name = "scallop"

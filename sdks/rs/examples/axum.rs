@@ -17,8 +17,8 @@ use libsodium_sys::{
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 
-pub use oyster::axum::*;
-pub use oyster::scallop::*;
+pub use marlin::axum::*;
+pub use marlin::scallop::*;
 
 type Pcrs = [[u8; 48]; 3];
 
