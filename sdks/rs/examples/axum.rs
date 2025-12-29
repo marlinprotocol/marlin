@@ -5,7 +5,7 @@ use std::error::Error;
 use std::time::Duration;
 
 use axum::extract::ConnectInfo;
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use http_body_util::Empty;

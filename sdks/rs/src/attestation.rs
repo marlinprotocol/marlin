@@ -69,24 +69,28 @@ pub fn verify(
 
     // check expected timestamp if exists
     if let Some(expected_ts) = expectations.timestamp_ms
-        && result.timestamp_ms != expected_ts {
-            return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
-        }
+        && result.timestamp_ms != expected_ts
+    {
+        return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
+    }
 
     // check age if exists
     if let Some((max_age, current_ts)) = expectations.age_ms
-        && result.timestamp_ms <= current_ts && current_ts - result.timestamp_ms > max_age {
-            return Err(AttestationError::VerifyFailed("too old".into()));
-        }
+        && result.timestamp_ms <= current_ts
+        && current_ts - result.timestamp_ms > max_age
+    {
+        return Err(AttestationError::VerifyFailed("too old".into()));
+    }
 
     // parse pcrs
     result.pcrs = parse_pcrs(&mut attestation_doc)?;
 
     // check pcrs if exists
     if let Some(pcrs) = expectations.pcrs
-        && result.pcrs != pcrs {
-            return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
-        }
+        && result.pcrs != pcrs
+    {
+        return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
+    }
 
     // compute image id
     let mut hasher = Sha256::new();
@@ -98,9 +102,10 @@ pub fn verify(
 
     // check image id if exists
     if let Some(image_id) = expectations.image_id
-        && &result.image_id != image_id {
-            return Err(AttestationError::VerifyFailed("image id mismatch".into()));
-        }
+        && &result.image_id != image_id
+    {
+        return Err(AttestationError::VerifyFailed("image id mismatch".into()));
+    }
 
     // verify signature and cert chain
     result.root_public_key =
@@ -108,31 +113,34 @@ pub fn verify(
 
     // check root public key if exists
     if let Some(root_public_key) = expectations.root_public_key
-        && result.root_public_key.as_ref() != root_public_key {
-            return Err(AttestationError::VerifyFailed(
-                "root public key mismatch".into(),
-            ));
-        }
+        && result.root_public_key.as_ref() != root_public_key
+    {
+        return Err(AttestationError::VerifyFailed(
+            "root public key mismatch".into(),
+        ));
+    }
 
     // return the enclave key
     result.public_key = parse_enclave_key(&mut attestation_doc)?;
 
     // check enclave public key if exists
     if let Some(public_key) = expectations.public_key
-        && result.public_key.as_ref() != public_key {
-            return Err(AttestationError::VerifyFailed(
-                "enclave public key mismatch".into(),
-            ));
-        }
+        && result.public_key.as_ref() != public_key
+    {
+        return Err(AttestationError::VerifyFailed(
+            "enclave public key mismatch".into(),
+        ));
+    }
 
     // return the user data
     result.user_data = parse_user_data(&mut attestation_doc)?;
 
     // check user data if exists
     if let Some(user_data) = expectations.user_data
-        && result.user_data.as_ref() != user_data {
-            return Err(AttestationError::VerifyFailed("user data mismatch".into()));
-        }
+        && result.user_data.as_ref() != user_data
+    {
+        return Err(AttestationError::VerifyFailed("user data mismatch".into()));
+    }
 
     Ok(result)
 }

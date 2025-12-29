@@ -9,8 +9,8 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::sleep;
 
 use crate::scallop::{
-    new_server_async_Noise_IX_25519_ChaChaPoly_BLAKE2b, ScallopAuthStore, ScallopAuther,
-    ScallopError, ScallopStream,
+    ScallopAuthStore, ScallopAuther, ScallopError, ScallopStream,
+    new_server_async_Noise_IX_25519_ChaChaPoly_BLAKE2b,
 };
 
 #[derive(Debug, thiserror::Error)]
