@@ -1263,7 +1263,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1cb72ff604314e40bc8bc89a6948275cd7366ba4cc834b469e1e84d6325e6448"
 dependencies = [
  "aws-nitro-enclaves-cose",
- "axum",
  "hex-literal",
  "openssl",
  "serde_cbor",
