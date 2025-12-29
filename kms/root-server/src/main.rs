@@ -5,10 +5,11 @@ use alloy::{
     signers::local::PrivateKeySigner,
 };
 use anyhow::{Context, Result};
-use axum::{middleware, routing::get, Router};
+use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use kms_derive_utils::{derive_path_seed, to_secp256k1_secret, to_x25519_secret};
-use oyster::axum::{ScallopListener, ScallopState};
+use marlin::axum::{ScallopListener, ScallopState};
+use reqwest::StatusCode;
 use scallop::{AuthStore, AuthStoreState};
 use taco::decrypt;
 use tokio::{
@@ -99,7 +100,7 @@ async fn main() -> Result<()> {
     .context("failed to create signer")?;
 
     let chain_id = ProviderBuilder::new()
-        .on_http(args.rpc.parse().context("failed to parse rpc url")?)
+        .connect_http(args.rpc.parse().context("failed to parse rpc url")?)
         .get_chain_id()
         .await
         .context("failed to get chain id")?;
@@ -137,7 +138,7 @@ async fn main() -> Result<()> {
     let scallop_handle = spawn(run_forever(move || {
         let app_state = scallop_app_state.clone();
         let listen_addr = args.scallop_listen_addr.clone();
-        let secret = secret.clone();
+        let secret = secret;
         async move { run_scallop_server(app_state, listen_addr, secret).await }
     }));
 
@@ -174,7 +175,10 @@ async fn run_scallop_server(
         // middleware is executed bottom to top here
         // we want timeouts to be first, then size checks
         .layer(RequestBodyLimitLayer::new(1024))
-        .layer(TimeoutLayer::new(Duration::from_secs(5)))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(5),
+        ))
         .with_state(app_state);
 
     let tcp_listener = TcpListener::bind(&listen_addr)
@@ -226,7 +230,10 @@ async fn run_public_server(app_state: AppState, listen_addr: String) -> Result<(
             derive_public::signing_middleware,
         ))
         .layer(RequestBodyLimitLayer::new(1024))
-        .layer(TimeoutLayer::new(Duration::from_secs(5)))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(5),
+        ))
         .with_state(app_state);
 
     let listener = TcpListener::bind(&listen_addr)

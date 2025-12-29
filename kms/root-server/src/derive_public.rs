@@ -1,6 +1,6 @@
 use alloy::signers::{
-    k256::sha2::{Digest, Sha256},
     SignerSync,
+    k256::sha2::{Digest, Sha256},
 };
 use axum::{
     body::to_bytes,

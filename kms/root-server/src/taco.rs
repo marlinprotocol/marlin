@@ -4,18 +4,18 @@ use alloy::{
     hex::ToHexExt,
     primitives::{Address, U256},
     providers::ProviderBuilder,
-    signers::{local::PrivateKeySigner, SignerSync},
+    signers::{SignerSync, local::PrivateKeySigner},
     sol,
 };
-use anyhow::{anyhow, Context, Result};
-use base64::{prelude::BASE64_STANDARD, Engine};
+use anyhow::{Context, Result, anyhow};
+use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{SecondsFormat, TimeDelta, Utc};
 use nucypher_core::{
-    ferveo::api::{combine_shares_simple, DecryptionShareSimple, FerveoVariant},
     EncryptedThresholdDecryptionResponse, ProtocolObject, SessionSharedSecret, SessionStaticKey,
     SessionStaticSecret, ThresholdDecryptionRequest, ThresholdMessageKit,
+    ferveo::api::{DecryptionShareSimple, FerveoVariant, combine_shares_simple},
 };
-use rand::{distr::Alphanumeric, rng, Rng};
+use rand::{Rng, distr::Alphanumeric, rng};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +73,7 @@ sol! {
 
 pub async fn get_taco_nodes(args: &Args) -> Result<HashMap<Address, SessionStaticKey>> {
     let provider =
-        ProviderBuilder::new().on_http(args.rpc.parse().context("failed to parse rpc url")?);
+        ProviderBuilder::new().connect_http(args.rpc.parse().context("failed to parse rpc url")?);
     let contract = Coordinator::new(
         args.coordinator
             .parse()
@@ -93,7 +93,7 @@ pub async fn get_taco_nodes(args: &Args) -> Result<HashMap<Address, SessionStati
         .await
         .context("failed to get participants")?;
 
-    Ok(HashMap::from_iter(participants._0.into_iter().filter_map(
+    Ok(HashMap::from_iter(participants.into_iter().filter_map(
         |p| {
             Some((
                 p.provider,

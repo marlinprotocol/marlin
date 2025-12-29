@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use oyster::{
-    attestation::{self, AttestationExpectations, AWS_ROOT_KEY},
+use marlin::{
+    attestation::{self, AWS_ROOT_KEY, AttestationExpectations},
     scallop::{Key, ScallopAuthStore},
 };
 
@@ -40,6 +40,6 @@ impl ScallopAuthStore for AuthStore {
             return None;
         };
 
-        return Some(decoded.image_id);
+        Some(decoded.image_id)
     }
 }
