@@ -26,7 +26,11 @@ in rec {
     src = combinedSrc;
   };
 
-  service = {ritual, threshold, ...} @ args: let
+  service = {
+    ritual,
+    threshold,
+    ...
+  } @ args: let
     service-name = args.service-name or "kms-root-server";
     seed-path = args.seed-path or "/root/init-params";
     scallop-listen-addr = args.scallop-listen-addr or "0.0.0.0:1100";
