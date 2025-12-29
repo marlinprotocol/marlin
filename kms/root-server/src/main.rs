@@ -138,7 +138,7 @@ async fn main() -> Result<()> {
     let scallop_handle = spawn(run_forever(move || {
         let app_state = scallop_app_state.clone();
         let listen_addr = args.scallop_listen_addr.clone();
-        let secret = secret.clone();
+        let secret = secret;
         async move { run_scallop_server(app_state, listen_addr, secret).await }
     }));
 

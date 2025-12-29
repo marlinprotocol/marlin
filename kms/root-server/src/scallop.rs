@@ -40,6 +40,6 @@ impl ScallopAuthStore for AuthStore {
             return None;
         };
 
-        return Some(decoded.image_id);
+        Some(decoded.image_id)
     }
 }
