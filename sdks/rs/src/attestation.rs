@@ -31,8 +31,6 @@ pub struct AttestationDecoded {
 pub enum AttestationError {
     #[error("failed to parse: {0}")]
     ParseFailed(String),
-    #[error("failed to verify attestation: {0}")]
-    VerifyFailed(String),
     // verification errors
     #[error("leaf signature verification failed")]
     SignatureVerifyFailed,
