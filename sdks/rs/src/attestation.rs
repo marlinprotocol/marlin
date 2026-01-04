@@ -47,6 +47,8 @@ pub enum AttestationError {
     ImageIdMismatch { expected: String, got: String },
     #[error("root public key mismatch: expected {expected}, got {got}")]
     RootPublicKeyMismatch { expected: String, got: String },
+    #[error("public key mismatch: expected {expected}, got {got}")]
+    PublicKeyMismatch { expected: String, got: String },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -154,9 +156,10 @@ pub fn verify(
     if let Some(public_key) = expectations.public_key
         && result.public_key.as_ref() != public_key
     {
-        return Err(AttestationError::VerifyFailed(
-            "enclave public key mismatch".into(),
-        ));
+        return Err(AttestationError::PublicKeyMismatch {
+            expected: hex::encode(public_key),
+            got: hex::encode(&result.public_key),
+        });
     }
 
     // return the user data
