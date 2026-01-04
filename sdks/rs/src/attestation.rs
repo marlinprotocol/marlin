@@ -49,6 +49,8 @@ pub enum AttestationError {
     RootPublicKeyMismatch { expected: String, got: String },
     #[error("public key mismatch: expected {expected}, got {got}")]
     PublicKeyMismatch { expected: String, got: String },
+    #[error("user data mismatch: expected {expected}, got {got}")]
+    UserDataMismatch { expected: String, got: String },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -169,7 +171,10 @@ pub fn verify(
     if let Some(user_data) = expectations.user_data
         && result.user_data.as_ref() != user_data
     {
-        return Err(AttestationError::VerifyFailed("user data mismatch".into()));
+        return Err(AttestationError::UserDataMismatch {
+            expected: hex::encode(user_data),
+            got: hex::encode(&result.user_data),
+        });
     }
 
     Ok(result)
