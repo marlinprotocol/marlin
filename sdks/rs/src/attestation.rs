@@ -33,7 +33,10 @@ pub enum AttestationError {
     ParseFailed(String),
     #[error("failed to verify attestation: {0}")]
     VerifyFailed(String),
-    // Expectation mismatch errors
+    // verification errors
+    #[error("leaf signature verification failed")]
+    SignatureVerifyFailed,
+    // expectation mismatch errors
     #[error("timestamp mismatch: expected {expected}, got {got}")]
     TimestampMismatch { expected: u64, got: u64 },
     #[error("too old: expected age {age}, got {got}, now {now}")]
@@ -285,7 +288,7 @@ fn verify_root_of_trust(
         .map_err(|e| AttestationError::ParseFailed(format!("leaf signature: {e}")))?;
 
     if !verify_result {
-        return Err(AttestationError::VerifyFailed("leaf signature".into()));
+        return Err(AttestationError::SignatureVerifyFailed);
     }
 
     // verify certificate chain
