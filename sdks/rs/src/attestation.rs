@@ -45,6 +45,8 @@ pub enum AttestationError {
     },
     #[error("image id mismatch: expected {expected}, got {got}")]
     ImageIdMismatch { expected: String, got: String },
+    #[error("root public key mismatch: expected {expected}, got {got}")]
+    RootPublicKeyMismatch { expected: String, got: String },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -139,9 +141,10 @@ pub fn verify(
     if let Some(root_public_key) = expectations.root_public_key
         && result.root_public_key.as_ref() != root_public_key
     {
-        return Err(AttestationError::VerifyFailed(
-            "root public key mismatch".into(),
-        ));
+        return Err(AttestationError::RootPublicKeyMismatch {
+            expected: hex::encode(root_public_key),
+            got: hex::encode(&result.root_public_key),
+        });
     }
 
     // return the enclave key
