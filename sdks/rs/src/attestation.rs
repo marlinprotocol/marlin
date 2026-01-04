@@ -2,7 +2,6 @@ use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
 use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl};
-use hex_literal::hex;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNumContext;
 use openssl::ec::{EcKey, PointConversionForm};
@@ -11,10 +10,10 @@ use openssl::x509::{X509, X509VerifyResult};
 use serde_cbor::{self, value, value::Value};
 use thiserror::Error;
 
-pub const AWS_ROOT_KEY: [u8; 96] = hex!(
+pub const AWS_ROOT_KEY: [u8; 96] = hex_literal::hex!(
     "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4"
 );
-pub const MOCK_ROOT_KEY: [u8; 96] = hex!(
+pub const MOCK_ROOT_KEY: [u8; 96] = hex_literal::hex!(
     "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410"
 );
 
