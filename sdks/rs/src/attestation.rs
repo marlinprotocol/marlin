@@ -34,6 +34,9 @@ pub enum AttestationError {
     ParseFailed(String),
     #[error("failed to verify attestation: {0}")]
     VerifyFailed(String),
+    // Expectation mismatch errors
+    #[error("timestamp mismatch: expected {expected}, got {got}")]
+    TimestampMismatch { expected: u64, got: u64 },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -71,7 +74,10 @@ pub fn verify(
     if let Some(expected_ts) = expectations.timestamp_ms
         && result.timestamp_ms != expected_ts
     {
-        return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
+        return Err(AttestationError::TimestampMismatch {
+            expected: expected_ts,
+            got: result.timestamp_ms,
+        });
     }
 
     // check age if exists
