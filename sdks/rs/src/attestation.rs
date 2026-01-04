@@ -39,6 +39,11 @@ pub enum AttestationError {
     TimestampMismatch { expected: u64, got: u64 },
     #[error("too old: expected age {age}, got {got}, now {now}")]
     TooOld { age: u64, got: u64, now: u64 },
+    #[error("pcrs mismatch: expected {expected:?}, got {got:?}")]
+    PcrsMismatch {
+        expected: [[u8; 48]; 4],
+        got: [[u8; 48]; 4],
+    },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -101,7 +106,10 @@ pub fn verify(
     if let Some(pcrs) = expectations.pcrs
         && result.pcrs != pcrs
     {
-        return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
+        return Err(AttestationError::PcrsMismatch {
+            expected: pcrs,
+            got: result.pcrs,
+        });
     }
 
     // compute image id
