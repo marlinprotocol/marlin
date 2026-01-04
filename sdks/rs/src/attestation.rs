@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
-use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl};
+use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl, error::CoseError};
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNumContext;
 use openssl::ec::{EcKey, PointConversionForm};
@@ -29,8 +29,33 @@ pub struct AttestationDecoded {
 
 #[derive(Error, Debug)]
 pub enum AttestationError {
-    #[error("failed to parse: {0}")]
-    ParseFailed(String),
+    // parse errors
+    #[error("cose error in {context}: {error}")]
+    Cose {
+        context: String,
+        #[source]
+        error: CoseError,
+    },
+    #[error("cbor error in {context}: {error}")]
+    Cbor {
+        context: String,
+        #[source]
+        error: serde_cbor::Error,
+    },
+    #[error("openssl error in {context}: {error}")]
+    OpenSsl {
+        context: String,
+        #[source]
+        error: openssl::error::ErrorStack,
+    },
+    #[error("missing field: {0}")]
+    MissingField(String),
+    #[error("field {0} has invalid type")]
+    InvalidType(String),
+    #[error("field {0} has invalid length: {1}")]
+    InvalidLength(String, String),
+    #[error("timestamp conversion error: {0}")]
+    TimestampConversion(#[from] std::num::TryFromIntError),
     // verification errors
     #[error("leaf signature verification failed")]
     SignatureVerifyFailed,
@@ -190,15 +215,25 @@ pub fn verify(
 fn parse_attestation_doc(
     attestation_doc: &[u8],
 ) -> Result<(CoseSign1, BTreeMap<Value, Value>), AttestationError> {
-    let cosesign1 = CoseSign1::from_bytes(attestation_doc)
-        .map_err(|e| AttestationError::ParseFailed(format!("cose: {e}")))?;
+    let cosesign1 = CoseSign1::from_bytes(attestation_doc).map_err(|e| AttestationError::Cose {
+        context: "cose".into(),
+        error: e,
+    })?;
     let payload = cosesign1
         .get_payload::<Openssl>(None)
-        .map_err(|e| AttestationError::ParseFailed(format!("cose payload: {e}")))?;
-    let cbor = serde_cbor::from_slice::<Value>(&payload)
-        .map_err(|e| AttestationError::ParseFailed(format!("cbor: {e}")))?;
-    let attestation_doc = value::from_value::<BTreeMap<Value, Value>>(cbor)
-        .map_err(|e| AttestationError::ParseFailed(format!("doc: {e}")))?;
+        .map_err(|e| AttestationError::Cose {
+            context: "cose payload".into(),
+            error: e,
+        })?;
+    let cbor = serde_cbor::from_slice::<Value>(&payload).map_err(|e| AttestationError::Cbor {
+        context: "cbor".into(),
+        error: e,
+    })?;
+    let attestation_doc =
+        value::from_value::<BTreeMap<Value, Value>>(cbor).map_err(|e| AttestationError::Cbor {
+            context: "doc".into(),
+            error: e,
+        })?;
 
     Ok((cosesign1, attestation_doc))
 }
@@ -206,18 +241,12 @@ fn parse_attestation_doc(
 fn parse_timestamp(attestation_doc: &mut BTreeMap<Value, Value>) -> Result<u64, AttestationError> {
     let timestamp = attestation_doc
         .remove(&"timestamp".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "timestamp not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("timestamp".into()))?;
     let timestamp = (match timestamp {
         Value::Integer(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "timestamp decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("timestamp".into())),
     })?;
-    let timestamp = timestamp
-        .try_into()
-        .map_err(|e| AttestationError::ParseFailed(format!("timestamp: {e}")))?;
+    let timestamp = timestamp.try_into()?;
 
     Ok(timestamp)
 }
@@ -227,39 +256,39 @@ fn parse_pcrs(
 ) -> Result<[[u8; 48]; 4], AttestationError> {
     let pcrs_arr = attestation_doc
         .remove(&"nitrotpm_pcrs".to_owned().into())
-        .ok_or(AttestationError::ParseFailed("pcrs not found".into()))?;
-    let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr)
-        .map_err(|e| AttestationError::ParseFailed(format!("pcrs: {e}")))?;
+        .ok_or(AttestationError::MissingField("pcrs".into()))?;
+    let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr).map_err(|e| {
+        AttestationError::Cbor {
+            context: "pcrs".into(),
+            error: e,
+        }
+    })?;
 
     let mut result = [[0; 48]; 4];
     for (i, result_pcr) in result.iter_mut().take(3).enumerate() {
         let pcr = pcrs_arr
             .remove(&(i as u32).into())
-            .ok_or(AttestationError::ParseFailed(format!("pcr{i} not found")))?;
+            .ok_or(AttestationError::MissingField(format!("pcr{i}")))?;
         let pcr = (match pcr {
             Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed(format!(
-                "pcr{i} decode failure"
-            ))),
+            _ => Err(AttestationError::InvalidType(format!("pcr{i}"))),
         })?;
         *result_pcr = pcr
             .as_slice()
             .try_into()
-            .map_err(|e| AttestationError::ParseFailed(format!("pcr{i} not 48 bytes: {e}")))?;
+            .map_err(|e| AttestationError::InvalidLength(format!("pcr{i}"), format!("{e}")))?;
     }
 
     // check if pcr16 exists, leave as zero if not
     if let Some(pcr) = pcrs_arr.remove(&16.into()) {
         let pcr = (match pcr {
             Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed(
-                "pcr16 decode failure".to_string(),
-            )),
+            _ => Err(AttestationError::InvalidType("pcr16".into())),
         })?;
         result[3] = pcr
             .as_slice()
             .try_into()
-            .map_err(|e| AttestationError::ParseFailed(format!("pcr16 not 48 bytes: {e}")))?;
+            .map_err(|e| AttestationError::InvalidLength("pcr16".into(), format!("{e}")))?;
     }
 
     Ok(result)
@@ -273,23 +302,28 @@ fn verify_root_of_trust(
     // verify attestation doc signature
     let enclave_certificate = attestation_doc
         .remove(&"certificate".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "certificate key not found".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("certificate".into()))?;
     let enclave_certificate = (match enclave_certificate {
         Value::Bytes(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "enclave certificate decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("enclave certificate".into())),
     })?;
-    let enclave_certificate = X509::from_der(&enclave_certificate)
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf der: {e}")))?;
+    let enclave_certificate =
+        X509::from_der(&enclave_certificate).map_err(|e| AttestationError::OpenSsl {
+            context: "leaf der".into(),
+            error: e,
+        })?;
     let pub_key = enclave_certificate
         .public_key()
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf pubkey: {e}")))?;
+        .map_err(|e| AttestationError::OpenSsl {
+            context: "leaf pubkey".into(),
+            error: e,
+        })?;
     let verify_result = cosesign1
         .verify_signature::<Openssl>(&pub_key)
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf signature: {e}")))?;
+        .map_err(|e| AttestationError::Cose {
+            context: "leaf signature".into(),
+            error: e,
+        })?;
 
     if !verify_result {
         return Err(AttestationError::SignatureVerifyFailed);
@@ -298,14 +332,10 @@ fn verify_root_of_trust(
     // verify certificate chain
     let cabundle = attestation_doc
         .remove(&"cabundle".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "cabundle key not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("cabundle".into()))?;
     let mut cabundle = (match cabundle {
         Value::Array(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "cabundle decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("cabundle".into())),
     })?;
     cabundle.reverse();
 
@@ -324,18 +354,28 @@ fn verify_cert_chain(
     for i in 0..(certs.len() - 1) {
         let pubkey = certs[i + 1]
             .public_key()
-            .map_err(|e| AttestationError::ParseFailed(format!("pubkey {i}: {e}")))?;
+            .map_err(|e| AttestationError::OpenSsl {
+                context: format!("pubkey {i}"),
+                error: e,
+            })?;
         if !certs[i]
             .verify(&pubkey)
-            .map_err(|e| AttestationError::ParseFailed(format!("signature {i}: {e}")))?
+            .map_err(|e| AttestationError::OpenSsl {
+                context: format!("signature {i}"),
+                error: e,
+            })?
         {
             return Err(AttestationError::CertChainSignatureFailed { index: i });
         }
         if certs[i + 1].issued(&certs[i]) != X509VerifyResult::OK {
             return Err(AttestationError::CertChainIssuerOrSubjectMismatch { index: i });
         }
-        let current_time = Asn1Time::from_unix(timestamp as i64 / 1000)
-            .map_err(|e| AttestationError::ParseFailed(e.to_string()))?;
+        let current_time = Asn1Time::from_unix(timestamp as i64 / 1000).map_err(|e| {
+            AttestationError::OpenSsl {
+                context: format!("timestamp {i}"),
+                error: e,
+            }
+        })?;
         if certs[i].not_after() < current_time || certs[i].not_before() > current_time {
             return Err(AttestationError::CertChainExpired { index: i });
         }
@@ -343,16 +383,26 @@ fn verify_cert_chain(
 
     let root_cert = certs
         .last()
-        .ok_or(AttestationError::ParseFailed("root".into()))?;
+        .ok_or(AttestationError::MissingField("root".into()))?;
 
     let root_public_key_der = root_cert
         .public_key()
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey: {e}")))?
+        .map_err(|e| AttestationError::OpenSsl {
+            context: "root pubkey".into(),
+            error: e,
+        })?
         .public_key_to_der()
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey der: {e}")))?;
+        .map_err(|e| AttestationError::OpenSsl {
+            context: "root pubkey der".into(),
+            error: e,
+        })?;
 
-    let root_public_key = EcKey::public_key_from_der(&root_public_key_der)
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey der: {e}")))?;
+    let root_public_key = EcKey::public_key_from_der(&root_public_key_der).map_err(|e| {
+        AttestationError::OpenSsl {
+            context: "root pubkey der".into(),
+            error: e,
+        }
+    })?;
 
     let root_public_key_sec1 = root_public_key
         .public_key()
@@ -360,10 +410,16 @@ fn verify_cert_chain(
             root_public_key.group(),
             PointConversionForm::UNCOMPRESSED,
             BigNumContext::new()
-                .map_err(|e| AttestationError::ParseFailed(format!("bignum context: {e}")))?
+                .map_err(|e| AttestationError::OpenSsl {
+                    context: "bignum context".into(),
+                    error: e,
+                })?
                 .borrow_mut(),
         )
-        .map_err(|e| AttestationError::ParseFailed(format!("sec1: {e}")))?;
+        .map_err(|e| AttestationError::OpenSsl {
+            context: "sec1".into(),
+            error: e,
+        })?;
 
     Ok(root_public_key_sec1[1..].to_vec().into_boxed_slice())
 }
@@ -373,10 +429,12 @@ fn get_all_certs(cert: X509, cabundle: &[Value]) -> Result<Box<[X509]>, Attestat
     for cert in cabundle {
         let cert = (match cert {
             Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed("cert decode".into())),
+            _ => Err(AttestationError::InvalidType("cert decode".into())),
         })?;
-        let cert =
-            X509::from_der(cert).map_err(|e| AttestationError::ParseFailed(format!("der: {e}")))?;
+        let cert = X509::from_der(cert).map_err(|e| AttestationError::OpenSsl {
+            context: "der".into(),
+            error: e,
+        })?;
         all_certs.push(cert);
     }
     Ok(all_certs.into_boxed_slice())
@@ -387,14 +445,10 @@ fn parse_enclave_key(
 ) -> Result<Box<[u8]>, AttestationError> {
     let public_key = attestation_doc
         .remove(&"public_key".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "public key not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("public_key".into()))?;
     let public_key = (match public_key {
         Value::Bytes(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "public key decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("public_key".into())),
     })?;
 
     Ok(public_key.into_boxed_slice())
@@ -405,15 +459,11 @@ fn parse_user_data(
 ) -> Result<Box<[u8]>, AttestationError> {
     let user_data = attestation_doc
         .remove(&"user_data".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "user data not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("user_data".into()))?;
     let user_data = (match user_data {
         Value::Bytes(b) => Ok(b),
         Value::Null => Ok(vec![]),
-        _ => Err(AttestationError::ParseFailed(
-            "user data decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("user_data".into())),
     })?;
 
     Ok(user_data.into_boxed_slice())
