@@ -36,6 +36,8 @@ pub enum AttestationError {
     // verification errors
     #[error("leaf signature verification failed")]
     SignatureVerifyFailed,
+    #[error("certificate chain signature verification failed at index {index}")]
+    CertChainSignatureFailed { index: usize },
     // expectation mismatch errors
     #[error("timestamp mismatch: expected {expected}, got {got}")]
     TimestampMismatch { expected: u64, got: u64 },
@@ -325,7 +327,7 @@ fn verify_cert_chain(
             .verify(&pubkey)
             .map_err(|e| AttestationError::ParseFailed(format!("signature {i}: {e}")))?
         {
-            return Err(AttestationError::VerifyFailed("signature {i}".into()));
+            return Err(AttestationError::CertChainSignatureFailed { index: i });
         }
         if certs[i + 1].issued(&certs[i]) != X509VerifyResult::OK {
             return Err(AttestationError::VerifyFailed(
