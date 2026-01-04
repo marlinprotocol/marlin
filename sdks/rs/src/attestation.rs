@@ -37,6 +37,8 @@ pub enum AttestationError {
     // Expectation mismatch errors
     #[error("timestamp mismatch: expected {expected}, got {got}")]
     TimestampMismatch { expected: u64, got: u64 },
+    #[error("too old: expected age {age}, got {got}, now {now}")]
+    TooOld { age: u64, got: u64, now: u64 },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -85,7 +87,11 @@ pub fn verify(
         && result.timestamp_ms <= current_ts
         && current_ts - result.timestamp_ms > max_age
     {
-        return Err(AttestationError::VerifyFailed("too old".into()));
+        return Err(AttestationError::TooOld {
+            age: max_age,
+            got: result.timestamp_ms,
+            now: current_ts,
+        });
     }
 
     // parse pcrs
