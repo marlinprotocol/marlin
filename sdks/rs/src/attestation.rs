@@ -30,14 +30,10 @@ pub struct AttestationDecoded {
 #[derive(Error, Debug)]
 pub enum AttestationError {
     // parse errors
-    #[error("cose error in {context}: {error}")]
-    Cose {
-        context: String,
-        #[source]
-        error: CoseError,
-    },
-    #[error("cbor error in {context}: {error}")]
-    Cbor {
+    #[error("failed to parse cose")]
+    InvalidCose(#[source] CoseError),
+    #[error("failed to parse cbor at {context}")]
+    InvalidCbor {
         context: String,
         #[source]
         error: serde_cbor::Error,
@@ -57,8 +53,10 @@ pub enum AttestationError {
     #[error("timestamp conversion error: {0}")]
     TimestampConversion(#[from] std::num::TryFromIntError),
     // verification errors
+    #[error("cose signature verification failed")]
+    CoseSignatureVerifyFailed(#[source] CoseError),
     #[error("leaf signature verification failed")]
-    SignatureVerifyFailed,
+    LeafSignatureVerifyFailed,
     #[error("certificate chain signature verification failed at index {index}")]
     CertChainSignatureFailed { index: usize },
     #[error("certificate chain issuer or subject mismatch at index {index}")]
@@ -215,25 +213,21 @@ pub fn verify(
 fn parse_attestation_doc(
     attestation_doc: &[u8],
 ) -> Result<(CoseSign1, BTreeMap<Value, Value>), AttestationError> {
-    let cosesign1 = CoseSign1::from_bytes(attestation_doc).map_err(|e| AttestationError::Cose {
-        context: "cose".into(),
-        error: e,
-    })?;
-    let payload = cosesign1
-        .get_payload::<Openssl>(None)
-        .map_err(|e| AttestationError::Cose {
-            context: "cose payload".into(),
+    let cosesign1 =
+        CoseSign1::from_bytes(attestation_doc).map_err(AttestationError::InvalidCose)?;
+    // SAFETY: method cannot fail if no key is proided
+    let payload = cosesign1.get_payload::<Openssl>(None).expect("cannot fail");
+    let cbor =
+        serde_cbor::from_slice::<Value>(&payload).map_err(|e| AttestationError::InvalidCbor {
+            context: "payload".into(),
             error: e,
         })?;
-    let cbor = serde_cbor::from_slice::<Value>(&payload).map_err(|e| AttestationError::Cbor {
-        context: "cbor".into(),
-        error: e,
-    })?;
-    let attestation_doc =
-        value::from_value::<BTreeMap<Value, Value>>(cbor).map_err(|e| AttestationError::Cbor {
-            context: "doc".into(),
+    let attestation_doc = value::from_value::<BTreeMap<Value, Value>>(cbor).map_err(|e| {
+        AttestationError::InvalidCbor {
+            context: "root".into(),
             error: e,
-        })?;
+        }
+    })?;
 
     Ok((cosesign1, attestation_doc))
 }
@@ -258,7 +252,7 @@ fn parse_pcrs(
         .remove(&"nitrotpm_pcrs".to_owned().into())
         .ok_or(AttestationError::MissingField("pcrs".into()))?;
     let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr).map_err(|e| {
-        AttestationError::Cbor {
+        AttestationError::InvalidCbor {
             context: "pcrs".into(),
             error: e,
         }
@@ -320,13 +314,10 @@ fn verify_root_of_trust(
         })?;
     let verify_result = cosesign1
         .verify_signature::<Openssl>(&pub_key)
-        .map_err(|e| AttestationError::Cose {
-            context: "leaf signature".into(),
-            error: e,
-        })?;
+        .map_err(AttestationError::CoseSignatureVerifyFailed)?;
 
     if !verify_result {
-        return Err(AttestationError::SignatureVerifyFailed);
+        return Err(AttestationError::LeafSignatureVerifyFailed);
     }
 
     // verify certificate chain
