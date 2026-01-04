@@ -43,6 +43,8 @@ pub enum AttestationError {
         expected: [[u8; 48]; 4],
         got: [[u8; 48]; 4],
     },
+    #[error("image id mismatch: expected {expected}, got {got}")]
+    ImageIdMismatch { expected: String, got: String },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -123,7 +125,10 @@ pub fn verify(
     if let Some(image_id) = expectations.image_id
         && &result.image_id != image_id
     {
-        return Err(AttestationError::VerifyFailed("image id mismatch".into()));
+        return Err(AttestationError::ImageIdMismatch {
+            expected: hex::encode(image_id),
+            got: hex::encode(&result.image_id),
+        });
     }
 
     // verify signature and cert chain
