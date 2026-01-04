@@ -40,6 +40,8 @@ pub enum AttestationError {
     CertChainSignatureFailed { index: usize },
     #[error("certificate chain issuer or subject mismatch at index {index}")]
     CertChainIssuerOrSubjectMismatch { index: usize },
+    #[error("certificate chain expired at index {index}")]
+    CertChainExpired { index: usize },
     // expectation mismatch errors
     #[error("timestamp mismatch: expected {expected}, got {got}")]
     TimestampMismatch { expected: u64, got: u64 },
@@ -337,7 +339,7 @@ fn verify_cert_chain(
         let current_time = Asn1Time::from_unix(timestamp as i64 / 1000)
             .map_err(|e| AttestationError::ParseFailed(e.to_string()))?;
         if certs[i].not_after() < current_time || certs[i].not_before() > current_time {
-            return Err(AttestationError::VerifyFailed("timestamp {i}".into()));
+            return Err(AttestationError::CertChainExpired { index: i });
         }
     }
 
