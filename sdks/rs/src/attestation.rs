@@ -1,13 +1,18 @@
 use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
-use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl, error::CoseError};
+use aws_nitro_enclaves_cose::{
+    CoseSign1,
+    crypto::{Hash, MessageDigest},
+    error::CoseError,
+};
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNumContext;
 use openssl::ec::{EcKey, PointConversionForm};
-use openssl::sha::Sha256;
+// use openssl::sha::Sha256;
 use openssl::x509::{X509, X509VerifyResult};
 use serde_cbor::{self, value, value::Value};
+use sha2::{Digest, Sha256, Sha384, Sha512};
 use thiserror::Error;
 
 pub const AWS_ROOT_KEY: [u8; 96] = hex_literal::hex!(
@@ -155,7 +160,7 @@ pub fn verify(
     // this one has 0, 1, 2 and 16
     hasher.update(&((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
     hasher.update(result.pcrs.as_flattened());
-    result.image_id = hasher.finish();
+    result.image_id = hasher.finalize().into();
 
     // check image id if exists
     if let Some(image_id) = expectations.image_id
@@ -216,7 +221,7 @@ fn parse_attestation_doc(
     let cosesign1 =
         CoseSign1::from_bytes(attestation_doc).map_err(AttestationError::InvalidCose)?;
     // SAFETY: method cannot fail if no key is proided
-    let payload = cosesign1.get_payload::<Openssl>(None).expect("cannot fail");
+    let payload = cosesign1.get_payload::<Hasher>(None).expect("cannot fail");
     let cbor =
         serde_cbor::from_slice::<Value>(&payload).map_err(|e| AttestationError::InvalidCbor {
             context: "payload".into(),
@@ -313,7 +318,7 @@ fn verify_root_of_trust(
             error: e,
         })?;
     let verify_result = cosesign1
-        .verify_signature::<Openssl>(&pub_key)
+        .verify_signature::<Hasher>(&pub_key)
         .map_err(AttestationError::CoseSignatureVerifyFailed)?;
 
     if !verify_result {
@@ -458,6 +463,18 @@ fn parse_user_data(
     })?;
 
     Ok(user_data.into_boxed_slice())
+}
+
+pub struct Hasher;
+
+impl Hash for Hasher {
+    fn hash(algorithm: MessageDigest, data: &[u8]) -> Result<Vec<u8>, CoseError> {
+        match algorithm {
+            MessageDigest::Sha256 => Ok(Sha256::digest(data).to_vec()),
+            MessageDigest::Sha384 => Ok(Sha384::digest(data).to_vec()),
+            MessageDigest::Sha512 => Ok(Sha512::digest(data).to_vec()),
+        }
+    }
 }
 
 #[cfg(test)]
