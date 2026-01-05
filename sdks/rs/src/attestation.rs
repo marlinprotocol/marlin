@@ -1,19 +1,19 @@
-use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
+use aws_lc_rs::signature::{ECDSA_P384_SHA384_FIXED, UnparsedPublicKey};
 use aws_nitro_enclaves_cose::{
     CoseSign1,
-    crypto::{Hash, MessageDigest},
+    crypto::{Hash, MessageDigest, SignatureAlgorithm, SigningPublicKey},
     error::CoseError,
 };
-use openssl::asn1::Asn1Time;
-use openssl::bn::BigNumContext;
-use openssl::ec::{EcKey, PointConversionForm};
-// use openssl::sha::Sha256;
-use openssl::x509::{X509, X509VerifyResult};
 use serde_cbor::{self, value, value::Value};
-use sha2::{Digest, Sha256, Sha384, Sha512};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
+use x509_parser::prelude::*;
+use x509_parser::{
+    oid_registry::{OID_KEY_TYPE_EC_PUBLIC_KEY, OID_SIG_ECDSA_WITH_SHA384},
+    time::ASN1Time,
+};
 
 pub const AWS_ROOT_KEY: [u8; 96] = hex_literal::hex!(
     "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4"
@@ -43,11 +43,11 @@ pub enum AttestationError {
         #[source]
         error: serde_cbor::Error,
     },
-    #[error("openssl error in {context}: {error}")]
-    OpenSsl {
+    #[error("x509 error in {context}: {error}")]
+    X509 {
         context: String,
         #[source]
-        error: openssl::error::ErrorStack,
+        error: x509_parser::nom::Err<x509_parser::error::X509Error>,
     },
     #[error("missing field: {0}")]
     MissingField(String),
@@ -221,7 +221,9 @@ fn parse_attestation_doc(
     let cosesign1 =
         CoseSign1::from_bytes(attestation_doc).map_err(AttestationError::InvalidCose)?;
     // SAFETY: method cannot fail if no key is proided
-    let payload = cosesign1.get_payload::<Hasher>(None).expect("cannot fail");
+    let payload = cosesign1
+        .get_payload::<CertHasher>(None)
+        .expect("cannot fail");
     let cbor =
         serde_cbor::from_slice::<Value>(&payload).map_err(|e| AttestationError::InvalidCbor {
             context: "payload".into(),
@@ -299,26 +301,25 @@ fn verify_root_of_trust(
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
     // verify attestation doc signature
-    let enclave_certificate = attestation_doc
+    let enclave_certificate_bytes = attestation_doc
         .remove(&"certificate".to_owned().into())
         .ok_or(AttestationError::MissingField("certificate".into()))?;
-    let enclave_certificate = (match enclave_certificate {
+    let enclave_certificate_bytes = (match enclave_certificate_bytes {
         Value::Bytes(b) => Ok(b),
         _ => Err(AttestationError::InvalidType("enclave certificate".into())),
     })?;
-    let enclave_certificate =
-        X509::from_der(&enclave_certificate).map_err(|e| AttestationError::OpenSsl {
+    let (_, cert) = X509Certificate::from_der(&enclave_certificate_bytes).map_err(|e| {
+        AttestationError::X509 {
             context: "leaf der".into(),
             error: e,
-        })?;
-    let pub_key = enclave_certificate
-        .public_key()
-        .map_err(|e| AttestationError::OpenSsl {
-            context: "leaf pubkey".into(),
-            error: e,
-        })?;
+        }
+    })?;
+
+    // Extract public key for COSE verification
+    let verifier_cert = CertWrapper(&cert.tbs_certificate);
+
     let verify_result = cosesign1
-        .verify_signature::<Hasher>(&pub_key)
+        .verify_signature::<CertHasher>(&verifier_cert)
         .map_err(AttestationError::CoseSignatureVerifyFailed)?;
 
     if !verify_result {
@@ -335,44 +336,62 @@ fn verify_root_of_trust(
     })?;
     cabundle.reverse();
 
-    let root_public_key = verify_cert_chain(enclave_certificate, &cabundle, timestamp)?;
+    let root_public_key = verify_cert_chain(&enclave_certificate_bytes, &cabundle, timestamp)?;
 
     Ok(root_public_key)
 }
 
 fn verify_cert_chain(
-    cert: X509,
+    cert_bytes: &[u8],
     cabundle: &[Value],
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
-    let certs = get_all_certs(cert, cabundle)?;
+    let mut certs = Vec::with_capacity(cabundle.len() + 1);
 
-    for i in 0..(certs.len() - 1) {
-        let pubkey = certs[i + 1]
-            .public_key()
-            .map_err(|e| AttestationError::OpenSsl {
-                context: format!("pubkey {i}"),
+    let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| AttestationError::X509 {
+        context: "leaf der".into(),
+        error: e,
+    })?;
+    certs.push(cert);
+
+    for (i, cert_val) in cabundle.iter().enumerate() {
+        let cert_der = (match cert_val {
+            Value::Bytes(b) => Ok(b),
+            _ => Err(AttestationError::InvalidType("cert decode".into())),
+        })?;
+        let (_, cert) =
+            X509Certificate::from_der(cert_der).map_err(|e| AttestationError::X509 {
+                context: format!("der {}", i),
                 error: e,
             })?;
-        if !certs[i]
-            .verify(&pubkey)
-            .map_err(|e| AttestationError::OpenSsl {
-                context: format!("signature {i}"),
-                error: e,
-            })?
-        {
-            return Err(AttestationError::CertChainSignatureFailed { index: i });
-        }
-        if certs[i + 1].issued(&certs[i]) != X509VerifyResult::OK {
+        certs.push(cert);
+    }
+
+    for i in 0..(certs.len() - 1) {
+        let issuer_spki = &certs[i + 1].tbs_certificate.subject_pki;
+
+        // Use Some(issuer_spki) as expected by x509-parser
+        certs[i]
+            .verify_signature(Some(issuer_spki))
+            .map_err(|e| AttestationError::X509 {
+                context: format!("signature {}", i),
+                error: x509_parser::nom::Err::Failure(e),
+            })?;
+
+        if certs[i + 1].tbs_certificate.subject != certs[i].tbs_certificate.issuer {
             return Err(AttestationError::CertChainIssuerOrSubjectMismatch { index: i });
         }
-        let current_time = Asn1Time::from_unix(timestamp as i64 / 1000).map_err(|e| {
-            AttestationError::OpenSsl {
-                context: format!("timestamp {i}"),
-                error: e,
+
+        let current_time = ASN1Time::from_timestamp((timestamp / 1000) as i64).map_err(|_| {
+            AttestationError::X509 {
+                context: format!("timestamp creation {}", i),
+                error: x509_parser::nom::Err::Failure(x509_parser::error::X509Error::InvalidDate),
             }
         })?;
-        if certs[i].not_after() < current_time || certs[i].not_before() > current_time {
+
+        if certs[i].tbs_certificate.validity.not_after < current_time
+            || certs[i].tbs_certificate.validity.not_before > current_time
+        {
             return Err(AttestationError::CertChainExpired { index: i });
         }
     }
@@ -381,59 +400,20 @@ fn verify_cert_chain(
         .last()
         .ok_or(AttestationError::MissingField("root".into()))?;
 
-    let root_public_key_der = root_cert
-        .public_key()
-        .map_err(|e| AttestationError::OpenSsl {
-            context: "root pubkey".into(),
-            error: e,
-        })?
-        .public_key_to_der()
-        .map_err(|e| AttestationError::OpenSsl {
-            context: "root pubkey der".into(),
-            error: e,
-        })?;
+    // Extract root public key in SEC1 format (uncompressed, without 0x04 prefix if needed)
+    let spki_data = &root_cert
+        .tbs_certificate
+        .subject_pki
+        .subject_public_key
+        .data;
 
-    let root_public_key = EcKey::public_key_from_der(&root_public_key_der).map_err(|e| {
-        AttestationError::OpenSsl {
-            context: "root pubkey der".into(),
-            error: e,
-        }
-    })?;
-
-    let root_public_key_sec1 = root_public_key
-        .public_key()
-        .to_bytes(
-            root_public_key.group(),
-            PointConversionForm::UNCOMPRESSED,
-            BigNumContext::new()
-                .map_err(|e| AttestationError::OpenSsl {
-                    context: "bignum context".into(),
-                    error: e,
-                })?
-                .borrow_mut(),
-        )
-        .map_err(|e| AttestationError::OpenSsl {
-            context: "sec1".into(),
-            error: e,
-        })?;
-
-    Ok(root_public_key_sec1[1..].to_vec().into_boxed_slice())
-}
-
-fn get_all_certs(cert: X509, cabundle: &[Value]) -> Result<Box<[X509]>, AttestationError> {
-    let mut all_certs = vec![cert];
-    for cert in cabundle {
-        let cert = (match cert {
-            Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::InvalidType("cert decode".into())),
-        })?;
-        let cert = X509::from_der(cert).map_err(|e| AttestationError::OpenSsl {
-            context: "der".into(),
-            error: e,
-        })?;
-        all_certs.push(cert);
+    // P-384 uncompressed key is 97 bytes (0x04 + 48 + 48).
+    // If it starts with 0x04, we strip it.
+    if spki_data.len() == 97 && spki_data[0] == 0x04 {
+        Ok(spki_data[1..].to_vec().into_boxed_slice())
+    } else {
+        Ok(spki_data.to_vec().into_boxed_slice())
     }
-    Ok(all_certs.into_boxed_slice())
 }
 
 fn parse_enclave_key(
@@ -465,15 +445,50 @@ fn parse_user_data(
     Ok(user_data.into_boxed_slice())
 }
 
-pub struct Hasher;
+pub struct CertHasher;
 
-impl Hash for Hasher {
-    fn hash(algorithm: MessageDigest, data: &[u8]) -> Result<Vec<u8>, CoseError> {
-        match algorithm {
-            MessageDigest::Sha256 => Ok(Sha256::digest(data).to_vec()),
-            MessageDigest::Sha384 => Ok(Sha384::digest(data).to_vec()),
-            MessageDigest::Sha512 => Ok(Sha512::digest(data).to_vec()),
+impl Hash for CertHasher {
+    fn hash(_algorithm: MessageDigest, data: &[u8]) -> Result<Vec<u8>, CoseError> {
+        // NOTE: the verifier function internally hashes the message, return it as is
+
+        // match algorithm {
+        //     MessageDigest::Sha256 => Ok(Sha256::digest(data).to_vec()),
+        //     MessageDigest::Sha384 => Ok(Sha384::digest(data).to_vec()),
+        //     MessageDigest::Sha512 => Ok(Sha512::digest(data).to_vec()),
+        // }
+        Ok(data.into())
+    }
+}
+
+struct CertWrapper<'a>(&'a TbsCertificate<'a>);
+
+impl<'a> SigningPublicKey for CertWrapper<'a> {
+    fn get_parameters(&self) -> Result<(SignatureAlgorithm, MessageDigest), CoseError> {
+        if self.0.subject_pki.algorithm.algorithm != OID_KEY_TYPE_EC_PUBLIC_KEY {
+            return Err(CoseError::UnsupportedError("Unsupported key type".into()));
         }
+        match self.0.subject_pki.subject_public_key.data.len() {
+            65 => Ok((SignatureAlgorithm::ES256, MessageDigest::Sha256)),
+            97 => Ok((SignatureAlgorithm::ES384, MessageDigest::Sha384)),
+            129 => Ok((SignatureAlgorithm::ES512, MessageDigest::Sha512)),
+            _ => Err(CoseError::UnsupportedError("Unsupported key type".into())),
+        }
+    }
+
+    fn verify(&self, digest: &[u8], signature: &[u8]) -> Result<bool, CoseError> {
+        if self.0.signature.algorithm != OID_SIG_ECDSA_WITH_SHA384 {
+            return Err(CoseError::UnsupportedError(
+                "Unsupported signature type".into(),
+            ));
+        }
+        let pubkey = UnparsedPublicKey::new(
+            &ECDSA_P384_SHA384_FIXED,
+            &self.0.subject_pki.subject_public_key.data,
+        );
+        pubkey
+            .verify(digest, signature)
+            .map_err(|_| CoseError::UnverifiedSignature)
+            .map(|_| true)
     }
 }
 
