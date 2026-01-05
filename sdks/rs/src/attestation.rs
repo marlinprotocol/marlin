@@ -9,9 +9,9 @@ use aws_nitro_enclaves_cose::{
 use serde_cbor::{self, value::Value};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use x509_parser::prelude::*;
 use x509_parser::{
     oid_registry::{OID_KEY_TYPE_EC_PUBLIC_KEY, OID_SIG_ECDSA_WITH_SHA384},
+    prelude::{FromDer, TbsCertificate, X509Certificate},
     time::ASN1Time,
 };
 
@@ -353,19 +353,16 @@ fn verify_cert_chain(
         // Use Some(issuer_spki) as expected by x509-parser
         certs[i]
             .verify_signature(Some(issuer_spki))
-            .map_err(|e| AttestationError::X509 {
-                context: format!("signature {}", i),
-                error: x509_parser::nom::Err::Failure(e),
-            })?;
+            .map_err(|_| AttestationError::CertChainSignatureFailed { index: i })?;
 
         if certs[i + 1].tbs_certificate.subject != certs[i].tbs_certificate.issuer {
             return Err(AttestationError::CertChainIssuerOrSubjectMismatch { index: i });
         }
 
-        let current_time = ASN1Time::from_timestamp((timestamp / 1000) as i64).map_err(|_| {
+        let current_time = ASN1Time::from_timestamp((timestamp / 1000) as i64).map_err(|e| {
             AttestationError::X509 {
-                context: format!("timestamp creation {}", i),
-                error: x509_parser::nom::Err::Failure(x509_parser::error::X509Error::InvalidDate),
+                context: format!("timestamp {}", i),
+                error: e.into(),
             }
         })?;
 
