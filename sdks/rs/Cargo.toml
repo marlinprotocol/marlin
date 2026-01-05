@@ -12,6 +12,7 @@ thiserror = { version = "2.0.12" }
 # Feature: attestation
 aws-nitro-enclaves-cose = { version = "0.5.2", optional = true }
 openssl = { version = "0.10", features = ["vendored"], optional = true }
+sha2 = "0.10"
 serde_cbor = { version = "0.11.2", optional = true }
 hex-literal = { version = "1.0.0", optional = true }
 hex = { version = "0.4", optional = true }

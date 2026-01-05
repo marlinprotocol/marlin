@@ -1193,6 +1193,7 @@ dependencies = [
  "openssl",
  "reqwest",
  "serde_cbor",
+ "sha2",
  "snow",
  "thiserror",
  "tokio",
