@@ -321,22 +321,17 @@ fn verify_root_of_trust(
     })?;
     cabundle.reverse();
 
-    let root_public_key = verify_cert_chain(&enclave_certificate_bytes, &cabundle, timestamp)?;
+    let root_public_key = verify_cert_chain(cert, &cabundle, timestamp)?;
 
     Ok(root_public_key)
 }
 
 fn verify_cert_chain(
-    cert_bytes: &[u8],
+    cert: X509Certificate,
     cabundle: &[Value],
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
     let mut certs = Vec::with_capacity(cabundle.len() + 1);
-
-    let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| AttestationError::X509 {
-        context: "leaf".into(),
-        error: e,
-    })?;
     certs.push(cert);
 
     for (i, cert_val) in cabundle.iter().enumerate() {
