@@ -6,7 +6,7 @@ use aws_nitro_enclaves_cose::{
     crypto::{Hash, MessageDigest, SignatureAlgorithm, SigningPublicKey},
     error::CoseError,
 };
-use serde_cbor::{self, value, value::Value};
+use serde_cbor::{self, value::Value};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use x509_parser::prelude::*;
@@ -37,12 +37,8 @@ pub enum AttestationError {
     // parse errors
     #[error("failed to parse cose")]
     InvalidCose(#[source] CoseError),
-    #[error("failed to parse cbor at {context}")]
-    InvalidCbor {
-        context: String,
-        #[source]
-        error: serde_cbor::Error,
-    },
+    #[error("failed to parse cbor")]
+    InvalidCbor(#[source] serde_cbor::Error),
     #[error("x509 error in {context}: {error}")]
     X509 {
         context: String,
@@ -224,19 +220,10 @@ fn parse_attestation_doc(
     let payload = cosesign1
         .get_payload::<CertHasher>(None)
         .expect("cannot fail");
-    let cbor =
-        serde_cbor::from_slice::<Value>(&payload).map_err(|e| AttestationError::InvalidCbor {
-            context: "payload".into(),
-            error: e,
-        })?;
-    let attestation_doc = value::from_value::<BTreeMap<Value, Value>>(cbor).map_err(|e| {
-        AttestationError::InvalidCbor {
-            context: "root".into(),
-            error: e,
-        }
-    })?;
+    let cbor = serde_cbor::from_slice::<BTreeMap<Value, Value>>(&payload)
+        .map_err(AttestationError::InvalidCbor)?;
 
-    Ok((cosesign1, attestation_doc))
+    Ok((cosesign1, cbor))
 }
 
 fn parse_timestamp(attestation_doc: &mut BTreeMap<Value, Value>) -> Result<u64, AttestationError> {
@@ -257,12 +244,10 @@ fn parse_pcrs(
 ) -> Result<[[u8; 48]; 4], AttestationError> {
     let pcrs_arr = attestation_doc
         .remove(&"nitrotpm_pcrs".to_owned().into())
-        .ok_or(AttestationError::MissingField("pcrs".into()))?;
-    let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr).map_err(|e| {
-        AttestationError::InvalidCbor {
-            context: "pcrs".into(),
-            error: e,
-        }
+        .ok_or(AttestationError::MissingField("nitrotpm_pcrs".into()))?;
+    let mut pcrs_arr = (match pcrs_arr {
+        Value::Map(b) => Ok(b),
+        _ => Err(AttestationError::InvalidType(format!("nitrotpm_pcrs"))),
     })?;
 
     let mut result = [[0; 48]; 4];
@@ -310,7 +295,7 @@ fn verify_root_of_trust(
     })?;
     let (_, cert) = X509Certificate::from_der(&enclave_certificate_bytes).map_err(|e| {
         AttestationError::X509 {
-            context: "leaf der".into(),
+            context: "leaf".into(),
             error: e,
         }
     })?;
@@ -349,7 +334,7 @@ fn verify_cert_chain(
     let mut certs = Vec::with_capacity(cabundle.len() + 1);
 
     let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| AttestationError::X509 {
-        context: "leaf der".into(),
+        context: "leaf".into(),
         error: e,
     })?;
     certs.push(cert);
@@ -361,7 +346,7 @@ fn verify_cert_chain(
         })?;
         let (_, cert) =
             X509Certificate::from_der(cert_der).map_err(|e| AttestationError::X509 {
-                context: format!("der {}", i),
+                context: format!("bundle {}", i),
                 error: e,
             })?;
         certs.push(cert);
