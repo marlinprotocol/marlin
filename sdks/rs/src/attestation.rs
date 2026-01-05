@@ -373,24 +373,17 @@ fn verify_cert_chain(
         }
     }
 
-    let root_cert = certs
+    let root_public_key = certs
         .last()
-        .ok_or(AttestationError::MissingField("root".into()))?;
-
-    // Extract root public key in SEC1 format (uncompressed, without 0x04 prefix if needed)
-    let spki_data = &root_cert
+        .ok_or(AttestationError::MissingField("root".into()))?
         .tbs_certificate
         .subject_pki
         .subject_public_key
-        .data;
+        .data[1..]
+        .to_vec()
+        .into_boxed_slice();
 
-    // P-384 uncompressed key is 97 bytes (0x04 + 48 + 48).
-    // If it starts with 0x04, we strip it.
-    if spki_data.len() == 97 && spki_data[0] == 0x04 {
-        Ok(spki_data[1..].to_vec().into_boxed_slice())
-    } else {
-        Ok(spki_data.to_vec().into_boxed_slice())
-    }
+    Ok(root_public_key)
 }
 
 fn parse_enclave_key(
