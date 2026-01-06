@@ -1,20 +1,24 @@
-use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
-use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl};
-use hex_literal::hex;
-use openssl::asn1::Asn1Time;
-use openssl::bn::BigNumContext;
-use openssl::ec::{EcKey, PointConversionForm};
-use openssl::sha::Sha256;
-use openssl::x509::{X509, X509VerifyResult};
-use serde_cbor::{self, value, value::Value};
+use aws_lc_rs::signature::{ECDSA_P384_SHA384_FIXED, UnparsedPublicKey};
+use aws_nitro_enclaves_cose::{
+    CoseSign1,
+    crypto::{Hash, MessageDigest, SignatureAlgorithm, SigningPublicKey},
+    error::CoseError,
+};
+use serde_cbor::{self, value::Value};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
+use x509_parser::{
+    oid_registry::{OID_KEY_TYPE_EC_PUBLIC_KEY, OID_SIG_ECDSA_WITH_SHA384},
+    prelude::{FromDer, TbsCertificate, X509Certificate},
+    time::ASN1Time,
+};
 
-pub const AWS_ROOT_KEY: [u8; 96] = hex!(
+pub const AWS_ROOT_KEY: [u8; 96] = hex_literal::hex!(
     "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4"
 );
-pub const MOCK_ROOT_KEY: [u8; 96] = hex!(
+pub const MOCK_ROOT_KEY: [u8; 96] = hex_literal::hex!(
     "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410"
 );
 
@@ -30,10 +34,54 @@ pub struct AttestationDecoded {
 
 #[derive(Error, Debug)]
 pub enum AttestationError {
-    #[error("failed to parse: {0}")]
-    ParseFailed(String),
-    #[error("failed to verify attestation: {0}")]
-    VerifyFailed(String),
+    // parse errors
+    #[error("failed to parse cose")]
+    InvalidCose(#[source] CoseError),
+    #[error("failed to parse cbor")]
+    InvalidCbor(#[source] serde_cbor::Error),
+    #[error("x509 error in {context}: {error}")]
+    X509 {
+        context: String,
+        #[source]
+        error: x509_parser::nom::Err<x509_parser::error::X509Error>,
+    },
+    #[error("missing field: {0}")]
+    MissingField(String),
+    #[error("field {0} has invalid type")]
+    InvalidType(String),
+    #[error("field {0} has invalid length: {1}")]
+    InvalidLength(String, String),
+    #[error("timestamp conversion error: {0}")]
+    TimestampConversion(#[from] std::num::TryFromIntError),
+    // verification errors
+    #[error("cose signature verification failed")]
+    CoseSignatureVerifyFailed(#[source] CoseError),
+    #[error("leaf signature verification failed")]
+    LeafSignatureVerifyFailed,
+    #[error("certificate chain signature verification failed at index {index}")]
+    CertChainSignatureFailed { index: usize },
+    #[error("certificate chain issuer or subject mismatch at index {index}")]
+    CertChainIssuerOrSubjectMismatch { index: usize },
+    #[error("certificate chain expired at index {index}")]
+    CertChainExpired { index: usize },
+    // expectation mismatch errors
+    #[error("timestamp mismatch: expected {expected}, got {got}")]
+    TimestampMismatch { expected: u64, got: u64 },
+    #[error("too old: expected age {age}, got {got}, now {now}")]
+    TooOld { age: u64, got: u64, now: u64 },
+    #[error("pcrs mismatch: expected {expected:?}, got {got:?}")]
+    PcrsMismatch {
+        expected: [[u8; 48]; 4],
+        got: [[u8; 48]; 4],
+    },
+    #[error("image id mismatch: expected {expected}, got {got}")]
+    ImageIdMismatch { expected: String, got: String },
+    #[error("root public key mismatch: expected {expected}, got {got}")]
+    RootPublicKeyMismatch { expected: String, got: String },
+    #[error("public key mismatch: expected {expected}, got {got}")]
+    PublicKeyMismatch { expected: String, got: String },
+    #[error("user data mismatch: expected {expected}, got {got}")]
+    UserDataMismatch { expected: String, got: String },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -71,7 +119,10 @@ pub fn verify(
     if let Some(expected_ts) = expectations.timestamp_ms
         && result.timestamp_ms != expected_ts
     {
-        return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
+        return Err(AttestationError::TimestampMismatch {
+            expected: expected_ts,
+            got: result.timestamp_ms,
+        });
     }
 
     // check age if exists
@@ -79,7 +130,11 @@ pub fn verify(
         && result.timestamp_ms <= current_ts
         && current_ts - result.timestamp_ms > max_age
     {
-        return Err(AttestationError::VerifyFailed("too old".into()));
+        return Err(AttestationError::TooOld {
+            age: max_age,
+            got: result.timestamp_ms,
+            now: current_ts,
+        });
     }
 
     // parse pcrs
@@ -89,7 +144,10 @@ pub fn verify(
     if let Some(pcrs) = expectations.pcrs
         && result.pcrs != pcrs
     {
-        return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
+        return Err(AttestationError::PcrsMismatch {
+            expected: pcrs,
+            got: result.pcrs,
+        });
     }
 
     // compute image id
@@ -98,13 +156,16 @@ pub fn verify(
     // this one has 0, 1, 2 and 16
     hasher.update(&((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
     hasher.update(result.pcrs.as_flattened());
-    result.image_id = hasher.finish();
+    result.image_id = hasher.finalize().into();
 
     // check image id if exists
     if let Some(image_id) = expectations.image_id
         && &result.image_id != image_id
     {
-        return Err(AttestationError::VerifyFailed("image id mismatch".into()));
+        return Err(AttestationError::ImageIdMismatch {
+            expected: hex::encode(image_id),
+            got: hex::encode(&result.image_id),
+        });
     }
 
     // verify signature and cert chain
@@ -115,9 +176,10 @@ pub fn verify(
     if let Some(root_public_key) = expectations.root_public_key
         && result.root_public_key.as_ref() != root_public_key
     {
-        return Err(AttestationError::VerifyFailed(
-            "root public key mismatch".into(),
-        ));
+        return Err(AttestationError::RootPublicKeyMismatch {
+            expected: hex::encode(root_public_key),
+            got: hex::encode(&result.root_public_key),
+        });
     }
 
     // return the enclave key
@@ -127,9 +189,10 @@ pub fn verify(
     if let Some(public_key) = expectations.public_key
         && result.public_key.as_ref() != public_key
     {
-        return Err(AttestationError::VerifyFailed(
-            "enclave public key mismatch".into(),
-        ));
+        return Err(AttestationError::PublicKeyMismatch {
+            expected: hex::encode(public_key),
+            got: hex::encode(&result.public_key),
+        });
     }
 
     // return the user data
@@ -139,7 +202,10 @@ pub fn verify(
     if let Some(user_data) = expectations.user_data
         && result.user_data.as_ref() != user_data
     {
-        return Err(AttestationError::VerifyFailed("user data mismatch".into()));
+        return Err(AttestationError::UserDataMismatch {
+            expected: hex::encode(user_data),
+            got: hex::encode(&result.user_data),
+        });
     }
 
     Ok(result)
@@ -148,34 +214,27 @@ pub fn verify(
 fn parse_attestation_doc(
     attestation_doc: &[u8],
 ) -> Result<(CoseSign1, BTreeMap<Value, Value>), AttestationError> {
-    let cosesign1 = CoseSign1::from_bytes(attestation_doc)
-        .map_err(|e| AttestationError::ParseFailed(format!("cose: {e}")))?;
+    let cosesign1 =
+        CoseSign1::from_bytes(attestation_doc).map_err(AttestationError::InvalidCose)?;
+    // SAFETY: method cannot fail if no key is proided
     let payload = cosesign1
-        .get_payload::<Openssl>(None)
-        .map_err(|e| AttestationError::ParseFailed(format!("cose payload: {e}")))?;
-    let cbor = serde_cbor::from_slice::<Value>(&payload)
-        .map_err(|e| AttestationError::ParseFailed(format!("cbor: {e}")))?;
-    let attestation_doc = value::from_value::<BTreeMap<Value, Value>>(cbor)
-        .map_err(|e| AttestationError::ParseFailed(format!("doc: {e}")))?;
+        .get_payload::<CertHasher>(None)
+        .expect("cannot fail");
+    let cbor = serde_cbor::from_slice::<BTreeMap<Value, Value>>(&payload)
+        .map_err(AttestationError::InvalidCbor)?;
 
-    Ok((cosesign1, attestation_doc))
+    Ok((cosesign1, cbor))
 }
 
 fn parse_timestamp(attestation_doc: &mut BTreeMap<Value, Value>) -> Result<u64, AttestationError> {
     let timestamp = attestation_doc
         .remove(&"timestamp".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "timestamp not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("timestamp".into()))?;
     let timestamp = (match timestamp {
         Value::Integer(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "timestamp decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("timestamp".into())),
     })?;
-    let timestamp = timestamp
-        .try_into()
-        .map_err(|e| AttestationError::ParseFailed(format!("timestamp: {e}")))?;
+    let timestamp = timestamp.try_into()?;
 
     Ok(timestamp)
 }
@@ -185,39 +244,37 @@ fn parse_pcrs(
 ) -> Result<[[u8; 48]; 4], AttestationError> {
     let pcrs_arr = attestation_doc
         .remove(&"nitrotpm_pcrs".to_owned().into())
-        .ok_or(AttestationError::ParseFailed("pcrs not found".into()))?;
-    let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr)
-        .map_err(|e| AttestationError::ParseFailed(format!("pcrs: {e}")))?;
+        .ok_or(AttestationError::MissingField("nitrotpm_pcrs".into()))?;
+    let mut pcrs_arr = (match pcrs_arr {
+        Value::Map(b) => Ok(b),
+        _ => Err(AttestationError::InvalidType(format!("nitrotpm_pcrs"))),
+    })?;
 
     let mut result = [[0; 48]; 4];
     for (i, result_pcr) in result.iter_mut().take(3).enumerate() {
         let pcr = pcrs_arr
             .remove(&(i as u32).into())
-            .ok_or(AttestationError::ParseFailed(format!("pcr{i} not found")))?;
+            .ok_or(AttestationError::MissingField(format!("pcr{i}")))?;
         let pcr = (match pcr {
             Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed(format!(
-                "pcr{i} decode failure"
-            ))),
+            _ => Err(AttestationError::InvalidType(format!("pcr{i}"))),
         })?;
         *result_pcr = pcr
             .as_slice()
             .try_into()
-            .map_err(|e| AttestationError::ParseFailed(format!("pcr{i} not 48 bytes: {e}")))?;
+            .map_err(|e| AttestationError::InvalidLength(format!("pcr{i}"), format!("{e}")))?;
     }
 
     // check if pcr16 exists, leave as zero if not
     if let Some(pcr) = pcrs_arr.remove(&16.into()) {
         let pcr = (match pcr {
             Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed(
-                "pcr16 decode failure".to_string(),
-            )),
+            _ => Err(AttestationError::InvalidType("pcr16".into())),
         })?;
         result[3] = pcr
             .as_slice()
             .try_into()
-            .map_err(|e| AttestationError::ParseFailed(format!("pcr16 not 48 bytes: {e}")))?;
+            .map_err(|e| AttestationError::InvalidLength("pcr16".into(), format!("{e}")))?;
     }
 
     Ok(result)
@@ -229,117 +286,104 @@ fn verify_root_of_trust(
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
     // verify attestation doc signature
-    let enclave_certificate = attestation_doc
+    let enclave_certificate_bytes = attestation_doc
         .remove(&"certificate".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "certificate key not found".to_owned(),
-        ))?;
-    let enclave_certificate = (match enclave_certificate {
+        .ok_or(AttestationError::MissingField("certificate".into()))?;
+    let enclave_certificate_bytes = (match enclave_certificate_bytes {
         Value::Bytes(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "enclave certificate decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("enclave certificate".into())),
     })?;
-    let enclave_certificate = X509::from_der(&enclave_certificate)
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf der: {e}")))?;
-    let pub_key = enclave_certificate
-        .public_key()
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf pubkey: {e}")))?;
+    let (_, cert) = X509Certificate::from_der(&enclave_certificate_bytes).map_err(|e| {
+        AttestationError::X509 {
+            context: "leaf".into(),
+            error: e,
+        }
+    })?;
+
+    // Extract public key for COSE verification
+    let verifier_cert = CertWrapper(&cert.tbs_certificate);
+
     let verify_result = cosesign1
-        .verify_signature::<Openssl>(&pub_key)
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf signature: {e}")))?;
+        .verify_signature::<CertHasher>(&verifier_cert)
+        .map_err(AttestationError::CoseSignatureVerifyFailed)?;
 
     if !verify_result {
-        return Err(AttestationError::VerifyFailed("leaf signature".into()));
+        return Err(AttestationError::LeafSignatureVerifyFailed);
     }
 
     // verify certificate chain
     let cabundle = attestation_doc
         .remove(&"cabundle".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "cabundle key not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("cabundle".into()))?;
     let mut cabundle = (match cabundle {
         Value::Array(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "cabundle decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("cabundle".into())),
     })?;
     cabundle.reverse();
 
-    let root_public_key = verify_cert_chain(enclave_certificate, &cabundle, timestamp)?;
+    let root_public_key = verify_cert_chain(cert, &cabundle, timestamp)?;
 
     Ok(root_public_key)
 }
 
 fn verify_cert_chain(
-    cert: X509,
+    cert: X509Certificate,
     cabundle: &[Value],
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
-    let certs = get_all_certs(cert, cabundle)?;
+    let mut certs = Vec::with_capacity(cabundle.len() + 1);
+    certs.push(cert);
+
+    for (i, cert_val) in cabundle.iter().enumerate() {
+        let cert_der = (match cert_val {
+            Value::Bytes(b) => Ok(b),
+            _ => Err(AttestationError::InvalidType("cert decode".into())),
+        })?;
+        let (_, cert) =
+            X509Certificate::from_der(cert_der).map_err(|e| AttestationError::X509 {
+                context: format!("bundle {}", i),
+                error: e,
+            })?;
+        certs.push(cert);
+    }
 
     for i in 0..(certs.len() - 1) {
-        let pubkey = certs[i + 1]
-            .public_key()
-            .map_err(|e| AttestationError::ParseFailed(format!("pubkey {i}: {e}")))?;
-        if !certs[i]
-            .verify(&pubkey)
-            .map_err(|e| AttestationError::ParseFailed(format!("signature {i}: {e}")))?
-        {
-            return Err(AttestationError::VerifyFailed("signature {i}".into()));
+        let issuer_spki = &certs[i + 1].tbs_certificate.subject_pki;
+
+        // Use Some(issuer_spki) as expected by x509-parser
+        certs[i]
+            .verify_signature(Some(issuer_spki))
+            .map_err(|_| AttestationError::CertChainSignatureFailed { index: i })?;
+
+        if certs[i + 1].tbs_certificate.subject != certs[i].tbs_certificate.issuer {
+            return Err(AttestationError::CertChainIssuerOrSubjectMismatch { index: i });
         }
-        if certs[i + 1].issued(&certs[i]) != X509VerifyResult::OK {
-            return Err(AttestationError::VerifyFailed(
-                "issuer or subject {i}".into(),
-            ));
-        }
-        let current_time = Asn1Time::from_unix(timestamp as i64 / 1000)
-            .map_err(|e| AttestationError::ParseFailed(e.to_string()))?;
-        if certs[i].not_after() < current_time || certs[i].not_before() > current_time {
-            return Err(AttestationError::VerifyFailed("timestamp {i}".into()));
-        }
-    }
 
-    let root_cert = certs
-        .last()
-        .ok_or(AttestationError::ParseFailed("root".into()))?;
-
-    let root_public_key_der = root_cert
-        .public_key()
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey: {e}")))?
-        .public_key_to_der()
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey der: {e}")))?;
-
-    let root_public_key = EcKey::public_key_from_der(&root_public_key_der)
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey der: {e}")))?;
-
-    let root_public_key_sec1 = root_public_key
-        .public_key()
-        .to_bytes(
-            root_public_key.group(),
-            PointConversionForm::UNCOMPRESSED,
-            BigNumContext::new()
-                .map_err(|e| AttestationError::ParseFailed(format!("bignum context: {e}")))?
-                .borrow_mut(),
-        )
-        .map_err(|e| AttestationError::ParseFailed(format!("sec1: {e}")))?;
-
-    Ok(root_public_key_sec1[1..].to_vec().into_boxed_slice())
-}
-
-fn get_all_certs(cert: X509, cabundle: &[Value]) -> Result<Box<[X509]>, AttestationError> {
-    let mut all_certs = vec![cert];
-    for cert in cabundle {
-        let cert = (match cert {
-            Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed("cert decode".into())),
+        let current_time = ASN1Time::from_timestamp((timestamp / 1000) as i64).map_err(|e| {
+            AttestationError::X509 {
+                context: format!("timestamp {}", i),
+                error: e.into(),
+            }
         })?;
-        let cert =
-            X509::from_der(cert).map_err(|e| AttestationError::ParseFailed(format!("der: {e}")))?;
-        all_certs.push(cert);
+
+        if certs[i].tbs_certificate.validity.not_after < current_time
+            || certs[i].tbs_certificate.validity.not_before > current_time
+        {
+            return Err(AttestationError::CertChainExpired { index: i });
+        }
     }
-    Ok(all_certs.into_boxed_slice())
+
+    let root_public_key = certs
+        .last()
+        .ok_or(AttestationError::MissingField("root".into()))?
+        .tbs_certificate
+        .subject_pki
+        .subject_public_key
+        .data[1..]
+        .to_vec()
+        .into_boxed_slice();
+
+    Ok(root_public_key)
 }
 
 fn parse_enclave_key(
@@ -347,14 +391,10 @@ fn parse_enclave_key(
 ) -> Result<Box<[u8]>, AttestationError> {
     let public_key = attestation_doc
         .remove(&"public_key".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "public key not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("public_key".into()))?;
     let public_key = (match public_key {
         Value::Bytes(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "public key decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("public_key".into())),
     })?;
 
     Ok(public_key.into_boxed_slice())
@@ -365,18 +405,61 @@ fn parse_user_data(
 ) -> Result<Box<[u8]>, AttestationError> {
     let user_data = attestation_doc
         .remove(&"user_data".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "user data not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("user_data".into()))?;
     let user_data = (match user_data {
         Value::Bytes(b) => Ok(b),
         Value::Null => Ok(vec![]),
-        _ => Err(AttestationError::ParseFailed(
-            "user data decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("user_data".into())),
     })?;
 
     Ok(user_data.into_boxed_slice())
+}
+
+pub struct CertHasher;
+
+impl Hash for CertHasher {
+    fn hash(_algorithm: MessageDigest, data: &[u8]) -> Result<Vec<u8>, CoseError> {
+        // NOTE: the verifier function internally hashes the message, return it as is
+
+        // match algorithm {
+        //     MessageDigest::Sha256 => Ok(Sha256::digest(data).to_vec()),
+        //     MessageDigest::Sha384 => Ok(Sha384::digest(data).to_vec()),
+        //     MessageDigest::Sha512 => Ok(Sha512::digest(data).to_vec()),
+        // }
+        Ok(data.into())
+    }
+}
+
+struct CertWrapper<'a>(&'a TbsCertificate<'a>);
+
+impl<'a> SigningPublicKey for CertWrapper<'a> {
+    fn get_parameters(&self) -> Result<(SignatureAlgorithm, MessageDigest), CoseError> {
+        if self.0.subject_pki.algorithm.algorithm != OID_KEY_TYPE_EC_PUBLIC_KEY {
+            return Err(CoseError::UnsupportedError("Unsupported key type".into()));
+        }
+        match self.0.subject_pki.subject_public_key.data.len() {
+            65 => Ok((SignatureAlgorithm::ES256, MessageDigest::Sha256)),
+            97 => Ok((SignatureAlgorithm::ES384, MessageDigest::Sha384)),
+            129 => Ok((SignatureAlgorithm::ES512, MessageDigest::Sha512)),
+            _ => Err(CoseError::UnsupportedError("Unsupported key type".into())),
+        }
+    }
+
+    fn verify(&self, digest: &[u8], signature: &[u8]) -> Result<bool, CoseError> {
+        if self.0.signature.algorithm != OID_SIG_ECDSA_WITH_SHA384 {
+            return Err(CoseError::UnsupportedError(
+                "Unsupported signature type".into(),
+            ));
+        }
+        let pubkey = UnparsedPublicKey::new(
+            &ECDSA_P384_SHA384_FIXED,
+            &self.0.subject_pki.subject_public_key.data,
+        );
+        pubkey
+            .verify(digest, signature)
+            .map_err(|_| CoseError::UnverifiedSignature)
+            .map(|_| true)
+    }
 }
 
 #[cfg(test)]
