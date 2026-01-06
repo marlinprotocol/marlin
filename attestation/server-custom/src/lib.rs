@@ -6,9 +6,9 @@ pub fn get_attestation_doc(
     nonce: Option<&[u8]>,
 ) -> Result<Vec<u8>, (StatusCode, String)> {
     return nitro_tpm_attest::attestation_document(
-        user_data,
-        None, // nonce
-        Some(pub_key.to_vec()),
+        user_data.map(Vec::from),
+        nonce.map(Vec::from),
+        public_key.map(Vec::from),
     )
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("{e:?}")));
 }
@@ -18,5 +18,5 @@ pub fn get_hex_attestation_doc(
     user_data: Option<&[u8]>,
     nonce: Option<&[u8]>,
 ) -> Result<String, (StatusCode, String)> {
-    get_attestation_doc(pub_key, user_data, nonce).map(hex::encode)
+    get_attestation_doc(public_key, user_data, nonce).map(hex::encode)
 }
