@@ -28,17 +28,7 @@ async fn handle_raw(
     let user_data = extract(&query, "user_data")?;
     let nonce = extract(&query, "nonce")?;
 
-    get_attestation_doc(
-        public_key.as_deref(),
-        user_data.as_deref(),
-        nonce.as_deref(),
-    )
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to generate attestation doc: {e:?}"),
-        )
-    })
+    get_attestation_doc(public_key, user_data, nonce)
 }
 
 async fn handle_hex(
@@ -48,17 +38,7 @@ async fn handle_hex(
     let user_data = extract(&query, "user_data")?;
     let nonce = extract(&query, "nonce")?;
 
-    get_hex_attestation_doc(
-        public_key.as_deref(),
-        user_data.as_deref(),
-        nonce.as_deref(),
-    )
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to generate attestation doc: {e:?}"),
-        )
-    })
+    get_hex_attestation_doc(public_key, user_data, nonce)
 }
 
 /// http server for handling attestation document requests
@@ -76,7 +56,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let app = Router::new()
         .route("/attestation/raw", get(handle_raw))
-        .route("/attestation/hex", get(handle_hex));
+        .route("/attestation/hex", get(handle_hex))
+        .route("/health", get(|| async { StatusCode::OK }));
     let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
 
     axum::serve(listener, app).await?;
