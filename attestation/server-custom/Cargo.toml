@@ -1,15 +1,14 @@
 [package]
-name = "oyster-attestation-server-custom"
-version = "1.0.0"
-edition = "2021"
-license = "Apache-2.0"
+name = "attestation-server-custom"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
-aws-nitro-enclaves-nsm-api = "0.4.0"
-axum = "0.7.4"
-clap = { version = "4.0.18", features = ["derive"] }
+axum = "0.8.7"
+clap = { version = "4.5.53", features = ["derive"] }
 hex = "0.4.3"
-serde_bytes = "0.11"
+nitro-tpm-attest = "1.0.1"
 tokio = { version = "1", features = ["full"] }
 
 [profile.release]
