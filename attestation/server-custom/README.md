@@ -2,11 +2,13 @@
 
 # Attestation Server - Custom
 
-The custom attestation server generates attestations using the AWS Nitro Secure Module (NSM) API and makes them available using a HTTP server. It expects callers to provide one or more of a public key, user data and nonce which are included in the attestation.
+The custom attestation server generates EC2 instance attestations using the AWS Nitro TPM and makes them available using a HTTP server. It expects callers to provide one or more of a public key, user data and nonce which are included in the attestation. Intended to be run inside an EC2 instance with a TPM2-enabled AMI.
 
 IMPORTANT: DO NOT expose this server to external access or untrusted enclave components unless you really know what you are doing, it is meant to be exposed purely to trusted applications inside the enclave as a way of accessing the NSM API over HTTP. Otherwise, it breaks the security model assumed by most enclaves since attestations can potentially be generated with public keys corresponding to private keys external to the enclave as well as with secrets which should never be exposed outside the enclave.
 
 ## Build
+
+Prerequisites: tss2 libraries
 
 ```bash
 cargo build --release
@@ -22,7 +24,8 @@ nix build -v .#<flavor>.attestation.server-custom.<output>
 
 Supported flavors:
 - `gnu`
-- `musl`
+
+The tpm2-tss library does not play well with static musl builds hence it is not supported currently.
 
 Supported outputs:
 - `default`, same as `compressed`
@@ -32,7 +35,7 @@ Supported outputs:
 ## Usage
 
 ```
-$ ./target/release/oyster-attestation-server-custom --help
+$ ./target/release/attestation-server-custom --help
 http server for handling attestation document requests
 
 Usage: oyster-attestation-server-custom [OPTIONS]
@@ -130,4 +133,4 @@ $ curl '<ip:port>/attestation/hex?public_key=<public_key>&user_data=<user_data>&
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE.txt](./LICENSE.txt).
+This project is licensed under the GNU AGPLv3 or any later version. See [LICENSE.txt](./LICENSE.txt).
