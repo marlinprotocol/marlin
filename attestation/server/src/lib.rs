@@ -16,6 +16,5 @@ pub fn get_hex_attestation_doc(
     pub_key: &[u8],
     user_data: &[u8],
 ) -> Result<String, (StatusCode, String)> {
-    let attestation = get_attestation_doc(pub_key, user_data)?;
-    return Ok(hex::encode(attestation));
+    get_attestation_doc(pub_key, user_data).map(hex::encode)
 }
