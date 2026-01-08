@@ -69,10 +69,11 @@ pub enum AttestationError {
     TimestampMismatch { expected: u64, got: u64 },
     #[error("too old: expected age {age}, got {got}, now {now}")]
     TooOld { age: u64, got: u64, now: u64 },
-    #[error("pcrs mismatch: expected {expected:?}, got {got:?}")]
+    #[error("pcr{idx} mismatch: expected {expected:?}, got {got:?}")]
     PcrsMismatch {
-        expected: [[u8; 48]; 24],
-        got: [[u8; 48]; 24],
+        idx: usize,
+        expected: [u8; 48],
+        got: [u8; 48],
     },
     #[error("image id mismatch: expected {expected}, got {got}")]
     ImageIdMismatch { expected: String, got: String },
@@ -87,7 +88,7 @@ pub enum AttestationError {
 #[derive(Debug, Default, Clone)]
 pub struct AttestationExpectations<'a> {
     pub root_public_key: Option<&'a [u8]>,
-    pub pcrs: Option<[[u8; 48]; 24]>,
+    pub pcrs: [Option<[u8; 48]>; 24],
     pub image_id: Option<&'a [u8; 32]>,
     pub timestamp_ms: Option<u64>,
     // (max age, current timestamp), in ms
@@ -141,14 +142,23 @@ pub fn verify(
     result.pcrs = parse_pcrs(&mut attestation_doc)?;
 
     // check pcrs if exists
-    if let Some(pcrs) = expectations.pcrs
-        && result.pcrs != pcrs
+    if let Some((idx, _)) = expectations
+        .pcrs
+        .iter()
+        // add index
+        .enumerate()
+        // return None if expectation is None so it gets filtered
+        // return result of comparison if expectation exists
+        .filter_map(|(idx, &expected_pcr)| Some((idx, expected_pcr? == result.pcrs[idx])))
+        // short circuit on first comparison failure
+        .find(|&(_, res)| res == false)
     {
         return Err(AttestationError::PcrsMismatch {
-            expected: pcrs,
-            got: result.pcrs,
+            idx,
+            expected: expectations.pcrs[idx].unwrap_or([0; 48]),
+            got: result.pcrs[idx],
         });
-    }
+    };
 
     // compute image id
     let mut hasher = Sha256::new();
