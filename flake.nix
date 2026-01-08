@@ -25,6 +25,11 @@
       attestation.server-custom = import ./attestation/server-custom {
         inherit nixpkgs systemConfig naersk;
       };
+      enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {
+        inherit nixpkgs systemConfig;
+        attestation-server-custom = attestation.server-custom.service;
+        nitrotpm-tools = external.nitrotpm-tools.default;
+      };
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
