@@ -13,7 +13,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         process::exit(1);
     }
 
-    let image_path = &args[1];
+    let pcr5 = pcr5(&args[1])?;
+
+    println!("\n--- PCR5 ---");
+    println!("{}", hex::encode(pcr5));
+
+    fs::write(&args[2], hex::encode(pcr5))?;
+
+    Ok(())
+}
+
+fn pcr5(image_path: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
     let mut file = File::open(image_path).expect("Failed to open file");
 
     // 1. Detect Sector Size (512 vs 4096)
@@ -96,23 +106,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Invocation");
     let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Returned with Success");
 
-    println!("\n--- PCR5 ---");
-    println!("{}", hex::encode(pcr5));
+    Ok(pcr5)
 
-    fs::write(&args[2], hex::encode(pcr5))?;
 
-    Ok(())
 }
 
 fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
     let new_hash = Sha384::new_with_prefix(new).finalize();
 
-    println!(
-        "old: {}\nnew: {}\nnew_hash: {}",
-        hex::encode(old),
-        hex::encode(new),
-        hex::encode(new_hash)
-    );
+    // println!(
+    //     "old: {}\nnew: {}\nnew_hash: {}",
+    //     hex::encode(old),
+    //     hex::encode(new),
+    //     hex::encode(new_hash)
+    // );
 
     let mut hasher = Sha384::new();
     hasher.update(old);
