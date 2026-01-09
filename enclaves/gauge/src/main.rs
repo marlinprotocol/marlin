@@ -23,7 +23,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- PCR6 ---");
     println!("{}", hex::encode(pcr6));
 
-    fs::write(&args[2], hex::encode(pcr5))?;
+    fs::write(
+        &args[2],
+        format!(
+            r#"{{
+  "Measurements": {{
+    "HashAlgorithm": "SHA384",
+    "PCR5": "{}",
+    "PCR6": "{}"
+  }}
+}}
+"#,
+            hex::encode(pcr5),
+            hex::encode(pcr6),
+        ),
+    )?;
 
     Ok(())
 }
