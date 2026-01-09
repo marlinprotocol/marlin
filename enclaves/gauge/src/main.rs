@@ -1,4 +1,4 @@
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha384};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::process;
@@ -91,16 +91,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", hex_string);
 
     // Calculate Hash
-    let mut hasher = Sha256::new();
+    let mut hasher = Sha384::new();
     hasher.update(&event_payload);
     let hash_result = hasher.finalize();
 
-    println!("\n--- Calculated SHA-256 ---");
+    println!("\n--- Calculated SHA-384 ---");
     println!("{:x}", hash_result);
 
     // calculate pcr5
-    let mut hasher = Sha256::new();
-    hasher.update([0u8; 32]);
+    let mut hasher = Sha384::new();
+    hasher.update([0u8; 48]);
     hasher.update(hash_result);
     let pcr5 = hasher.finalize();
 
