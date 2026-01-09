@@ -18,6 +18,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- PCR5 ---");
     println!("{}", hex::encode(pcr5));
 
+    let pcr6 = pcr6()?;
+
+    println!("\n--- PCR6 ---");
+    println!("{}", hex::encode(pcr6));
+
     fs::write(&args[2], hex::encode(pcr5))?;
 
     Ok(())
@@ -107,8 +112,12 @@ fn pcr5(image_path: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
     let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Returned with Success");
 
     Ok(pcr5)
+}
 
+fn pcr6() -> Result<[u8; 48], Box<dyn std::error::Error>> {
+    let pcr6 = extend_pcr([0; 48], &[0; 4]);
 
+    Ok(pcr6)
 }
 
 fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
