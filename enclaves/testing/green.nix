@@ -47,6 +47,9 @@
 
     # disable firewall while testing
     networking.firewall.enable = false;
+
+    # add tpm2 tools for debugging
+    environment.systemPackages = [pkgs.tpm2-tools];
   };
   nixosSystem = nixpkgs.lib.nixosSystem {
     system = systemConfig.system;
