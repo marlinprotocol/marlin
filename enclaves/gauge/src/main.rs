@@ -1,15 +1,15 @@
 use sha2::{Digest, Sha256};
-use std::env;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::process;
+use std::{env, fs};
 
 const GPT_HEADER_SIZE: usize = 92;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: {} <disk_image.raw>", args[0]);
+    if args.len() < 3 {
+        eprintln!("Usage: {} <disk_image.raw> <output_hash_file>", args[0]);
         process::exit(1);
     }
 
@@ -97,6 +97,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n--- Calculated SHA-256 ---");
     println!("{:x}", hash_result);
+
+    // calculate pcr5
+    let mut hasher = Sha256::new();
+    hasher.update([0u8; 32]);
+    hasher.update(hash_result);
+    let pcr5 = hasher.finalize();
+
+    println!("\n--- PCR5 ---");
+    println!("{:x}", pcr5);
+
+    fs::write(&args[2], pcr5)?;
 
     Ok(())
 }
