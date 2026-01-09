@@ -40,7 +40,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "PCR8": "{}",
     "PCR10": "{}",
     "PCR11": "{}",
-    "PCR12": "{}",
     "PCR13": "{}",
     "PCR14": "{}",
     "PCR15": "{}"
@@ -52,7 +51,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "0".repeat(96),
             "0".repeat(96),
             hex::encode(pcr11),
-            "0".repeat(96),
             "0".repeat(96),
             "0".repeat(96),
             "0".repeat(96),
