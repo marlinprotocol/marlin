@@ -24,6 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- PCR6 ---");
     println!("{}", hex::encode(pcr6));
 
+    let pcr9 = pcr9(&args[2])?;
+
+    println!("\n--- PCR9 ---");
+    println!("{}", hex::encode(pcr9));
+
     let pcr11 = pcr11(&args[2])?;
 
     println!("\n--- PCR11 ---");
@@ -38,6 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "PCR5": "{}",
     "PCR6": "{}",
     "PCR8": "{}",
+    "PCR9": "{}",
     "PCR10": "{}",
     "PCR11": "{}",
     "PCR13": "{}",
@@ -49,6 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             hex::encode(pcr5),
             hex::encode(pcr6),
             "0".repeat(96),
+            hex::encode(pcr9),
             "0".repeat(96),
             hex::encode(pcr11),
             "0".repeat(96),
@@ -150,6 +157,33 @@ fn pcr6() -> Result<[u8; 48], Box<dyn std::error::Error>> {
     let pcr6 = extend_pcr([0; 48], &[0; 4]);
 
     Ok(pcr6)
+}
+
+fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
+    let uki_bytes = fs::read(uki)?;
+    let pe = PE::parse(&uki_bytes)?;
+
+    let cmdline_section = pe
+        .sections
+        .iter()
+        .find(|section| section.name().unwrap_or("") == ".cmdline")
+        .ok_or("no cmdline section")?;
+    let cmdline_bytes = &uki_bytes[cmdline_section.pointer_to_raw_data as usize
+        ..cmdline_section.pointer_to_raw_data as usize + cmdline_section.virtual_size as usize];
+
+    let cmdline = String::from_utf8(cmdline_bytes.into())? + "\0";
+
+    let pcr9 = extend_pcr(
+        [0; 48],
+        &cmdline
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>(),
+    );
+
+    // TODO: extend with initrd
+
+    Ok(pcr9)
 }
 
 fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
