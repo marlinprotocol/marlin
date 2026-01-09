@@ -70,6 +70,7 @@ in {
     name = "measured-image";
     paths = [
       nixosSystem.config.system.build.finalImage
+      nixosSystem.config.system.build.uki
       measurement
     ];
   };
