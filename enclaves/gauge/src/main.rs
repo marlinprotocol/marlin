@@ -90,26 +90,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- Generated Event Data (Hex) ---");
     println!("{}", hex_string);
 
-    // Calculate Hash
-    let mut hasher = Sha384::new();
-    hasher.update(&event_payload);
-    let hash_result = hasher.finalize();
-
-    println!("\n--- Calculated SHA-384 ---");
-    println!("{:x}", hash_result);
-
     // calculate pcr5
-    let mut hasher = Sha384::new();
-    hasher.update([0u8; 48]);
-    hasher.update(hash_result);
-    let pcr5 = hasher.finalize();
+    let pcr5 = extend_pcr([0; 48], &[0; 4]);
+    let pcr5 = extend_pcr(pcr5, &event_payload);
+    let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Invocation");
+    let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Returned with Success");
 
     println!("\n--- PCR5 ---");
-    println!("{:x}", pcr5);
+    println!("{}", hex::encode(pcr5));
 
-    fs::write(&args[2], pcr5)?;
+    fs::write(&args[2], hex::encode(pcr5))?;
 
     Ok(())
+}
+
+fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
+    let new_hash = Sha384::new_with_prefix(new).finalize();
+
+    println!(
+        "old: {}\nnew: {}\nnew_hash: {}",
+        hex::encode(old),
+        hex::encode(new),
+        hex::encode(new_hash)
+    );
+
+    let mut hasher = Sha384::new();
+    hasher.update(old);
+    hasher.update(new_hash);
+    hasher.finalize().into()
 }
 
 fn detect_sector_size(file: &mut File) -> Result<u64, std::io::Error> {
