@@ -30,12 +30,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   "Measurements": {{
     "HashAlgorithm": "SHA384",
     "PCR5": "{}",
-    "PCR6": "{}"
+    "PCR6": "{}",
+    "PCR8": "{}",
+    "PCR10": "{}",
+    "PCR12": "{}",
+    "PCR13": "{}",
+    "PCR14": "{}",
+    "PCR15": "{}"
   }}
 }}
 "#,
             hex::encode(pcr5),
             hex::encode(pcr6),
+            "0".repeat(96),
+            "0".repeat(96),
+            "0".repeat(96),
+            "0".repeat(96),
+            "0".repeat(96),
+            "0".repeat(96),
         ),
     )?;
 
