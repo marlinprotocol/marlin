@@ -1,3 +1,4 @@
+use goblin::pe::PE;
 use sha2::{Digest, Sha384};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -8,8 +9,8 @@ const GPT_HEADER_SIZE: usize = 92;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        eprintln!("Usage: {} <disk_image.raw> <output_hash_file>", args[0]);
+    if args.len() < 4 {
+        eprintln!("Usage: {} <disk_file> <uki_file> <output_file>", args[0]);
         process::exit(1);
     }
 
@@ -23,8 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- PCR6 ---");
     println!("{}", hex::encode(pcr6));
 
+    let pcr11 = pcr11(&args[2])?;
+
+    println!("\n--- PCR11 ---");
+    println!("{}", hex::encode(pcr11));
+
     fs::write(
-        &args[2],
+        &args[3],
         format!(
             r#"{{
   "Measurements": {{
@@ -33,6 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "PCR6": "{}",
     "PCR8": "{}",
     "PCR10": "{}",
+    "PCR11": "{}",
     "PCR12": "{}",
     "PCR13": "{}",
     "PCR14": "{}",
@@ -44,6 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             hex::encode(pcr6),
             "0".repeat(96),
             "0".repeat(96),
+            hex::encode(pcr11),
             "0".repeat(96),
             "0".repeat(96),
             "0".repeat(96),
@@ -146,15 +154,42 @@ fn pcr6() -> Result<[u8; 48], Box<dyn std::error::Error>> {
     Ok(pcr6)
 }
 
+fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
+    // section ordering, filtered to what is expected to be present and measured
+    // ref: https://github.com/systemd/systemd/blob/v258/src/fundamental/uki.h#L8
+    static SECTIONS: &[&str] = &[".linux", ".osrel", ".cmdline", ".initrd", ".uname", ".sbat"];
+
+    let uki_bytes = fs::read(uki)?;
+    let pe = PE::parse(&uki_bytes)?;
+
+    let pcr11 = SECTIONS
+        .iter()
+        .try_fold([0; 48], |acc, &item| {
+            let temp = extend_pcr(acc, &[item.as_bytes(), &[0]].concat());
+            let section = pe
+                .sections
+                .iter()
+                .find(|section| section.name().unwrap_or("") == item)?
+                .data(&uki_bytes)
+                .ok()??;
+            println!("{}", item);
+            Some(extend_pcr(temp, &section))
+        })
+        .ok_or("failed to compute pcr11")?;
+
+    Ok(pcr11)
+}
+
 fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
     let new_hash = Sha384::new_with_prefix(new).finalize();
 
-    // println!(
-    //     "old: {}\nnew: {}\nnew_hash: {}",
-    //     hex::encode(old),
-    //     hex::encode(new),
-    //     hex::encode(new_hash)
-    // );
+    println!(
+        "old: {}\nnew: {}\nnew_hash: {}",
+        hex::encode(old),
+        0,
+        // hex::encode(new),
+        hex::encode(new_hash)
+    );
 
     let mut hasher = Sha384::new();
     hasher.update(old);
