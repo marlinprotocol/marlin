@@ -169,11 +169,10 @@ fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
             let section = pe
                 .sections
                 .iter()
-                .find(|section| section.name().unwrap_or("") == item)?
-                .data(&uki_bytes)
-                .ok()??;
-            println!("{}", item);
-            Some(extend_pcr(temp, &section))
+                .find(|section| section.name().unwrap_or("") == item)?;
+            let section_bytes = &uki_bytes[section.pointer_to_raw_data as usize
+                ..section.pointer_to_raw_data as usize + section.virtual_size as usize];
+            Some(extend_pcr(temp, &section_bytes))
         })
         .ok_or("failed to compute pcr11")?;
 
@@ -183,13 +182,12 @@ fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
 fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
     let new_hash = Sha384::new_with_prefix(new).finalize();
 
-    println!(
-        "old: {}\nnew: {}\nnew_hash: {}",
-        hex::encode(old),
-        0,
-        // hex::encode(new),
-        hex::encode(new_hash)
-    );
+    // println!(
+    //     "old: {}\nnew: {}\nnew_hash: {}",
+    //     hex::encode(old),
+    //     hex::encode(&new[..new.len().min(256)]),
+    //     hex::encode(new_hash)
+    // );
 
     let mut hasher = Sha384::new();
     hasher.update(old);
