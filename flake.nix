@@ -46,7 +46,7 @@
         inherit nixpkgs systemConfig crane;
       };
       initialization.keygen = import ./initialization/keygen {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.creator = import ./kms/creator {
         inherit nixpkgs systemConfig naersk;
