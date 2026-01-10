@@ -22,6 +22,15 @@
       enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig naersk;
       };
+      attestation.server-custom = import ./attestation/server-custom {
+        inherit nixpkgs systemConfig naersk;
+      };
+      enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {
+        inherit nixpkgs systemConfig;
+        nitrotpm-tools = external.nitrotpm-tools.default;
+        gauge = enclaves.gauge.default;
+        attestation-server-custom = attestation.server-custom.service;
+      };
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;

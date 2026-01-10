@@ -1,43 +1,45 @@
 {
   nixpkgs,
   systemConfig,
-  fenix,
   naersk,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  target = systemConfig.rust_target;
-  toolchain = with fenix.packages.${system};
-    combine [
-      stable.cargo
-      stable.rustc
-      targets.${target}.stable.rust-std
-    ];
-  naersk' = naersk.lib.${system}.override {
-    cargo = toolchain;
-    rustc = toolchain;
-  };
-  cc =
-    if systemConfig.static
-    then pkgs.pkgsStatic.stdenv.cc
-    else pkgs.stdenv.cc;
+  naersk' = pkgs.callPackage naersk {};
 in rec {
-  uncompressed = naersk'.buildPackage {
+  default = naersk'.buildPackage {
     src = ./.;
-    CARGO_BUILD_TARGET = target;
-    TARGET_CC = "${cc}/bin/${cc.targetPrefix}cc";
-    nativeBuildInputs = [cc];
+    nativeBuildInputs = [
+      pkgs.pkg-config
+      pkgs.autoPatchelfHook
+    ];
+    buildInputs = [
+      pkgs.tpm2-tss
+      pkgs.libgcc
+    ];
   };
 
-  compressed =
-    pkgs.runCommand "compressed" {
-      nativeBuildInputs = [pkgs.upx];
-    } ''
-      mkdir -p $out/bin
-      cp ${uncompressed}/bin/* $out/bin/
-      chmod +w $out/bin/*
-      upx $out/bin/*
-    '';
+  service = {...} @ args: let
+    service-name = args.service-name or "attestation-server-custom";
+    ip-addr = args.ip-addr or "127.0.0.1:1350";
+    port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" ip-addr));
+  in {
+    # systemd service
+    systemd.services.${service-name} = {
+      description = "Run custom attestation server";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target" "network.target" "tpm2.target"];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = ''
+          ${default}/bin/attestation-server-custom \
+            --ip-addr ${ip-addr}
+        '';
+        Restart = "always";
+      };
+    };
 
-  default = compressed;
+    # firewall rule
+    networking.firewall.allowedTCPPorts = [port];
+  };
 }
