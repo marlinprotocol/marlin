@@ -23,10 +23,10 @@
       attestation.server = import ./attestation/server {
         inherit nixpkgs systemConfig crane;
       };
-      enclaves.gauge = import ./enclaves/gauge {
-        inherit nixpkgs systemConfig naersk;
-      };
       attestation.server-custom = import ./attestation/server-custom {
+        inherit nixpkgs systemConfig crane;
+      };
+      enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig naersk;
       };
       enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {

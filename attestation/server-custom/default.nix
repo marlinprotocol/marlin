@@ -1,14 +1,19 @@
 {
   nixpkgs,
   systemConfig,
-  naersk,
+  crane,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  naersk' = pkgs.callPackage naersk {};
-in rec {
-  default = naersk'.buildPackage {
-    src = ./.;
+  crane' = crane.mkLib pkgs;
+  commonArgs = {
+    strictDeps = true;
+    doCheck = false;
+    # DOES NOT run the check command
+    # short circuits it by running the true command instead
+    cargoCheckCommand = "true";
+
+    src = crane'.cleanCargoSource ./.;
     nativeBuildInputs = [
       pkgs.pkg-config
       pkgs.autoPatchelfHook
@@ -18,6 +23,12 @@ in rec {
       pkgs.libgcc
     ];
   };
+  deps = crane'.buildDepsOnly commonArgs;
+in rec {
+  default = crane'.buildPackage (commonArgs
+    // {
+      cargoArtifacts = deps;
+    });
 
   service = {...} @ args: let
     service-name = args.service-name or "attestation-server-custom";
