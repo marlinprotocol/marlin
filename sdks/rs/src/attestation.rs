@@ -163,8 +163,13 @@ pub fn verify(
     // compute image id
     let mut hasher = Sha256::new();
     // bitflags denoting what pcrs are part of the computation
-    // this one has 0, 1, 2 and 16
-    hasher.update(&((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
+    // this one has 4-15
+    hasher.update(
+        (4..=15)
+            .into_iter()
+            .fold(0u32, |acc, x| acc | (1 << x))
+            .to_be_bytes(),
+    );
     hasher.update(result.pcrs.as_flattened());
     result.image_id = hasher.finalize().into();
 
