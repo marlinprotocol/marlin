@@ -16,17 +16,21 @@
     naersk,
   }: let
     systemBuilder = systemConfig: rec {
-      external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
+      attestation.server = import ./attestation/server {
         inherit nixpkgs systemConfig naersk;
       };
-      attestation.server = import ./attestation/server {
+      enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig naersk;
       };
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
+        nitrotpm-tools = external.nitrotpm-tools.default;
+        gauge = enclaves.gauge.default;
         keygen-x25519 = initialization.keygen.x25519.service;
         attestation-server = attestation.server.service;
-        nitrotpm-tools = external.nitrotpm-tools.default;
+      };
+      external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
+        inherit nixpkgs systemConfig naersk;
       };
       initialization.keygen = import ./initialization/keygen {
         inherit nixpkgs systemConfig naersk;

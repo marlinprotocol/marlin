@@ -24,6 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- PCR6 ---");
     println!("{}", hex::encode(pcr6));
 
+    let pcr9 = pcr9(&args[2])?;
+
+    println!("\n--- PCR9 ---");
+    println!("{}", hex::encode(pcr9));
+
     let pcr11 = pcr11(&args[2])?;
 
     println!("\n--- PCR11 ---");
@@ -38,6 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "PCR5": "{}",
     "PCR6": "{}",
     "PCR8": "{}",
+    "PCR9": "{}",
     "PCR10": "{}",
     "PCR11": "{}",
     "PCR13": "{}",
@@ -49,6 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             hex::encode(pcr5),
             hex::encode(pcr6),
             "0".repeat(96),
+            hex::encode(pcr9),
             "0".repeat(96),
             hex::encode(pcr11),
             "0".repeat(96),
@@ -132,30 +139,67 @@ fn pcr5(image_path: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
         event_payload.extend_from_slice(&part);
     }
 
-    // 5. Output Results
-    let hex_string = hex::encode(&event_payload);
-    println!("\n--- Generated Event Data (Hex) ---");
-    println!("{}", hex_string);
-
     // calculate pcr5
-    let pcr5 = extend_pcr([0; 48], &[0; 4]);
-    let pcr5 = extend_pcr(pcr5, &event_payload);
-    let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Invocation");
-    let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Returned with Success");
+    let pcr5 = extend_pcr([0; 48], &[&[0; 4]]);
+    let pcr5 = extend_pcr(pcr5, &[&event_payload]);
+    let pcr5 = extend_pcr(pcr5, &[b"Exit Boot Services Invocation"]);
+    let pcr5 = extend_pcr(pcr5, &[b"Exit Boot Services Returned with Success"]);
 
     Ok(pcr5)
 }
 
 fn pcr6() -> Result<[u8; 48], Box<dyn std::error::Error>> {
-    let pcr6 = extend_pcr([0; 48], &[0; 4]);
+    let pcr6 = extend_pcr([0; 48], &[[0; 4].as_ref()]);
 
     Ok(pcr6)
+}
+
+fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
+    let uki_bytes = fs::read(uki)?;
+    let pe = PE::parse(&uki_bytes)?;
+
+    let cmdline_section = pe
+        .sections
+        .iter()
+        .find(|section| section.name().unwrap_or("") == ".cmdline")
+        .ok_or("no cmdline section")?;
+    let cmdline_bytes = &uki_bytes[cmdline_section.pointer_to_raw_data as usize
+        ..cmdline_section.pointer_to_raw_data as usize + cmdline_section.virtual_size as usize];
+    let cmdline = String::from_utf8(cmdline_bytes.into())? + "\0";
+
+    let initrd_section = pe
+        .sections
+        .iter()
+        .find(|section| section.name().unwrap_or("") == ".initrd")
+        .ok_or("no initrd section")?;
+    let initrd_bytes = &uki_bytes[initrd_section.pointer_to_raw_data as usize
+        ..initrd_section.pointer_to_raw_data as usize + initrd_section.virtual_size as usize];
+
+    let pcr9 = extend_pcr(
+        [0; 48],
+        &[cmdline
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>()
+            .as_ref()],
+    );
+    let pcr9 = extend_pcr(
+        pcr9,
+        &[
+            initrd_bytes,
+            // pad so it is aligned to multiple of 4
+            // TODO: are our initrds already padded by default?
+            vec![0; 3 - (initrd_bytes.len() - 1) % 4].as_ref(),
+        ],
+    );
+
+    Ok(pcr9)
 }
 
 fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
     // section ordering, filtered to what is expected to be present and measured
     // ref: https://github.com/systemd/systemd/blob/v258/src/fundamental/uki.h#L8
-    static SECTIONS: &[&str] = &[".linux", ".osrel", ".cmdline", ".initrd", ".uname", ".sbat"];
+    static SECTIONS: &[&str] = &[".linux", ".cmdline", ".initrd", ".uname", ".sbat"];
 
     let uki_bytes = fs::read(uki)?;
     let pe = PE::parse(&uki_bytes)?;
@@ -163,22 +207,25 @@ fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
     let pcr11 = SECTIONS
         .iter()
         .try_fold([0; 48], |acc, &item| {
-            let temp = extend_pcr(acc, &[item.as_bytes(), &[0]].concat());
+            let temp = extend_pcr(acc, &[item.as_bytes(), &[0]]);
             let section = pe
                 .sections
                 .iter()
                 .find(|section| section.name().unwrap_or("") == item)?;
             let section_bytes = &uki_bytes[section.pointer_to_raw_data as usize
                 ..section.pointer_to_raw_data as usize + section.virtual_size as usize];
-            Some(extend_pcr(temp, &section_bytes))
+            Some(extend_pcr(temp, &[section_bytes]))
         })
         .ok_or("failed to compute pcr11")?;
 
     Ok(pcr11)
 }
 
-fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
-    let new_hash = Sha384::new_with_prefix(new).finalize();
+fn extend_pcr(old: [u8; 48], new: &[&[u8]]) -> [u8; 48] {
+    let new_hash = new
+        .into_iter()
+        .fold(Sha384::new(), |acc, new| acc.chain_update(new))
+        .finalize();
 
     // println!(
     //     "old: {}\nnew: {}\nnew_hash: {}",
