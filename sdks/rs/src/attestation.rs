@@ -26,7 +26,7 @@ pub const MOCK_ROOT_KEY: [u8; 96] = hex_literal::hex!(
 pub struct AttestationDecoded {
     pub root_public_key: Box<[u8]>,
     pub image_id: [u8; 32],
-    pub pcrs: [[u8; 48]; 24],
+    pub pcrs: [[u8; 48]; 12],
     pub timestamp_ms: u64,
     pub public_key: Box<[u8]>,
     pub user_data: Box<[u8]>,
@@ -104,7 +104,7 @@ pub fn verify(
     let mut result = AttestationDecoded {
         root_public_key: Default::default(),
         image_id: Default::default(),
-        pcrs: [[0; 48]; 24],
+        pcrs: [[0; 48]; 12],
         timestamp_ms: 0,
         public_key: Default::default(),
         user_data: Default::default(),
@@ -251,7 +251,7 @@ fn parse_timestamp(attestation_doc: &mut BTreeMap<Value, Value>) -> Result<u64, 
 
 fn parse_pcrs(
     attestation_doc: &mut BTreeMap<Value, Value>,
-) -> Result<[[u8; 48]; 24], AttestationError> {
+) -> Result<[[u8; 48]; 12], AttestationError> {
     let pcrs_arr = attestation_doc
         .remove(&"nitrotpm_pcrs".to_owned().into())
         .ok_or(AttestationError::MissingField("nitrotpm_pcrs".into()))?;
@@ -260,8 +260,9 @@ fn parse_pcrs(
         _ => Err(AttestationError::InvalidType(format!("nitrotpm_pcrs"))),
     })?;
 
-    let mut result = [[0; 48]; 24];
-    for (i, result_pcr) in result.iter_mut().take(24).enumerate() {
+    let mut result = [[0; 48]; 12];
+    for (i, result_pcr) in result.iter_mut().take(12).enumerate() {
+        let i = i + 4;
         let pcr = pcrs_arr
             .remove(&(i as u32).into())
             .ok_or(AttestationError::MissingField(format!("pcr{i}")))?;
