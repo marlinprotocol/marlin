@@ -75,7 +75,7 @@
     # enable it
     enable = true;
     # use a different placement path than the default of verityStore
-    # TODO: check if this is needed in prod
+    # does not work in prod without this
     ukiPath = "/EFI/BOOT/BOOT${systemConfig.efi_arch}.EFI";
   };
 
