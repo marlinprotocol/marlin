@@ -165,8 +165,15 @@ fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
         .ok_or("no cmdline section")?;
     let cmdline_bytes = &uki_bytes[cmdline_section.pointer_to_raw_data as usize
         ..cmdline_section.pointer_to_raw_data as usize + cmdline_section.virtual_size as usize];
-
     let cmdline = String::from_utf8(cmdline_bytes.into())? + "\0";
+
+    let initrd_section = pe
+        .sections
+        .iter()
+        .find(|section| section.name().unwrap_or("") == ".initrd")
+        .ok_or("no initrd section")?;
+    let initrd_bytes = &uki_bytes[initrd_section.pointer_to_raw_data as usize
+        ..initrd_section.pointer_to_raw_data as usize + initrd_section.virtual_size as usize];
 
     let pcr9 = extend_pcr(
         [0; 48],
@@ -176,8 +183,15 @@ fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
             .collect::<Vec<_>>()
             .as_ref()],
     );
-
-    // TODO: extend with initrd
+    let pcr9 = extend_pcr(
+        pcr9,
+        &[
+            initrd_bytes,
+            // pad so it is aligned to multiple of 4
+            // TODO: are our initrds already padded by default?
+            vec![0; 3 - (initrd_bytes.len() - 1) % 4].as_ref(),
+        ],
+    );
 
     Ok(pcr9)
 }
@@ -185,7 +199,7 @@ fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
 fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
     // section ordering, filtered to what is expected to be present and measured
     // ref: https://github.com/systemd/systemd/blob/v258/src/fundamental/uki.h#L8
-    static SECTIONS: &[&str] = &[".linux", ".osrel", ".cmdline", ".initrd", ".uname", ".sbat"];
+    static SECTIONS: &[&str] = &[".linux", ".cmdline", ".initrd", ".uname", ".sbat"];
 
     let uki_bytes = fs::read(uki)?;
     let pe = PE::parse(&uki_bytes)?;
