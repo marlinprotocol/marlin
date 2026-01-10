@@ -1,13 +1,13 @@
 {
   nixpkgs,
   systemConfig,
-  naersk,
+  crane,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  naersk' = pkgs.callPackage naersk {};
-  projectSrc = ./.;
-  libSrc = ../derive-utils;
+  crane' = crane.mkLib pkgs;
+  projectSrc = crane'.cleanCargoSource ./.;
+  libSrc = crane'.cleanCargoSource ../derive-utils;
   combinedSrc = pkgs.runCommand "combined-src" {} ''
     # Copy the project
     cp -r ${projectSrc} $out
@@ -21,11 +21,21 @@
     substituteInPlace $out/Cargo.toml \
       --replace 'path = "../derive-utils"' 'path = "./libs/derive-utils"'
   '';
-in rec {
-  default = naersk'.buildPackage {
+  commonArgs = {
+    strictDeps = true;
+    doCheck = false;
+    # DOES NOT run the check command
+    # short circuits it by running the true command instead
+    cargoCheckCommand = "true";
+
     src = combinedSrc;
-    nativeBuildInputs = [pkgs.perl];
   };
+  deps = crane'.buildDepsOnly commonArgs;
+in rec {
+  default = crane'.buildPackage (commonArgs
+    // {
+      cargoArtifacts = deps;
+    });
 
   service = {
     kms-endpoint,

@@ -59,7 +59,7 @@
         kms-creator = kms.creator.service;
       };
       kms.derive-server = import ./kms/derive-server {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.root-server = import ./kms/root-server {
         inherit nixpkgs systemConfig naersk;
