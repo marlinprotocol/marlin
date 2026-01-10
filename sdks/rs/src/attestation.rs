@@ -88,7 +88,7 @@ pub enum AttestationError {
 #[derive(Debug, Default, Clone)]
 pub struct AttestationExpectations<'a> {
     pub root_public_key: Option<&'a [u8]>,
-    pub pcrs: [Option<[u8; 48]>; 24],
+    pub pcrs: [Option<[u8; 48]>; 12],
     pub image_id: Option<&'a [u8; 32]>,
     pub timestamp_ms: Option<u64>,
     // (max age, current timestamp), in ms
@@ -577,56 +577,112 @@ mod tests {
         let decoded = verify(
             &attestation,
             AttestationExpectations {
-                timestamp_ms: Some(0x00000193bef3f3b0),
+                timestamp_ms: Some(0x0000019ba6c8dab7),
                 age_ms: Some((
                     300000,
-                    0x00000193bef3f3b0 + 300000,
+                    0x0000019ba6c8dab7 + 300000,
                 )),
-                pcrs: Some([
-                    hex!("189038eccf28a3a098949e402f3b3d86a876f4915c5b02d546abb5d8c507ceb1755b8192d8cfca66e8f226160ca4c7a6"),
-                    hex!("5d3938eb05288e20a981038b1861062ff4174884968a39aee5982b312894e60561883576cc7381d1a7d05b809936bd16"),
-                    hex!("6c3ef363c488a9a86faa63a44653fd806e645d4540b40540876f3b811fc1bceecf036a4703f07587c501ee45bb56a1aa"),
-                    [0; 48],
-                ]),
-                public_key: Some(&hex!("e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd36d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb")),
-                user_data: Some(&[0; 0]),
+                pcrs: [
+                    Some(hex!( "6e7fd58cca2dcd0b6ca3186c260e47f33d33e4c63b9819609d5b75efb55453529fed4098a7383bfca18d3ca869ff202f")),
+                    Some(hex!( "c10ef05cbff856c3b0b83793118e887985b0ab263162db25badf0affcb01746494a984db2ba517608c2eade447d2dbe9")),
+                    Some(hex!("518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4")),
+                    Some(hex!("98441c7f7625d10058c47683aec486ce311c633235eb555593a7ee791121e3578ae72d04ecef661f272d59058b77af35")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("39c33c06e6a163f8f04f23b43d1b342677abfcd3bebbd3777bf0429fadb6a7ef5e2e533c0bf7d6dc9aec44370b29d5f4")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("6dac65857819c581c671ab7edafac3cdf85700c880392d98127af1c94e305f96baa73564f721bf0cee3b190d90c2750f")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+                ],
+                public_key: Some(&hex!("abcd")),
+                user_data: Some(&hex!("1234")),
                 root_public_key: Some(&AWS_ROOT_KEY),
-                image_id: Some(&hex!("a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602")),
+                image_id: Some(&hex!("b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00")),
             },
         )
         .unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x00000193bef3f3b0);
+        assert_eq!(decoded.timestamp_ms, 0x0000019ba6c8dab7);
         assert_eq!(
             decoded.pcrs[0],
             hex!(
-                "189038eccf28a3a098949e402f3b3d86a876f4915c5b02d546abb5d8c507ceb1755b8192d8cfca66e8f226160ca4c7a6"
+                "6e7fd58cca2dcd0b6ca3186c260e47f33d33e4c63b9819609d5b75efb55453529fed4098a7383bfca18d3ca869ff202f"
             )
         );
         assert_eq!(
             decoded.pcrs[1],
             hex!(
-                "5d3938eb05288e20a981038b1861062ff4174884968a39aee5982b312894e60561883576cc7381d1a7d05b809936bd16"
+                "c10ef05cbff856c3b0b83793118e887985b0ab263162db25badf0affcb01746494a984db2ba517608c2eade447d2dbe9"
             )
         );
         assert_eq!(
             decoded.pcrs[2],
             hex!(
-                "6c3ef363c488a9a86faa63a44653fd806e645d4540b40540876f3b811fc1bceecf036a4703f07587c501ee45bb56a1aa"
+                "518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4"
             )
         );
-        assert_eq!(decoded.pcrs[3], [0u8; 48]);
-        assert_eq!(decoded.user_data, [0u8; 0].into());
         assert_eq!(
-            decoded.public_key.as_ref(),
+            decoded.pcrs[3],
             hex!(
-                "e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd36d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb"
+                "98441c7f7625d10058c47683aec486ce311c633235eb555593a7ee791121e3578ae72d04ecef661f272d59058b77af35"
             )
         );
+        assert_eq!(
+            decoded.pcrs[4],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[5],
+            hex!(
+                "39c33c06e6a163f8f04f23b43d1b342677abfcd3bebbd3777bf0429fadb6a7ef5e2e533c0bf7d6dc9aec44370b29d5f4"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[6],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[7],
+            hex!(
+                "6dac65857819c581c671ab7edafac3cdf85700c880392d98127af1c94e305f96baa73564f721bf0cee3b190d90c2750f"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[8],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[9],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[10],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[11],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(decoded.user_data.as_ref(), hex!("1234"));
+        assert_eq!(decoded.public_key.as_ref(), hex!("abcd"));
         assert_eq!(decoded.root_public_key.as_ref(), AWS_ROOT_KEY);
         assert_eq!(
             decoded.image_id,
-            hex!("a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602")
+            hex!("b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00")
         );
     }
 
