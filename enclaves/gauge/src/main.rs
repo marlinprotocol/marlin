@@ -139,22 +139,17 @@ fn pcr5(image_path: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
         event_payload.extend_from_slice(&part);
     }
 
-    // 5. Output Results
-    let hex_string = hex::encode(&event_payload);
-    println!("\n--- Generated Event Data (Hex) ---");
-    println!("{}", hex_string);
-
     // calculate pcr5
-    let pcr5 = extend_pcr([0; 48], &[0; 4]);
-    let pcr5 = extend_pcr(pcr5, &event_payload);
-    let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Invocation");
-    let pcr5 = extend_pcr(pcr5, b"Exit Boot Services Returned with Success");
+    let pcr5 = extend_pcr([0; 48], &[&[0; 4]]);
+    let pcr5 = extend_pcr(pcr5, &[&event_payload]);
+    let pcr5 = extend_pcr(pcr5, &[b"Exit Boot Services Invocation"]);
+    let pcr5 = extend_pcr(pcr5, &[b"Exit Boot Services Returned with Success"]);
 
     Ok(pcr5)
 }
 
 fn pcr6() -> Result<[u8; 48], Box<dyn std::error::Error>> {
-    let pcr6 = extend_pcr([0; 48], &[0; 4]);
+    let pcr6 = extend_pcr([0; 48], &[[0; 4].as_ref()]);
 
     Ok(pcr6)
 }
@@ -175,10 +170,11 @@ fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
 
     let pcr9 = extend_pcr(
         [0; 48],
-        &cmdline
+        &[cmdline
             .encode_utf16()
             .flat_map(u16::to_le_bytes)
-            .collect::<Vec<_>>(),
+            .collect::<Vec<_>>()
+            .as_ref()],
     );
 
     // TODO: extend with initrd
@@ -197,22 +193,25 @@ fn pcr11(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
     let pcr11 = SECTIONS
         .iter()
         .try_fold([0; 48], |acc, &item| {
-            let temp = extend_pcr(acc, &[item.as_bytes(), &[0]].concat());
+            let temp = extend_pcr(acc, &[item.as_bytes(), &[0]]);
             let section = pe
                 .sections
                 .iter()
                 .find(|section| section.name().unwrap_or("") == item)?;
             let section_bytes = &uki_bytes[section.pointer_to_raw_data as usize
                 ..section.pointer_to_raw_data as usize + section.virtual_size as usize];
-            Some(extend_pcr(temp, &section_bytes))
+            Some(extend_pcr(temp, &[section_bytes]))
         })
         .ok_or("failed to compute pcr11")?;
 
     Ok(pcr11)
 }
 
-fn extend_pcr(old: [u8; 48], new: &[u8]) -> [u8; 48] {
-    let new_hash = Sha384::new_with_prefix(new).finalize();
+fn extend_pcr(old: [u8; 48], new: &[&[u8]]) -> [u8; 48] {
+    let new_hash = new
+        .into_iter()
+        .fold(Sha384::new(), |acc, new| acc.chain_update(new))
+        .finalize();
 
     // println!(
     //     "old: {}\nnew: {}\nnew_hash: {}",
