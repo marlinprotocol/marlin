@@ -87,7 +87,7 @@ pub fn get_attestation_doc(
     attestation[76..86].copy_from_slice(b"\x69timestamp");
     attestation[86] = 0x1b;
     attestation[87..95].copy_from_slice(&(timestamp_ms as u64).to_be_bytes());
-    attestation[95..109].copy_from_slice(b"\x64nitrotpm_pcrs");
+    attestation[95..109].copy_from_slice(b"\x6dnitrotpm_pcrs");
     attestation[109] = 0xb1;
     for i in 0..17 {
         attestation[110 + i * 51] = i as u8;
