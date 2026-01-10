@@ -2,7 +2,8 @@
 # configure read only erofs partitions protected by dm-verity
 {
   config,
-  # lib,
+  pkgs,
+  lib,
   modulesPath,
   systemConfig,
   ...
@@ -78,6 +79,47 @@
     # does not work in prod without this
     ukiPath = "/EFI/BOOT/BOOT${systemConfig.efi_arch}.EFI";
   };
+
+  # Force-replace the UKI builder with our patched version
+  # which strips the osrel section
+  system.build.uki = lib.mkForce (
+    let
+      inherit (config.system.boot.loader) ukiFile;
+
+      # We replicate the cmdline logic from the module
+      cmdline = "init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams}";
+
+      partitionTypes = {
+        usr-verity = "usr-${systemConfig.repart_arch}-verity";
+      };
+    in
+      pkgs.runCommand ukiFile
+      {
+        nativeBuildInputs = [
+          pkgs.buildPackages.jq
+          pkgs.buildPackages.systemdUkify
+          pkgs.llvm # Added for llvm-objcopy
+        ];
+      }
+      ''
+        mkdir -p $out
+
+        # 1. Extract the roothash (Original Logic)
+        usrhash=$(jq -r \
+          '.[] | select(.type=="${partitionTypes.usr-verity}") | .roothash' \
+          ${config.system.build.intermediateImage}/repart-output.json
+        )
+
+        # 2. Build UKI with the embedded usrhash (Original Logic)
+        ukify build \
+            --config=${config.boot.uki.configFile} \
+            --cmdline="${cmdline} usrhash=$usrhash" \
+            --output="$out/${ukiFile}"
+
+        # 3. OUR PATCH: Remove the section immediately after creation
+        ${pkgs.llvm}/bin/llvm-objcopy --remove-section .osrel "$out/${ukiFile}"
+      ''
+  );
 
   # extra kernel params
   # ref: https://github.com/aws/nitrotpm-attestation-samples/blob/main/nix/image/verity.nix#L82
