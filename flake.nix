@@ -62,7 +62,7 @@
         inherit nixpkgs systemConfig crane;
       };
       kms.root-server = import ./kms/root-server {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.root-server-enclave = import ./kms/root-server-enclave {
         inherit nixpkgs systemConfig;
