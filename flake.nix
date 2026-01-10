@@ -49,7 +49,7 @@
         inherit nixpkgs systemConfig crane;
       };
       kms.creator = import ./kms/creator {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.creator-enclave = import ./kms/creator-enclave {
         inherit nixpkgs systemConfig;
