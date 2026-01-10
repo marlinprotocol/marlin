@@ -153,7 +153,6 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8a94047bd9c3717c6ca3a145504c0e26b64a5e2d9eb9559b187748433fbc382"
 dependencies = [
- "openssl",
  "serde",
  "serde_bytes",
  "serde_cbor",
