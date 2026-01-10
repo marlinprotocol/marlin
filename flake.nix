@@ -5,25 +5,24 @@
   };
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
-    naersk = {
-      url = "github:nix-community/naersk";
-      inputs.nixpkgs.follows = "nixpkgs";
+    crane = {
+      url = "github:ipetkov/crane";
     };
   };
   outputs = {
     self,
     nixpkgs,
-    naersk,
+    crane,
   }: let
     systemBuilder = systemConfig: rec {
       attestation.server = import ./attestation/server {
-        inherit nixpkgs systemConfig naersk;
-      };
-      enclaves.gauge = import ./enclaves/gauge {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       attestation.server-custom = import ./attestation/server-custom {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
+      };
+      enclaves.gauge = import ./enclaves/gauge {
+        inherit nixpkgs systemConfig crane;
       };
       enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {
         inherit nixpkgs systemConfig;
@@ -39,13 +38,13 @@
         attestation-server = attestation.server.service;
       };
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       initialization.keygen = import ./initialization/keygen {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.creator = import ./kms/creator {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.creator-enclave = import ./kms/creator-enclave {
         inherit nixpkgs systemConfig;
@@ -55,10 +54,10 @@
         kms-creator = kms.creator.service;
       };
       kms.derive-server = import ./kms/derive-server {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.root-server = import ./kms/root-server {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       kms.root-server-enclave = import ./kms/root-server-enclave {
         inherit nixpkgs systemConfig;

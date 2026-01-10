@@ -1,11 +1,21 @@
 {
   nixpkgs,
   systemConfig,
-  naersk,
+  crane,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  naersk' = pkgs.callPackage naersk {};
+  crane' = crane.mkLib pkgs;
+  commonArgs = {
+    strictDeps = true;
+    doCheck = false;
+    # DOES NOT run the check command
+    # short circuits it by running the true command instead
+    cargoCheckCommand = "true";
+
+    src = crane'.cleanCargoSource ./.;
+  };
+  deps = crane'.buildDepsOnly commonArgs;
   service = {
     binaries,
     key-type,
@@ -27,9 +37,10 @@
     };
   };
 in rec {
-  default = naersk'.buildPackage {
-    src = ./.;
-  };
+  default = crane'.buildPackage (commonArgs
+    // {
+      cargoArtifacts = deps;
+    });
   x25519.service = service {
     binaries = default;
     key-type = "x25519";

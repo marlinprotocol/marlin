@@ -1,6 +1,6 @@
 [package]
 name = "marlin-sdk"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "Marlin SDK"
 license = "Apache-2.0"
@@ -11,7 +11,7 @@ thiserror = { version = "2.0.12" }
 
 # Feature: attestation
 aws-lc-rs = { version = "1.15.2", optional = true }
-aws-nitro-enclaves-cose = { version = "0.5.2", optional = true }
+aws-nitro-enclaves-cose = { version = "0.5.2", default-features = false, optional = true }
 x509-parser = { version = "0.18", features = ["verify", "verify-aws"], optional = true }
 sha2 = { version = "0.10", optional = true }
 serde_cbor = { version = "0.11.2", optional = true }
