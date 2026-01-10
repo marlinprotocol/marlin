@@ -7,6 +7,9 @@
   pkgs = nixpkgs.legacyPackages."${system}";
   crane' = crane.mkLib pkgs;
   commonArgs = {
+    pname = "nitrotpm-tools";
+    version = "unknown";
+
     strictDeps = true;
     doCheck = false;
     # DOES NOT run the check command
