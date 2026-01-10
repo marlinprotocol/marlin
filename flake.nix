@@ -16,11 +16,12 @@
   outputs = {
     self,
     nixpkgs,
+    crane,
     naersk,
   }: let
     systemBuilder = systemConfig: rec {
       attestation.server = import ./attestation/server {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig naersk;
