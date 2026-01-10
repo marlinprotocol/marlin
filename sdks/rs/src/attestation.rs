@@ -151,7 +151,7 @@ pub fn verify(
         // return result of comparison if expectation exists
         .filter_map(|(idx, &expected_pcr)| Some((idx, expected_pcr? == result.pcrs[idx])))
         // short circuit on first comparison failure
-        .find(|&(_, res)| res == false)
+        .find(|&(_, res)| !res)
     {
         return Err(AttestationError::PcrsMismatch {
             idx,
@@ -164,12 +164,7 @@ pub fn verify(
     let mut hasher = Sha256::new();
     // bitflags denoting what pcrs are part of the computation
     // this one has 4-15
-    hasher.update(
-        (4..=15)
-            .into_iter()
-            .fold(0u32, |acc, x| acc | (1 << x))
-            .to_be_bytes(),
-    );
+    hasher.update((4..=15).fold(0u32, |acc, x| acc | (1 << x)).to_be_bytes());
     hasher.update(result.pcrs.as_flattened());
     result.image_id = hasher.finalize().into();
 
@@ -179,7 +174,7 @@ pub fn verify(
     {
         return Err(AttestationError::ImageIdMismatch {
             expected: hex::encode(image_id),
-            got: hex::encode(&result.image_id),
+            got: hex::encode(result.image_id),
         });
     }
 
@@ -262,7 +257,7 @@ fn parse_pcrs(
         .ok_or(AttestationError::MissingField("nitrotpm_pcrs".into()))?;
     let mut pcrs_arr = (match pcrs_arr {
         Value::Map(b) => Ok(b),
-        _ => Err(AttestationError::InvalidType(format!("nitrotpm_pcrs"))),
+        _ => Err(AttestationError::InvalidType("nitrotpm_pcrs".to_string())),
     })?;
 
     let mut result = [[0; 48]; 12];
