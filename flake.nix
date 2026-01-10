@@ -43,7 +43,7 @@
         attestation-server = attestation.server.service;
       };
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       initialization.keygen = import ./initialization/keygen {
         inherit nixpkgs systemConfig naersk;
