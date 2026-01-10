@@ -27,7 +27,7 @@
         inherit nixpkgs systemConfig crane;
       };
       enclaves.gauge = import ./enclaves/gauge {
-        inherit nixpkgs systemConfig naersk;
+        inherit nixpkgs systemConfig crane;
       };
       enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {
         inherit nixpkgs systemConfig;
