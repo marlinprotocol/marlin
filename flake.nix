@@ -51,6 +51,9 @@
         attestation-server = attestation.server.standard.service;
         kms-creator = kms.creator.service;
       };
+      kms.creator-verifier = import ./kms/creator-verifier {
+        inherit nixpkgs systemConfig crane;
+      };
       kms.derive-server = import ./kms/derive-server {
         inherit nixpkgs systemConfig crane;
       };
