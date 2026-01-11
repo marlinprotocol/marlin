@@ -183,15 +183,7 @@ fn pcr9(uki: &str) -> Result<[u8; 48], Box<dyn std::error::Error>> {
             .collect::<Vec<_>>()
             .as_ref()],
     );
-    let pcr9 = extend_pcr(
-        pcr9,
-        &[
-            initrd_bytes,
-            // pad so it is aligned to multiple of 4
-            // TODO: are our initrds already padded by default?
-            vec![0; 3 - (initrd_bytes.len() - 1) % 4].as_ref(),
-        ],
-    );
+    let pcr9 = extend_pcr(pcr9, &[initrd_bytes]);
 
     Ok(pcr9)
 }
