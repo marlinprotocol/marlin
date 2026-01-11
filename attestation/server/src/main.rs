@@ -36,11 +36,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route(
             "/attestation/raw",
-            get(|| async { attestation_server::get_attestation_doc(Some(pub_key.into()), Some(user_data.into()), None) }),
+            get(|| async {
+                attestation_server::get_attestation_doc(
+                    Some(pub_key.into()),
+                    Some(user_data.into()),
+                    None,
+                )
+            }),
         )
         .route(
             "/attestation/hex",
-            get(|| async { attestation_server::get_hex_attestation_doc(Some(pub_key.into()), Some(user_data.into()), None) }),
+            get(|| async {
+                attestation_server::get_hex_attestation_doc(
+                    Some(pub_key.into()),
+                    Some(user_data.into()),
+                    None,
+                )
+            }),
         )
         .route("/health", get(|| async { StatusCode::OK }));
 

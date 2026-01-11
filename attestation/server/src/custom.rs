@@ -58,6 +58,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/attestation/raw", get(handle_raw))
         .route("/attestation/hex", get(handle_hex))
         .route("/health", get(|| async { StatusCode::OK }));
+
+    println!("Listening on {}", cli.ip_addr);
     let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
 
     axum::serve(listener, app).await?;
