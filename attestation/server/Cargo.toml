@@ -11,6 +11,10 @@ hex = "0.4.3"
 nitro-tpm-attest = "1.0.1"
 tokio = { version = "1", features = ["full"] }
 
+[[bin]]
+name = "attestation-server-custom"
+path = "src/custom.rs"
+
 [profile.release]
 strip = true
 lto = true
