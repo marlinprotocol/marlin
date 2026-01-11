@@ -26,8 +26,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // leak in order to get a static slice
     // okay to do since it will get cleaned up on exit
-    let pub_key = std::fs::read(cli.pub_key)?.leak::<'static>();
-    let user_data = cli
+    let pub_key: &'static [u8] = std::fs::read(cli.pub_key)?.leak::<'static>();
+    let user_data: &'static [u8] = cli
         .user_data
         .and_then(|x| std::fs::read(x).ok())
         .unwrap_or(Vec::new())
@@ -36,11 +36,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route(
             "/attestation/raw",
-            get(|| async { attestation_server::get_attestation_doc(pub_key, user_data) }),
+            get(|| async { attestation_server::get_attestation_doc(Some(pub_key.into()), Some(user_data.into()), None) }),
         )
         .route(
             "/attestation/hex",
-            get(|| async { attestation_server::get_hex_attestation_doc(pub_key, user_data) }),
+            get(|| async { attestation_server::get_hex_attestation_doc(Some(pub_key.into()), Some(user_data.into()), None) }),
         )
         .route("/health", get(|| async { StatusCode::OK }));
 
