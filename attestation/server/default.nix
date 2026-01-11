@@ -34,10 +34,10 @@ in {
 
     service = {...} @ args: let
       service-name = args.service-name or "attestation-server";
-      ip-addr = args.ip-addr or "0.0.0.0:1300";
-      pub-key = args.pub-key or "/root/x25519.pub";
+      listen-addr = args.listen-addr or "0.0.0.0:1300";
+      public-key = args.public-key or "/root/x25519.pub";
       user-data = args.user-data or "/dev/null";
-      port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" ip-addr));
+      port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" listen-addr));
     in {
       # systemd service
       systemd.services.${service-name} = {
@@ -48,8 +48,8 @@ in {
           Type = "simple";
           ExecStart = ''
             ${default}/bin/attestation-server \
-              --ip-addr ${ip-addr} \
-              --pub-key ${pub-key} \
+              --listen-addr ${listen-addr} \
+              --public-key ${public-key} \
               --user-data ${user-data}
           '';
           Restart = "always";
@@ -69,8 +69,8 @@ in {
 
     service = {...} @ args: let
       service-name = args.service-name or "attestation-server-custom";
-      ip-addr = args.ip-addr or "0.0.0.0:1350";
-      port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" ip-addr));
+      listen-addr = args.listen-addr or "0.0.0.0:1350";
+      port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" listen-addr));
     in {
       # systemd service
       systemd.services.${service-name} = {
@@ -81,7 +81,7 @@ in {
           Type = "simple";
           ExecStart = ''
             ${default}/bin/attestation-server-custom \
-              --ip-addr ${ip-addr}
+              --listen-addr ${listen-addr}
           '';
           Restart = "always";
         };
