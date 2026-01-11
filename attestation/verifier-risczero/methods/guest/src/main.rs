@@ -80,80 +80,60 @@ fn verify(attestation: &[u8], commit_slice: impl Fn(&[u8])) {
     let timestamp =
         u64::from_be_bytes(attestation[offset + 25..offset + 33].try_into().unwrap()) / 1000;
 
-    // assert pcrs key
-    assert_eq!(attestation[offset + 33], 0x64); // text of size 4
-    assert_eq!(&attestation[offset + 34..offset + 38], b"pcrs");
-    assert!(attestation[offset + 38] == 0xb0 || attestation[offset + 38] == 0xb1); // pcrs is a map of size 16 or 17
-
-    // is there a custom PCR
-    let is_custom = attestation[offset + 38] == 0xb1;
+    // assert nitrotpm_pcrs key
+    assert_eq!(attestation[offset + 33], 0x6d); // text of size 13
+    assert_eq!(&attestation[offset + 34..offset + 47], b"nitrotpm_pcrs");
+    assert_eq!(attestation[offset + 47], 0xb8); // pcrs is a map of size 24
+    assert_eq!(attestation[offset + 48], 0x18); // pcrs is a map of size 24
 
     // hasher for accumulating an image id
     let mut image_id_hasher = Sha256::new();
     // bitflags denoting what pcrs are part of the computation
-    // this one has 0, 1, 2 and 16
-    image_id_hasher.update(&((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
+    // this one has 4-15
+    image_id_hasher.update(0x0000fff0u32.to_be_bytes());
 
-    offset += 39;
-    assert_eq!(
-        attestation[offset..offset + 3],
-        [
-            0x00, // pcr number
-            0x58, // bytes with one byte length follows
-            0x30, // 48 length
-        ]
-    );
-    println!("PCR0: {:?}", &attestation[offset + 3..offset + 51]);
-    image_id_hasher.update(&attestation[offset + 3..offset + 51]);
+    offset += 49;
 
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x01, 0x58, 0x30]);
-    println!("PCR1: {:?}", &attestation[offset + 3..offset + 51]);
-    image_id_hasher.update(&attestation[offset + 3..offset + 51]);
+    // skip pcrs 0-3
+    (0..=3).into_iter().for_each(|idx| {
+        assert_eq!(
+            attestation[offset..offset + 3],
+            [
+                idx,  // pcr number
+                0x58, // bytes with one byte length follows
+                0x30, // 48 length
+            ]
+        );
+        offset += 51;
+    });
 
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x02, 0x58, 0x30]);
-    println!("PCR2: {:?}", &attestation[offset + 3..offset + 51]);
-    image_id_hasher.update(&attestation[offset + 3..offset + 51]);
-
-    // skip rest of the pcrs, 3 to 15
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x03, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x04, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x05, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x06, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x07, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x08, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x09, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0a, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0b, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0c, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0d, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0e, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0f, 0x58, 0x30]);
-    offset += 51;
-
-    // process custom pcr if exists
-    if is_custom {
-        assert_eq!(attestation[offset..offset + 3], [0x10, 0x58, 0x30]);
-        println!("PCR16: {:?}", &attestation[offset + 3..offset + 51]);
+    // parse pcrs 4-15
+    (4..=15).into_iter().for_each(|idx| {
+        assert_eq!(
+            attestation[offset..offset + 3],
+            [
+                idx,  // pcr number
+                0x58, // bytes with one byte length follows
+                0x30, // 48 length
+            ]
+        );
+        println!("PCR{idx}: {:?}", &attestation[offset + 3..offset + 51]);
         image_id_hasher.update(&attestation[offset + 3..offset + 51]);
         offset += 51;
-    } else {
-        image_id_hasher.update(&[0u8; 48]);
-    }
+    });
+
+    // skip pcrs 16-23
+    (16..=23).into_iter().for_each(|idx| {
+        assert_eq!(
+            attestation[offset..offset + 3],
+            [
+                idx,  // pcr number
+                0x58, // bytes with one byte length follows
+                0x30, // 48 length
+            ]
+        );
+        offset += 51;
+    });
     println!("Skipped rest of the pcrs");
 
     // commit image id
