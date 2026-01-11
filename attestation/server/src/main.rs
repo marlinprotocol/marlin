@@ -7,13 +7,13 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// ip address of the server (e.g. 127.0.0.1:1300)
+    /// listen address of the server (e.g. 127.0.0.1:1300)
     #[arg(short, long)]
-    ip_addr: String,
+    listen_addr: String,
 
     /// path to public key file (e.g. /app/id.pub)
     #[arg(short, long)]
-    pub_key: String,
+    public_key: String,
 
     /// path to user data file (e.g. /app/init-params-digest)
     #[arg(long)]
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // leak in order to get a static slice
     // okay to do since it will get cleaned up on exit
-    let pub_key: &'static [u8] = std::fs::read(cli.pub_key)?.leak::<'static>();
+    let public_key: &'static [u8] = std::fs::read(cli.public_key)?.leak::<'static>();
     let user_data: &'static [u8] = cli
         .user_data
         .and_then(|x| std::fs::read(x).ok())
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "/attestation/raw",
             get(|| async {
                 attestation_server::get_attestation_doc(
-                    Some(pub_key.into()),
+                    Some(public_key.into()),
                     Some(user_data.into()),
                     None,
                 )
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "/attestation/hex",
             get(|| async {
                 attestation_server::get_hex_attestation_doc(
-                    Some(pub_key.into()),
+                    Some(public_key.into()),
                     Some(user_data.into()),
                     None,
                 )
@@ -56,8 +56,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )
         .route("/health", get(|| async { StatusCode::OK }));
 
-    println!("Listening on {}", cli.ip_addr);
-    let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
+    println!("Listening on {}", cli.listen_addr);
+    let listener = tokio::net::TcpListener::bind(&cli.listen_addr).await?;
 
     axum::serve(listener, app).await?;
 

@@ -45,9 +45,9 @@ async fn handle_hex(
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// ip address of the server
+    /// listen address of the server
     #[arg(short, long, default_value = "127.0.0.1:1350")]
-    ip_addr: String,
+    listen_addr: String,
 }
 
 #[tokio::main]
@@ -59,8 +59,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/attestation/hex", get(handle_hex))
         .route("/health", get(|| async { StatusCode::OK }));
 
-    println!("Listening on {}", cli.ip_addr);
-    let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
+    println!("Listening on {}", cli.listen_addr);
+    let listener = tokio::net::TcpListener::bind(&cli.listen_addr).await?;
 
     axum::serve(listener, app).await?;
 
