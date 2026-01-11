@@ -1,7 +1,7 @@
 {
   nixConfig = {
-    extra-substituters = ["https://oyster.cachix.org"];
-    extra-trusted-public-keys = ["oyster.cachix.org-1:QEXLEQvMA7jPLn4VZWVk9vbtypkXhwZknX+kFgDpYQY="];
+    extra-substituters = ["https://marlin.cachix.org"];
+    extra-trusted-public-keys = ["marlin.cachix.org-1:Qgb4N/YJ9iX+wExt/+fbdSqQ6/GHaSvQ5xnvz5QTeD0="];
   };
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
