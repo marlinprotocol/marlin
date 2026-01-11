@@ -1,8 +1,6 @@
 use clap::Parser;
-use rand::rngs::OsRng;
-use secp256k1::generate_keypair;
-use std::error::Error;
-use std::{fs::File, io::Write};
+use secp256k1::{generate_keypair, rand};
+use std::{error::Error, fs::File, io::Write};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -21,7 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("private key: {}, public key: {}", cli.secret, cli.public);
 
-    let (secret, public) = generate_keypair(&mut OsRng);
+    let (secret, public) = generate_keypair(&mut rand::rng());
 
     let mut file = File::create(cli.secret)?;
     file.write_all(&secret.secret_bytes())?;
