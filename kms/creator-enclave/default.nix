@@ -3,6 +3,7 @@
   nixpkgs,
   systemConfig,
   nitrotpm-tools,
+  gauge,
   keygen-secp256k1,
   attestation-server,
   kms-creator,
@@ -23,7 +24,7 @@
       (./. + "/../../enclaves/configs/init-params-fetcher.nix")
       keygen-secp256k1
       (attestation-server {
-        pub-key = "/root/secp256k1.pub";
+        public-key = "/root/secp256k1.pub";
         user-data = "/root/init-params";
       })
       (kms-creator {
@@ -48,10 +49,25 @@
       systemConfig = systemConfig;
     };
   };
-  measurement = pkgs.runCommand "measurement" {} ''
-    mkdir $out
-    ${nitrotpm-tools}/bin/nitro-tpm-pcr-compute -i ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} > $out/measurement.json
-  '';
+  measurement =
+    pkgs.runCommand "measurement" {
+      nativeBuildInputs = [pkgs.jq];
+    } ''
+      mkdir $out
+      ${nitrotpm-tools}/bin/nitro-tpm-pcr-compute -i ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} > nitro-measurement.json
+      ${gauge}/bin/gauge ${nixosSystem.config.system.build.finalImage}/*.raw ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} gauge-measurement.json
+      jq -s '
+        # 1. The Deep Merge
+        reduce .[] as $item ({}; . * $item)
+
+        # 2. The Custom Sort
+        | .Measurements |= (
+            to_entries
+            | sort_by( .key | sub("(?<n>\\d+)"; .n | "00000" + . | .[-5:]) )
+            | from_entries
+          )
+      ' nitro-measurement.json gauge-measurement.json > $out/measurement.json
+    '';
 in {
   default = pkgs.symlinkJoin {
     name = "measured-image";

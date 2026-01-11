@@ -46,6 +46,7 @@
       kms.creator-enclave = import ./kms/creator-enclave {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
+        gauge = enclaves.gauge.default;
         keygen-secp256k1 = initialization.keygen.secp256k1.service;
         attestation-server = attestation.server.standard.service;
         kms-creator = kms.creator.service;
