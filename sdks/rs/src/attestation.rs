@@ -469,8 +469,8 @@ mod tests {
 
     use super::verify;
 
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real instance
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+    // on the custom attestation server of a real instance
     #[test]
     fn test_aws_none_specified() {
         let attestation =
@@ -561,8 +561,8 @@ mod tests {
         );
     }
 
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real Nitro enclave
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+    // on the custom attestation server of a real instance
     #[test]
     fn test_aws_all_specified() {
         let attestation =
@@ -691,7 +691,7 @@ mod tests {
 
         let decoded = verify(&attestation, Default::default()).unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x0000019ba7060dce);
+        assert_eq!(decoded.timestamp_ms, 0x0000019babf13dfd);
         assert_eq!(decoded.pcrs[0], [4; 48]);
         assert_eq!(decoded.pcrs[1], [5; 48]);
         assert_eq!(decoded.pcrs[2], [6; 48]);
@@ -724,8 +724,8 @@ mod tests {
         let decoded = verify(
             &attestation,
             AttestationExpectations {
-                timestamp_ms: Some(0x0000019ba7060dce),
-                age_ms: Some((300000, 0x0000019ba7060dce + 300000)),
+                timestamp_ms: Some(0x0000019babf13dfd),
+                age_ms: Some((300000, 0x0000019babf13dfd + 300000)),
                 pcrs: [
                     Some([4; 48]),
                     Some([5; 48]),
@@ -750,7 +750,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x0000019ba7060dce);
+        assert_eq!(decoded.timestamp_ms, 0x0000019babf13dfd);
         assert_eq!(decoded.pcrs[0], [4; 48]);
         assert_eq!(decoded.pcrs[1], [5; 48]);
         assert_eq!(decoded.pcrs[2], [6; 48]);

@@ -1,4 +1,4 @@
-![Marlin Oyster Logo](./logo.svg)
+![Marlin Logo](../../logo.svg)
 
 # Keygen
 
@@ -18,24 +18,21 @@ cargo build --release
 Reproducible builds can be done using Nix. The monorepo provides a Nix flake which includes this project and can be used to trigger builds:
 
 ```bash
-nix build -v .#<flavor>.initialization.keygen.<output>
+nix build -v .#initialization.keygen.<output>
 ```
 
-Supported flavors:
-- `gnu`
-- `musl`
-
 Supported outputs:
-- `default`, same as `compressed`
-- `uncompressed`
-- `compressed`, using `upx`
+- `default`, cargo build output
+- `ed25519.service`, systemd service config for x25519 keygen
+- `secp256k1.service`, systemd service config for x25519 keygen
+- `x25519.service`, systemd service config for x25519 keygen
 
 ## ed25519
 
 ### Usage
 
 ```bash
-$ ./target/release/keygen-ed25519 --help
+$ keygen-ed25519 --help
 Usage: keygen-ed25519 --secret <SECRET> --public <PUBLIC>
 
 Options:
@@ -50,7 +47,7 @@ Options:
 keygen-ed25519 generates a ed25519 key pair and stores it in the file paths provided. The secret key and public key are stored as bytes, with a size of 64 and 32 respectively.
 
 ```bash
-$ ./target/release/keygen-ed25519 --secret ed25519.sec --public ed25519.pub
+$ keygen-ed25519 --secret ed25519.sec --public ed25519.pub
 private key: ed25519.sec, public key: ed25519.pub
 Generation successful!
 $ xxd ed25519.sec
@@ -68,7 +65,7 @@ $ xxd ed25519.pub
 ### Usage
 
 ```bash
-$ ./target/release/keygen-secp256k1 --help
+$ keygen-secp256k1 --help
 Usage: keygen-secp256k1 --secret <SECRET> --public <PUBLIC>
 
 Options:
@@ -83,7 +80,7 @@ Options:
 keygen-secp256k1 generates a secp256k1 key pair and stores it in the file paths provided. The secret key and public key are stored as bytes, with a size of 32 and 64 respectively. Note that the public key is stored uncompressed _without_ the `0x04` prefix byte.
 
 ```bash
-$ ./target/release/keygen-secp256k1 --secret secp256k1.sec --public secp256k1.pub
+$ keygen-secp256k1 --secret secp256k1.sec --public secp256k1.pub
 private key: secp256k1.sec, public key: secp256k1.pub
 Generation successful!
 $ xxd secp256k1.sec 
@@ -101,7 +98,7 @@ $ xxd secp256k1.pub
 ### Usage
 
 ```bash
-$ ./target/release/keygen-x25519 --help
+$ keygen-x25519 --help
 Usage: keygen-x25519 --secret <SECRET> --public <PUBLIC>
 
 Options:
@@ -116,7 +113,7 @@ Options:
 keygen-x25519 generates a x25519 key pair and stores it in the file paths provided. The secret key and public key are stored as bytes, with a size of 32 and 32 respectively.
 
 ```bash
-$ ./target/release/keygen-x25519 --secret x25519.sec --public x25519.pub
+$ keygen-x25519 --secret x25519.sec --public x25519.pub
 private key: x25519.sec, public key: x25519.pub
 Generation successful!
 $ xxd x25519.sec
@@ -129,4 +126,4 @@ $ xxd x25519.pub
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE.txt](./LICENSE.txt).
+This project is licensed under the GNU AGPLv3 or any later version. See [LICENSE.txt](./LICENSE.txt).

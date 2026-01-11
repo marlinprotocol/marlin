@@ -16,7 +16,7 @@
       (./. + "/../../enclaves/configs/disk-ro.nix")
       # custom attestation server
       (attestation-server-custom {
-        ip-addr = "0.0.0.0:1300";
+        listen-addr = "0.0.0.0:1300";
       })
     ];
 

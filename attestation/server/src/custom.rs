@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use attestation_server_custom::{get_attestation_doc, get_hex_attestation_doc};
+use attestation_server::{get_attestation_doc, get_hex_attestation_doc};
 use axum::{Router, extract::Query, http::StatusCode, routing::get};
 use clap::Parser;
 
@@ -45,9 +45,9 @@ async fn handle_hex(
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// ip address of the server
+    /// listen address of the server
     #[arg(short, long, default_value = "127.0.0.1:1350")]
-    ip_addr: String,
+    listen_addr: String,
 }
 
 #[tokio::main]
@@ -58,7 +58,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/attestation/raw", get(handle_raw))
         .route("/attestation/hex", get(handle_hex))
         .route("/health", get(|| async { StatusCode::OK }));
-    let listener = tokio::net::TcpListener::bind(&cli.ip_addr).await?;
+
+    println!("Listening on {}", cli.listen_addr);
+    let listener = tokio::net::TcpListener::bind(&cli.listen_addr).await?;
 
     axum::serve(listener, app).await?;
 

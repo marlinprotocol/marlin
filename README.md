@@ -1,6 +1,6 @@
-# Oyster monorepo
+# Marlin
 
-Monorepo for the Oyster platform.
+Monorepo for the Marlin platform.
 
 ## Organization
 

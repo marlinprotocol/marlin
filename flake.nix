@@ -1,7 +1,7 @@
 {
   nixConfig = {
-    extra-substituters = ["https://oyster.cachix.org"];
-    extra-trusted-public-keys = ["oyster.cachix.org-1:QEXLEQvMA7jPLn4VZWVk9vbtypkXhwZknX+kFgDpYQY="];
+    extra-substituters = ["https://marlin.cachix.org"];
+    extra-trusted-public-keys = ["marlin.cachix.org-1:Qgb4N/YJ9iX+wExt/+fbdSqQ6/GHaSvQ5xnvz5QTeD0="];
   };
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
@@ -18,9 +18,6 @@
       attestation.server = import ./attestation/server {
         inherit nixpkgs systemConfig crane;
       };
-      attestation.server-custom = import ./attestation/server-custom {
-        inherit nixpkgs systemConfig crane;
-      };
       enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig crane;
       };
@@ -28,14 +25,14 @@
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
         gauge = enclaves.gauge.default;
-        attestation-server-custom = attestation.server-custom.service;
+        attestation-server-custom = attestation.server.custom.service;
       };
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
         gauge = enclaves.gauge.default;
         keygen-x25519 = initialization.keygen.x25519.service;
-        attestation-server = attestation.server.service;
+        attestation-server = attestation.server.standard.service;
       };
       external.nitrotpm-tools = import ./external/nitrotpm-tools.nix {
         inherit nixpkgs systemConfig crane;
@@ -49,9 +46,13 @@
       kms.creator-enclave = import ./kms/creator-enclave {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
+        gauge = enclaves.gauge.default;
         keygen-secp256k1 = initialization.keygen.secp256k1.service;
-        attestation-server = attestation.server.service;
+        attestation-server = attestation.server.standard.service;
         kms-creator = kms.creator.service;
+      };
+      kms.creator-verifier = import ./kms/creator-verifier {
+        inherit nixpkgs systemConfig crane;
       };
       kms.derive-server = import ./kms/derive-server {
         inherit nixpkgs systemConfig crane;
@@ -63,7 +64,7 @@
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
         keygen-secp256k1 = initialization.keygen.secp256k1.service;
-        attestation-server = attestation.server.service;
+        attestation-server = attestation.server.standard.service;
         kms-root-server = kms.root-server.service;
       };
     };
