@@ -469,8 +469,8 @@ mod tests {
 
     use super::verify;
 
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real instance
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+    // on the custom attestation server of a real instance
     #[test]
     fn test_aws_none_specified() {
         let attestation =
@@ -561,8 +561,8 @@ mod tests {
         );
     }
 
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real Nitro enclave
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+    // on the custom attestation server of a real instance
     #[test]
     fn test_aws_all_specified() {
         let attestation =

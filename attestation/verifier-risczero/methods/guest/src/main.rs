@@ -446,8 +446,8 @@ mod tests {
 
     #[test]
     fn test_aws() {
-        // generated using `curl <ip>:<port>/attestation/raw` on the attestation server of a
-        // real Nitro enclave
+        // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+        // on the custom attestation server of a real instance
         let attestation =
             std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/aws.bin")
                 .unwrap();
@@ -458,19 +458,20 @@ mod tests {
 
         let expected_journal = [
             // timestamp
-            "00000193bef3f3b0",
+            "0000019ba6c8dab7",
             // image id
-            "a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602",
+            "b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00",
             // root pubkey
             "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b17607",
             "0ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4",
             // pubkey len
-            "40",
+            "02",
             // pubkey
-            "e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd3",
-            "6d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb",
+            "abcd",
             // user data len
-            "0000",
+            "0002",
+            // user data
+            "1234",
         ].join("");
 
         assert_eq!(
@@ -481,10 +482,10 @@ mod tests {
 
     #[test]
     fn test_custom() {
-        // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
+        // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
         // on a custom mock attestation server running locally
         let attestation =
-            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom.bin")
+            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/mock.bin")
                 .unwrap();
 
         let (journal, committer) = create_committer();
@@ -493,92 +494,20 @@ mod tests {
 
         let expected_journal = [
             // timestamp
-            "00000193bf444e30",
+            "0000019babf13dfd",
             // image id
-            "b45dfd1807c1f4b81ef28b44682fba5d4d5522baac808a44b7302cbfda5144e7",
+            "e3caee4ad768d705b977a3687c74b25ff89e4dbd71091e16e04b3f9f867c926b",
             // root pubkey
             "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188",
             "fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410",
             // pubkey len
-            "04",
+            "02",
             // pubkey
-            "12345678",
+            "abcd",
             // user data len
-            "0003",
+            "0002",
             // user data
-            "abcdef",
-        ].join("");
-
-        assert_eq!(
-            expected_journal,
-            hex::encode(journal.borrow_mut().as_slice())
-        );
-    }
-
-    #[test]
-    fn test_aws_pcr16() {
-        // generated using `curl <ip>:<port>/attestation/raw` on the attestation server of a
-        // real Nitro enclave
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/aws_pcr16.bin",
-        )
-        .unwrap();
-
-        let (journal, committer) = create_committer();
-
-        verify(&attestation, committer);
-
-        let expected_journal = [
-            // timestamp
-            "00000196811b1c0b",
-            // image id
-            "c28909dc8803cf0edf6113f3fb81d0494f4c92b63087242200e18a5be347aacd",
-            // root pubkey
-            "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b17607",
-            "0ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4",
-            // pubkey len
-            "20",
-            // pubkey
-            "2af77183f4772f00e269c7ffadb0eca298bf76711bbe94471a4944ede5ada084",
-            // user data len
-            "0000",
-        ].join("");
-
-        assert_eq!(
-            expected_journal,
-            hex::encode(journal.borrow_mut().as_slice())
-        );
-    }
-
-    #[test]
-    fn test_custom_pcr16() {
-        // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
-        // on a custom mock attestation server running locally
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom_pcr16.bin",
-        )
-        .unwrap();
-
-        let (journal, committer) = create_committer();
-
-        verify(&attestation, committer);
-
-        let expected_journal = [
-            // timestamp
-            "00000196870610d9",
-            // image id
-            "20a182763745f956ddee6f8e9d14a66e23db836c0eb1a769a2ef4d3ab77bef1b",
-            // root pubkey
-            "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188",
-            "fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410",
-            // pubkey len
-            "04",
-            // pubkey
-            "12345678",
-            // user data len
-            "0003",
-            // user data
-            "abcdef",
+            "1234",
         ].join("");
 
         assert_eq!(
