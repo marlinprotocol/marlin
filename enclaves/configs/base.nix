@@ -31,9 +31,9 @@
   ];
 
   # set a higher log level for better visibility into the boot process
-  # TODO: confirm a safe level
-  boot.initrd.verbose = true;
-  boot.consoleLogLevel = 7;
+  # not enabled by default to avoid exposing secrets
+  # boot.initrd.verbose = true;
+  # boot.consoleLogLevel = 4;
 
   # the appliance profile causes us to be locked out and nix does not like it
   # set this to tell nix we know what we are doing
