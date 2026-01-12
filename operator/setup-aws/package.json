@@ -1,12 +1,13 @@
 {
-    "name": "oyster",
+    "name": "marlin",
     "main": "index.ts",
-    "devDependencies": {
-        "@types/node": "^16"
-    },
     "dependencies": {
-        "@pulumi/pulumi": "^3.0.0",
-        "@pulumi/aws": "^5.0.0",
-        "@pulumi/awsx": "^1.0.0"
-    }
+        "@pulumi/aws": "^7.16.0",
+        "@pulumi/awsx": "^3.1.0",
+        "@pulumi/pulumi": "^3.215.0"
+    },
+    "scripts": {
+        "preinstall": "npx only-allow pnpm"
+    },
+    "packageManager": "pnpm"
 }
