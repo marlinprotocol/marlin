@@ -1,17 +1,17 @@
 use alloy::{
     hex,
     primitives::keccak256,
-    signers::{local::PrivateKeySigner, SignerSync},
+    signers::{SignerSync, local::PrivateKeySigner},
 };
 use anyhow::{Context, Result};
-use axum::{extract::State, http::StatusCode, routing::get, Router};
+use axum::{Router, extract::State, http::StatusCode, routing::get};
 use clap::Parser;
 use kms_derive_utils::{derive_path_seed, to_secp256k1_public, to_x25519_public};
 use nucypher_core::{
-    encrypt_for_dkg, ferveo::api::DkgPublicKey, AccessControlPolicy, Conditions, ProtocolObject,
-    ThresholdMessageKit,
+    AccessControlPolicy, Conditions, ProtocolObject, ThresholdMessageKit, encrypt_for_dkg,
+    ferveo::api::DkgPublicKey,
 };
-use rand::{rngs::OsRng, TryRngCore};
+use rand::{TryRngCore, rngs::OsRng};
 use tokio::{
     fs::{read, read_to_string},
     net::TcpListener,

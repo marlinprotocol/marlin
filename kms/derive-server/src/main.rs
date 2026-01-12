@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Context, Result};
-use axum::{routing::get, Router};
+use anyhow::{Context, Result, anyhow};
+use axum::{Router, routing::get};
 use clap::Parser;
 use fetch::fetch_seed;
 use scallop::{AuthStore, Auther};

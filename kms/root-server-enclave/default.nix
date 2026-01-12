@@ -1,74 +1,64 @@
+# Image for kms-root enclave
 {
   nixpkgs,
   systemConfig,
-  nitro-util,
-  supervisord,
-  dnsproxy,
-  keygen,
-  raw-proxy,
+  nitrotpm-tools,
+  keygen-secp256k1,
   attestation-server,
-  vet,
-  kernels,
-  root-server,
+  kms-root-server,
 }: let
   system = systemConfig.system;
-  nitro = nitro-util.lib.${system};
-  eifArch = systemConfig.eif_arch;
   pkgs = nixpkgs.legacyPackages."${system}";
-  supervisord' = "${supervisord}/bin/supervisord";
-  dnsproxy' = "${dnsproxy}/bin/dnsproxy";
-  keygenSecp256k1 = "${keygen}/bin/keygen-secp256k1";
-  itvroProxy = "${raw-proxy}/bin/ip-to-vsock-raw-outgoing";
-  vtiriProxy = "${raw-proxy}/bin/vsock-to-ip-raw-incoming";
-  attestationServer = "${attestation-server}/bin/oyster-attestation-server";
-  vet' = "${vet}/bin/vet";
-  rootServer' = "${root-server}/bin/kms-root-server";
-  kernel = kernels.kernel;
-  kernelConfig = kernels.kernelConfig;
-  nsmKo = kernels.nsmKo;
-  init = kernels.init;
-  setup = ./. + "/setup.sh";
-  supervisorConf = ./. + "/supervisord.conf";
-  app = pkgs.runCommand "app" {} ''
-    echo Preparing the app folder
-    pwd
-    mkdir -p $out
-    mkdir -p $out/app
-    mkdir -p $out/etc
-    cp ${supervisord'} $out/app/supervisord
-    cp ${keygenSecp256k1} $out/app/keygen-secp256k1
-    cp ${itvroProxy} $out/app/ip-to-vsock-raw-outgoing
-    cp ${vtiriProxy} $out/app/vsock-to-ip-raw-incoming
-    cp ${attestationServer} $out/app/attestation-server
-    cp ${dnsproxy'} $out/app/dnsproxy
-    cp ${vet'} $out/app/vet
-    cp ${rootServer'} $out/app/kms-root-server
-    cp ${setup} $out/app/setup.sh
-    chmod +x $out/app/*
-    cp ${supervisorConf} $out/etc/supervisord.conf
-  '';
-  # kinda hacky, my nix-fu is not great, figure out a better way
-  initPerms = pkgs.runCommand "initPerms" {} ''
-    cp ${init} $out
-    chmod +x $out
+
+  nixosConfig = {...}: {
+    imports = [
+      # base config
+      (./. + "/../../enclaves/configs/base.nix")
+      # disk config
+      (./. + "/../../enclaves/configs/disk-ro.nix")
+      # dns config
+      (./. + "/../../enclaves/configs/dns.nix")
+
+      # enclave services
+      (./. + "/../../enclaves/configs/init-params-fetcher.nix")
+      keygen-secp256k1
+      (attestation-server {
+        pub-key = "/root/secp256k1.pub";
+        user-data = "/root/init-params";
+      })
+      (kms-root-server {
+        ritual = "40";
+        threshold = "16";
+      })
+    ];
+
+    # image id and version
+    system.image.id = "marlin-kms-root-server";
+    system.image.version = "v0.1.0";
+
+    # service ordering
+    systemd.services.attestation-server.after = ["keygen-secp256k1.service" "init-params-fetcher.service"];
+    systemd.services.kms-root-server.after = ["attestation-server.service"];
+  };
+  nixosSystem = nixpkgs.lib.nixosSystem {
+    system = systemConfig.system;
+    modules = [nixosConfig];
+    specialArgs = {
+      lib = pkgs.lib;
+      modulesPath = "${nixpkgs}/nixos/modules";
+      systemConfig = systemConfig;
+    };
+  };
+  measurement = pkgs.runCommand "measurement" {} ''
+    mkdir $out
+    ${nitrotpm-tools}/bin/nitro-tpm-pcr-compute -i ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} > $out/measurement.json
   '';
 in {
-  default = nitro.buildEif {
-    name = "enclave";
-    arch = eifArch;
-
-    init = initPerms;
-    kernel = kernel;
-    kernelConfig = kernelConfig;
-    nsmKo = nsmKo;
-    cmdline = builtins.readFile nitro.blobs.${eifArch}.cmdLine;
-
-    entrypoint = "/app/setup.sh";
-    env = "";
-    copyToRoot = pkgs.buildEnv {
-      name = "image-root";
-      paths = [app pkgs.busybox pkgs.nettools pkgs.iproute2 pkgs.iptables-legacy pkgs.ipset pkgs.cacert];
-      pathsToLink = ["/bin" "/app" "/etc"];
-    };
+  default = pkgs.symlinkJoin {
+    name = "measured-image";
+    paths = [
+      nixosSystem.config.system.build.finalImage
+      measurement
+    ];
   };
 }

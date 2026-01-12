@@ -327,7 +327,7 @@ async fn noise_write(
     // set noise message
     let len = noise
         .write_message(src, &mut dst[dst_offset + 2..])
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
 
     // set length
     dst[dst_offset..dst_offset + 2].copy_from_slice(&(len as u16).to_be_bytes());
@@ -824,7 +824,7 @@ impl<Base: AsyncWrite + AsyncRead + Unpin, State: Unpin> AsyncRead for ScallopSt
                 let len = stream
                     .noise
                     .read_message(&stream.rbuf.clone(), &mut stream.rbuf)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    .map_err(std::io::Error::other)?;
 
                 // set up to send body upstream
                 stream.read_start = 0;
@@ -873,7 +873,7 @@ impl<Base: AsyncWrite + AsyncRead + Unpin, State: Unpin> AsyncWrite for ScallopS
         let noise_len = stream
             .noise
             .write_message(&buf[0..len as usize], &mut new_buf[2..])
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         // set length
         new_buf[0..2].copy_from_slice(&(noise_len as u16).to_be_bytes());

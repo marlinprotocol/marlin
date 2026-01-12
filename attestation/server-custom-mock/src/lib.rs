@@ -41,9 +41,8 @@ pub fn get_attestation_doc(
     // 7 for `SHA384`
     // 10 for `timestamp`
     // 9 for timestamp
-    // 5 for `pcrs`
-    // 1 + 51 * 16 for standard pcrs
-    // 51 for custom pcr
+    // 14 for `nitrotpm_pcrs`
+    // 2 + 51 * 24 for pcrs
     // 12 for `certificate`
     // 469 for leaf cert
     // 9 for `cabundle`
@@ -65,7 +64,7 @@ pub fn get_attestation_doc(
             3 + payload
         }
     }
-    let payload_size = 1883
+    let payload_size = 2250
         + public_key.map_or(1, |x| encoded_len(x.len()))
         + user_data.map_or(1, |x| encoded_len(x.len()))
         + nonce.map_or(1, |x| encoded_len(x.len()));
@@ -87,23 +86,24 @@ pub fn get_attestation_doc(
     attestation[76..86].copy_from_slice(b"\x69timestamp");
     attestation[86] = 0x1b;
     attestation[87..95].copy_from_slice(&(timestamp_ms as u64).to_be_bytes());
-    attestation[95..100].copy_from_slice(b"\x64pcrs");
-    attestation[100] = 0xb1;
-    for i in 0..17 {
-        attestation[101 + i * 51] = i as u8;
-        attestation[102 + i * 51] = 0x58;
-        attestation[103 + i * 51] = 0x30;
-        attestation[104 + i * 51..152 + i * 51].copy_from_slice(&[i as u8; 48]);
+    attestation[95..109].copy_from_slice(b"\x6dnitrotpm_pcrs");
+    attestation[109] = 0xb8;
+    attestation[110] = 0x18;
+    for i in 0..24 {
+        attestation[111 + i * 51] = i as u8;
+        attestation[112 + i * 51] = 0x58;
+        attestation[113 + i * 51] = 0x30;
+        attestation[114 + i * 51..162 + i * 51].copy_from_slice(&[i as u8; 48]);
     }
-    attestation[968..980].copy_from_slice(b"\x6bcertificate");
-    attestation[980] = 0x59;
-    attestation[981..983].copy_from_slice(&(LEAF_CERT.len() as u16).to_be_bytes());
-    attestation[983..1449].copy_from_slice(LEAF_CERT);
-    attestation[1449..1458].copy_from_slice(b"\x68cabundle");
-    attestation[1458] = 0x81;
-    attestation[1459] = 0x59;
-    attestation[1460..1462].copy_from_slice(&(ROOT_CERT.len() as u16).to_be_bytes());
-    attestation[1462..1866].copy_from_slice(ROOT_CERT);
+    attestation[1335..1347].copy_from_slice(b"\x6bcertificate");
+    attestation[1347] = 0x59;
+    attestation[1348..1350].copy_from_slice(&(LEAF_CERT.len() as u16).to_be_bytes());
+    attestation[1350..1816].copy_from_slice(LEAF_CERT);
+    attestation[1816..1825].copy_from_slice(b"\x68cabundle");
+    attestation[1825] = 0x81;
+    attestation[1826] = 0x59;
+    attestation[1827..1829].copy_from_slice(&(ROOT_CERT.len() as u16).to_be_bytes());
+    attestation[1829..2233].copy_from_slice(ROOT_CERT);
 
     fn encode(to: &mut [u8], payload: Option<&[u8]>) -> usize {
         let Some(payload) = payload else {
@@ -127,7 +127,7 @@ pub fn get_attestation_doc(
         }
     }
 
-    let mut offset = 1866;
+    let mut offset = 2233;
     attestation[offset..offset + 11].copy_from_slice(b"\x6apublic_key");
     offset += 11;
     offset += encode(&mut attestation[offset..], public_key);

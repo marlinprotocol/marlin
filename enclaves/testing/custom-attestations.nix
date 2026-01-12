@@ -1,56 +1,31 @@
-# Image for testing green images
+# Image with exposed custom attestation server
 {
   nixpkgs,
   systemConfig,
   nitrotpm-tools,
   gauge,
-  keygen-x25519,
-  attestation-server,
+  attestation-server-custom,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
   nixosConfig = {...}: {
     imports = [
-      # build as a green image
-      (./. + "/../configs/green.nix")
+      # base config
+      (./. + "/../../enclaves/configs/base.nix")
+      # disk config
+      (./. + "/../../enclaves/configs/disk-ro.nix")
+      # custom attestation server
+      (attestation-server-custom {
+        listen-addr = "0.0.0.0:1300";
+      })
     ];
 
-    # systemd service for testing
-    systemd.services.hello = {
-      description = "Hello";
-      wantedBy = ["multi-user.target"];
-      serviceConfig = {
-        Type = "simple";
-        ExecStart = pkgs.writeScript "loop.sh" ''
-          #!${pkgs.bash}/bin/bash
-
-          while true; do
-            echo "Hello from stdout!"
-            echo "Hello from console!" > /dev/console
-            echo "Hello from kmsg!" > /dev/kmsg
-            sleep 1
-          done
-        '';
-        StandardOutput = "journal+console";
-        StandardError = "journal+console";
-      };
-    };
-
-    # root ssh for testing
-    services.openssh = {
-      enable = true;
-      settings = {
-        PermitRootLogin = "yes";
-        PasswordAuthentication = true;
-      };
-    };
-    users.users.root.initialPassword = "greenroot";
+    # image id and version
+    system.image.id = "marlin-custom-attestations";
+    system.image.version = "v0.1.0";
 
     # disable firewall while testing
     networking.firewall.enable = false;
-
-    # add tpm2 tools for debugging
-    environment.systemPackages = [pkgs.tpm2-tools];
   };
   nixosSystem = nixpkgs.lib.nixosSystem {
     system = systemConfig.system;
@@ -59,7 +34,6 @@
       lib = pkgs.lib;
       modulesPath = "${nixpkgs}/nixos/modules";
       systemConfig = systemConfig;
-      inherit keygen-x25519 attestation-server;
     };
   };
   measurement =

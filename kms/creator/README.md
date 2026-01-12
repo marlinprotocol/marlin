@@ -1,4 +1,4 @@
-![Marlin Oyster Logo](./logo.svg)
+![Marlin Logo](../../logo.svg)
 
 # KMS Creator
 
@@ -21,22 +21,17 @@ cargo build --release
 Reproducible builds can be done using Nix. The monorepo provides a Nix flake which includes this project and can be used to trigger builds:
 
 ```bash
-nix build -v .#<flavor>.kms.creator.<output>
+nix build -v .#kms.creator.<output>
 ```
 
-Supported flavors:
-- `gnu`
-- `musl`
-
 Supported outputs:
-- `default`, same as `compressed`
-- `uncompressed`
-- `compressed`, using `upx`
+- `default`, cargo build output
+- `service`, systemd service config
 
 ## Usage
 
 ```
-$ ./target/release/kms-creator --help
+$ kms-creator --help
 Usage: kms-creator [OPTIONS] --condition-path <CONDITION_PATH> --dkg-public-key <DKG_PUBLIC_KEY>
 
 Options:

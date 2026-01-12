@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, Signature};
 use anyhow::{Context, Result};
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -22,7 +22,9 @@ fn main() -> Result<()> {
     let bytes = hex::decode(&args.message_hex).context("Failed to decode hex string")?;
 
     if bytes.len() <= 64 + 32 + 65 {
-        anyhow::bail!("Input too short - must contain seed, secp256k1 pubkey, x25519 pubkey plus 65 byte signature");
+        anyhow::bail!(
+            "Input too short - must contain seed, secp256k1 pubkey, x25519 pubkey plus 65 byte signature"
+        );
     }
 
     // Split into message and signature
@@ -33,8 +35,7 @@ fn main() -> Result<()> {
     let sig_bytes = &bytes[bytes.len() - 65..];
 
     // Parse signature
-    let signature = Signature::from_bytes_and_parity(&sig_bytes[..64], (sig_bytes[64] - 27) == 1)
-        .context("Failed to parse signature")?;
+    let signature = Signature::from_bytes_and_parity(&sig_bytes[..64], (sig_bytes[64] - 27) == 1);
 
     // Recover signer address
     let signer = signature

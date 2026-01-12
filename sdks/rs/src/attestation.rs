@@ -1,18 +1,19 @@
-use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 
-use aws_nitro_enclaves_cose::{CoseSign1, crypto::Openssl};
-use http_body_util::{BodyExt, Full};
-use hyper::Uri;
-use hyper::body::Bytes;
-use hyper_util::client::legacy::{Client, Error};
-use hyper_util::rt::TokioExecutor;
-use openssl::asn1::Asn1Time;
-use openssl::bn::BigNumContext;
-use openssl::ec::{EcKey, PointConversionForm};
-use openssl::sha::Sha256;
-use openssl::x509::{X509, X509VerifyResult};
-use serde_cbor::{self, value, value::Value};
+use aws_lc_rs::signature::{ECDSA_P384_SHA384_FIXED, UnparsedPublicKey};
+use aws_nitro_enclaves_cose::{
+    CoseSign1,
+    crypto::{Hash, MessageDigest, SignatureAlgorithm, SigningPublicKey},
+    error::CoseError,
+};
+use serde_cbor::{self, value::Value};
+use sha2::{Digest, Sha256};
+use thiserror::Error;
+use x509_parser::{
+    oid_registry::{OID_KEY_TYPE_EC_PUBLIC_KEY, OID_SIG_ECDSA_WITH_SHA384},
+    prelude::{FromDer, TbsCertificate, X509Certificate},
+    time::ASN1Time,
+};
 
 pub const AWS_ROOT_KEY: [u8; 96] = hex_literal::hex!(
     "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4"
@@ -25,28 +26,69 @@ pub const MOCK_ROOT_KEY: [u8; 96] = hex_literal::hex!(
 pub struct AttestationDecoded {
     pub root_public_key: Box<[u8]>,
     pub image_id: [u8; 32],
-    pub pcrs: [[u8; 48]; 4],
+    pub pcrs: [[u8; 48]; 12],
     pub timestamp_ms: u64,
     pub public_key: Box<[u8]>,
     pub user_data: Box<[u8]>,
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum AttestationError {
-    #[error("failed to parse: {0}")]
-    ParseFailed(String),
-    #[error("failed to verify attestation: {0}")]
-    VerifyFailed(String),
-    #[error("http client error")]
-    HttpClientError(#[from] Error),
-    #[error("http body error")]
-    HttpBodyError(#[from] hyper::Error),
+    // parse errors
+    #[error("failed to parse cose")]
+    InvalidCose(#[source] CoseError),
+    #[error("failed to parse cbor")]
+    InvalidCbor(#[source] serde_cbor::Error),
+    #[error("x509 error in {context}: {error}")]
+    X509 {
+        context: String,
+        #[source]
+        error: x509_parser::nom::Err<x509_parser::error::X509Error>,
+    },
+    #[error("missing field: {0}")]
+    MissingField(String),
+    #[error("field {0} has invalid type")]
+    InvalidType(String),
+    #[error("field {0} has invalid length: {1}")]
+    InvalidLength(String, String),
+    #[error("timestamp conversion error: {0}")]
+    TimestampConversion(#[from] std::num::TryFromIntError),
+    // verification errors
+    #[error("cose signature verification failed")]
+    CoseSignatureVerifyFailed(#[source] CoseError),
+    #[error("leaf signature verification failed")]
+    LeafSignatureVerifyFailed,
+    #[error("certificate chain signature verification failed at index {index}")]
+    CertChainSignatureFailed { index: usize },
+    #[error("certificate chain issuer or subject mismatch at index {index}")]
+    CertChainIssuerOrSubjectMismatch { index: usize },
+    #[error("certificate chain expired at index {index}")]
+    CertChainExpired { index: usize },
+    // expectation mismatch errors
+    #[error("timestamp mismatch: expected {expected}, got {got}")]
+    TimestampMismatch { expected: u64, got: u64 },
+    #[error("too old: expected age {age}, got {got}, now {now}")]
+    TooOld { age: u64, got: u64, now: u64 },
+    #[error("pcr{idx} mismatch: expected {expected:?}, got {got:?}")]
+    PcrsMismatch {
+        idx: usize,
+        expected: [u8; 48],
+        got: [u8; 48],
+    },
+    #[error("image id mismatch: expected {expected}, got {got}")]
+    ImageIdMismatch { expected: String, got: String },
+    #[error("root public key mismatch: expected {expected}, got {got}")]
+    RootPublicKeyMismatch { expected: String, got: String },
+    #[error("public key mismatch: expected {expected}, got {got}")]
+    PublicKeyMismatch { expected: String, got: String },
+    #[error("user data mismatch: expected {expected}, got {got}")]
+    UserDataMismatch { expected: String, got: String },
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct AttestationExpectations<'a> {
     pub root_public_key: Option<&'a [u8]>,
-    pub pcrs: Option<[[u8; 48]; 4]>,
+    pub pcrs: [Option<[u8; 48]>; 12],
     pub image_id: Option<&'a [u8; 32]>,
     pub timestamp_ms: Option<u64>,
     // (max age, current timestamp), in ms
@@ -62,7 +104,7 @@ pub fn verify(
     let mut result = AttestationDecoded {
         root_public_key: Default::default(),
         image_id: Default::default(),
-        pcrs: [[0; 48]; 4],
+        pcrs: [[0; 48]; 12],
         timestamp_ms: 0,
         public_key: Default::default(),
         user_data: Default::default(),
@@ -75,42 +117,65 @@ pub fn verify(
     result.timestamp_ms = parse_timestamp(&mut attestation_doc)?;
 
     // check expected timestamp if exists
-    if let Some(expected_ts) = expectations.timestamp_ms {
-        if result.timestamp_ms != expected_ts {
-            return Err(AttestationError::VerifyFailed("timestamp mismatch".into()));
-        }
+    if let Some(expected_ts) = expectations.timestamp_ms
+        && result.timestamp_ms != expected_ts
+    {
+        return Err(AttestationError::TimestampMismatch {
+            expected: expected_ts,
+            got: result.timestamp_ms,
+        });
     }
 
     // check age if exists
-    if let Some((max_age, current_ts)) = expectations.age_ms {
-        if result.timestamp_ms <= current_ts && current_ts - result.timestamp_ms > max_age {
-            return Err(AttestationError::VerifyFailed("too old".into()));
-        }
+    if let Some((max_age, current_ts)) = expectations.age_ms
+        && result.timestamp_ms <= current_ts
+        && current_ts - result.timestamp_ms > max_age
+    {
+        return Err(AttestationError::TooOld {
+            age: max_age,
+            got: result.timestamp_ms,
+            now: current_ts,
+        });
     }
 
     // parse pcrs
     result.pcrs = parse_pcrs(&mut attestation_doc)?;
 
     // check pcrs if exists
-    if let Some(pcrs) = expectations.pcrs {
-        if result.pcrs != pcrs {
-            return Err(AttestationError::VerifyFailed("pcrs mismatch".into()));
-        }
-    }
+    if let Some((idx, _)) = expectations
+        .pcrs
+        .iter()
+        // add index
+        .enumerate()
+        // return None if expectation is None so it gets filtered
+        // return result of comparison if expectation exists
+        .filter_map(|(idx, &expected_pcr)| Some((idx, expected_pcr? == result.pcrs[idx])))
+        // short circuit on first comparison failure
+        .find(|&(_, res)| !res)
+    {
+        return Err(AttestationError::PcrsMismatch {
+            idx,
+            expected: expectations.pcrs[idx].unwrap_or([0; 48]),
+            got: result.pcrs[idx],
+        });
+    };
 
     // compute image id
     let mut hasher = Sha256::new();
     // bitflags denoting what pcrs are part of the computation
-    // this one has 0, 1, 2 and 16
-    hasher.update(&((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
+    // this one has 4-15
+    hasher.update((4..=15).fold(0u32, |acc, x| acc | (1 << x)).to_be_bytes());
     hasher.update(result.pcrs.as_flattened());
-    result.image_id = hasher.finish();
+    result.image_id = hasher.finalize().into();
 
     // check image id if exists
-    if let Some(image_id) = expectations.image_id {
-        if &result.image_id != image_id {
-            return Err(AttestationError::VerifyFailed("image id mismatch".into()));
-        }
+    if let Some(image_id) = expectations.image_id
+        && &result.image_id != image_id
+    {
+        return Err(AttestationError::ImageIdMismatch {
+            expected: hex::encode(image_id),
+            got: hex::encode(result.image_id),
+        });
     }
 
     // verify signature and cert chain
@@ -118,34 +183,39 @@ pub fn verify(
         verify_root_of_trust(&mut attestation_doc, &cosesign1, result.timestamp_ms)?;
 
     // check root public key if exists
-    if let Some(root_public_key) = expectations.root_public_key {
-        if result.root_public_key.as_ref() != root_public_key {
-            return Err(AttestationError::VerifyFailed(
-                "root public key mismatch".into(),
-            ));
-        }
+    if let Some(root_public_key) = expectations.root_public_key
+        && result.root_public_key.as_ref() != root_public_key
+    {
+        return Err(AttestationError::RootPublicKeyMismatch {
+            expected: hex::encode(root_public_key),
+            got: hex::encode(&result.root_public_key),
+        });
     }
 
     // return the enclave key
     result.public_key = parse_enclave_key(&mut attestation_doc)?;
 
     // check enclave public key if exists
-    if let Some(public_key) = expectations.public_key {
-        if result.public_key.as_ref() != public_key {
-            return Err(AttestationError::VerifyFailed(
-                "enclave public key mismatch".into(),
-            ));
-        }
+    if let Some(public_key) = expectations.public_key
+        && result.public_key.as_ref() != public_key
+    {
+        return Err(AttestationError::PublicKeyMismatch {
+            expected: hex::encode(public_key),
+            got: hex::encode(&result.public_key),
+        });
     }
 
     // return the user data
     result.user_data = parse_user_data(&mut attestation_doc)?;
 
     // check user data if exists
-    if let Some(user_data) = expectations.user_data {
-        if result.user_data.as_ref() != user_data {
-            return Err(AttestationError::VerifyFailed("user data mismatch".into()));
-        }
+    if let Some(user_data) = expectations.user_data
+        && result.user_data.as_ref() != user_data
+    {
+        return Err(AttestationError::UserDataMismatch {
+            expected: hex::encode(user_data),
+            got: hex::encode(&result.user_data),
+        });
     }
 
     Ok(result)
@@ -154,76 +224,56 @@ pub fn verify(
 fn parse_attestation_doc(
     attestation_doc: &[u8],
 ) -> Result<(CoseSign1, BTreeMap<Value, Value>), AttestationError> {
-    let cosesign1 = CoseSign1::from_bytes(attestation_doc)
-        .map_err(|e| AttestationError::ParseFailed(format!("cose: {e}")))?;
+    let cosesign1 =
+        CoseSign1::from_bytes(attestation_doc).map_err(AttestationError::InvalidCose)?;
+    // SAFETY: method cannot fail if no key is proided
     let payload = cosesign1
-        .get_payload::<Openssl>(None)
-        .map_err(|e| AttestationError::ParseFailed(format!("cose payload: {e}")))?;
-    let cbor = serde_cbor::from_slice::<Value>(&payload)
-        .map_err(|e| AttestationError::ParseFailed(format!("cbor: {e}")))?;
-    let attestation_doc = value::from_value::<BTreeMap<Value, Value>>(cbor)
-        .map_err(|e| AttestationError::ParseFailed(format!("doc: {e}")))?;
+        .get_payload::<CertHasher>(None)
+        .expect("cannot fail");
+    let cbor = serde_cbor::from_slice::<BTreeMap<Value, Value>>(&payload)
+        .map_err(AttestationError::InvalidCbor)?;
 
-    Ok((cosesign1, attestation_doc))
+    Ok((cosesign1, cbor))
 }
 
 fn parse_timestamp(attestation_doc: &mut BTreeMap<Value, Value>) -> Result<u64, AttestationError> {
     let timestamp = attestation_doc
         .remove(&"timestamp".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "timestamp not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("timestamp".into()))?;
     let timestamp = (match timestamp {
         Value::Integer(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "timestamp decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("timestamp".into())),
     })?;
-    let timestamp = timestamp
-        .try_into()
-        .map_err(|e| AttestationError::ParseFailed(format!("timestamp: {e}")))?;
+    let timestamp = timestamp.try_into()?;
 
     Ok(timestamp)
 }
 
 fn parse_pcrs(
     attestation_doc: &mut BTreeMap<Value, Value>,
-) -> Result<[[u8; 48]; 4], AttestationError> {
+) -> Result<[[u8; 48]; 12], AttestationError> {
     let pcrs_arr = attestation_doc
-        .remove(&"pcrs".to_owned().into())
-        .ok_or(AttestationError::ParseFailed("pcrs not found".into()))?;
-    let mut pcrs_arr = value::from_value::<BTreeMap<Value, Value>>(pcrs_arr)
-        .map_err(|e| AttestationError::ParseFailed(format!("pcrs: {e}")))?;
+        .remove(&"nitrotpm_pcrs".to_owned().into())
+        .ok_or(AttestationError::MissingField("nitrotpm_pcrs".into()))?;
+    let mut pcrs_arr = (match pcrs_arr {
+        Value::Map(b) => Ok(b),
+        _ => Err(AttestationError::InvalidType("nitrotpm_pcrs".to_string())),
+    })?;
 
-    let mut result = [[0; 48]; 4];
-    for (i, result_pcr) in result.iter_mut().take(3).enumerate() {
+    let mut result = [[0; 48]; 12];
+    for (i, result_pcr) in result.iter_mut().take(12).enumerate() {
+        let i = i + 4;
         let pcr = pcrs_arr
             .remove(&(i as u32).into())
-            .ok_or(AttestationError::ParseFailed(format!("pcr{i} not found")))?;
+            .ok_or(AttestationError::MissingField(format!("pcr{i}")))?;
         let pcr = (match pcr {
             Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed(format!(
-                "pcr{i} decode failure"
-            ))),
+            _ => Err(AttestationError::InvalidType(format!("pcr{i}"))),
         })?;
         *result_pcr = pcr
             .as_slice()
             .try_into()
-            .map_err(|e| AttestationError::ParseFailed(format!("pcr{i} not 48 bytes: {e}")))?;
-    }
-
-    // check if pcr16 exists, leave as zero if not
-    if let Some(pcr) = pcrs_arr.remove(&16.into()) {
-        let pcr = (match pcr {
-            Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed(
-                "pcr16 decode failure".to_string(),
-            )),
-        })?;
-        result[3] = pcr
-            .as_slice()
-            .try_into()
-            .map_err(|e| AttestationError::ParseFailed(format!("pcr16 not 48 bytes: {e}")))?;
+            .map_err(|e| AttestationError::InvalidLength(format!("pcr{i}"), format!("{e}")))?;
     }
 
     Ok(result)
@@ -235,117 +285,104 @@ fn verify_root_of_trust(
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
     // verify attestation doc signature
-    let enclave_certificate = attestation_doc
+    let enclave_certificate_bytes = attestation_doc
         .remove(&"certificate".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "certificate key not found".to_owned(),
-        ))?;
-    let enclave_certificate = (match enclave_certificate {
+        .ok_or(AttestationError::MissingField("certificate".into()))?;
+    let enclave_certificate_bytes = (match enclave_certificate_bytes {
         Value::Bytes(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "enclave certificate decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("enclave certificate".into())),
     })?;
-    let enclave_certificate = X509::from_der(&enclave_certificate)
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf der: {e}")))?;
-    let pub_key = enclave_certificate
-        .public_key()
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf pubkey: {e}")))?;
+    let (_, cert) = X509Certificate::from_der(&enclave_certificate_bytes).map_err(|e| {
+        AttestationError::X509 {
+            context: "leaf".into(),
+            error: e,
+        }
+    })?;
+
+    // Extract public key for COSE verification
+    let verifier_cert = CertWrapper(&cert.tbs_certificate);
+
     let verify_result = cosesign1
-        .verify_signature::<Openssl>(&pub_key)
-        .map_err(|e| AttestationError::ParseFailed(format!("leaf signature: {e}")))?;
+        .verify_signature::<CertHasher>(&verifier_cert)
+        .map_err(AttestationError::CoseSignatureVerifyFailed)?;
 
     if !verify_result {
-        return Err(AttestationError::VerifyFailed("leaf signature".into()));
+        return Err(AttestationError::LeafSignatureVerifyFailed);
     }
 
     // verify certificate chain
     let cabundle = attestation_doc
         .remove(&"cabundle".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "cabundle key not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("cabundle".into()))?;
     let mut cabundle = (match cabundle {
         Value::Array(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "cabundle decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("cabundle".into())),
     })?;
     cabundle.reverse();
 
-    let root_public_key = verify_cert_chain(enclave_certificate, &cabundle, timestamp)?;
+    let root_public_key = verify_cert_chain(cert, &cabundle, timestamp)?;
 
     Ok(root_public_key)
 }
 
 fn verify_cert_chain(
-    cert: X509,
+    cert: X509Certificate,
     cabundle: &[Value],
     timestamp: u64,
 ) -> Result<Box<[u8]>, AttestationError> {
-    let certs = get_all_certs(cert, cabundle)?;
+    let mut certs = Vec::with_capacity(cabundle.len() + 1);
+    certs.push(cert);
+
+    for (i, cert_val) in cabundle.iter().enumerate() {
+        let cert_der = (match cert_val {
+            Value::Bytes(b) => Ok(b),
+            _ => Err(AttestationError::InvalidType("cert decode".into())),
+        })?;
+        let (_, cert) =
+            X509Certificate::from_der(cert_der).map_err(|e| AttestationError::X509 {
+                context: format!("bundle {}", i),
+                error: e,
+            })?;
+        certs.push(cert);
+    }
 
     for i in 0..(certs.len() - 1) {
-        let pubkey = certs[i + 1]
-            .public_key()
-            .map_err(|e| AttestationError::ParseFailed(format!("pubkey {i}: {e}")))?;
-        if !certs[i]
-            .verify(&pubkey)
-            .map_err(|e| AttestationError::ParseFailed(format!("signature {i}: {e}")))?
-        {
-            return Err(AttestationError::VerifyFailed("signature {i}".into()));
+        let issuer_spki = &certs[i + 1].tbs_certificate.subject_pki;
+
+        // Use Some(issuer_spki) as expected by x509-parser
+        certs[i]
+            .verify_signature(Some(issuer_spki))
+            .map_err(|_| AttestationError::CertChainSignatureFailed { index: i })?;
+
+        if certs[i + 1].tbs_certificate.subject != certs[i].tbs_certificate.issuer {
+            return Err(AttestationError::CertChainIssuerOrSubjectMismatch { index: i });
         }
-        if certs[i + 1].issued(&certs[i]) != X509VerifyResult::OK {
-            return Err(AttestationError::VerifyFailed(
-                "issuer or subject {i}".into(),
-            ));
-        }
-        let current_time = Asn1Time::from_unix(timestamp as i64 / 1000)
-            .map_err(|e| AttestationError::ParseFailed(e.to_string()))?;
-        if certs[i].not_after() < current_time || certs[i].not_before() > current_time {
-            return Err(AttestationError::VerifyFailed("timestamp {i}".into()));
-        }
-    }
 
-    let root_cert = certs
-        .last()
-        .ok_or(AttestationError::ParseFailed("root".into()))?;
-
-    let root_public_key_der = root_cert
-        .public_key()
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey: {e}")))?
-        .public_key_to_der()
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey der: {e}")))?;
-
-    let root_public_key = EcKey::public_key_from_der(&root_public_key_der)
-        .map_err(|e| AttestationError::ParseFailed(format!("root pubkey der: {e}")))?;
-
-    let root_public_key_sec1 = root_public_key
-        .public_key()
-        .to_bytes(
-            root_public_key.group(),
-            PointConversionForm::UNCOMPRESSED,
-            BigNumContext::new()
-                .map_err(|e| AttestationError::ParseFailed(format!("bignum context: {e}")))?
-                .borrow_mut(),
-        )
-        .map_err(|e| AttestationError::ParseFailed(format!("sec1: {e}")))?;
-
-    Ok(root_public_key_sec1[1..].to_vec().into_boxed_slice())
-}
-
-fn get_all_certs(cert: X509, cabundle: &[Value]) -> Result<Box<[X509]>, AttestationError> {
-    let mut all_certs = vec![cert];
-    for cert in cabundle {
-        let cert = (match cert {
-            Value::Bytes(b) => Ok(b),
-            _ => Err(AttestationError::ParseFailed("cert decode".into())),
+        let current_time = ASN1Time::from_timestamp((timestamp / 1000) as i64).map_err(|e| {
+            AttestationError::X509 {
+                context: format!("timestamp {}", i),
+                error: e.into(),
+            }
         })?;
-        let cert =
-            X509::from_der(cert).map_err(|e| AttestationError::ParseFailed(format!("der: {e}")))?;
-        all_certs.push(cert);
+
+        if certs[i].tbs_certificate.validity.not_after < current_time
+            || certs[i].tbs_certificate.validity.not_before > current_time
+        {
+            return Err(AttestationError::CertChainExpired { index: i });
+        }
     }
-    Ok(all_certs.into_boxed_slice())
+
+    let root_public_key = certs
+        .last()
+        .ok_or(AttestationError::MissingField("root".into()))?
+        .tbs_certificate
+        .subject_pki
+        .subject_public_key
+        .data[1..]
+        .to_vec()
+        .into_boxed_slice();
+
+    Ok(root_public_key)
 }
 
 fn parse_enclave_key(
@@ -353,14 +390,10 @@ fn parse_enclave_key(
 ) -> Result<Box<[u8]>, AttestationError> {
     let public_key = attestation_doc
         .remove(&"public_key".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "public key not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("public_key".into()))?;
     let public_key = (match public_key {
         Value::Bytes(b) => Ok(b),
-        _ => Err(AttestationError::ParseFailed(
-            "public key decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("public_key".into())),
     })?;
 
     Ok(public_key.into_boxed_slice())
@@ -371,26 +404,61 @@ fn parse_user_data(
 ) -> Result<Box<[u8]>, AttestationError> {
     let user_data = attestation_doc
         .remove(&"user_data".to_owned().into())
-        .ok_or(AttestationError::ParseFailed(
-            "user data not found in attestation doc".to_owned(),
-        ))?;
+        .ok_or(AttestationError::MissingField("user_data".into()))?;
     let user_data = (match user_data {
         Value::Bytes(b) => Ok(b),
         Value::Null => Ok(vec![]),
-        _ => Err(AttestationError::ParseFailed(
-            "user data decode failure".to_owned(),
-        )),
+        _ => Err(AttestationError::InvalidType("user_data".into())),
     })?;
 
     Ok(user_data.into_boxed_slice())
 }
 
-pub async fn get(endpoint: Uri) -> Result<Box<[u8]>, AttestationError> {
-    let client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-    let res = client.get(endpoint).await?;
-    let body = res.collect().await?.to_bytes();
+pub struct CertHasher;
 
-    Ok(body.to_vec().into_boxed_slice())
+impl Hash for CertHasher {
+    fn hash(_algorithm: MessageDigest, data: &[u8]) -> Result<Vec<u8>, CoseError> {
+        // NOTE: the verifier function internally hashes the message, return it as is
+
+        // match algorithm {
+        //     MessageDigest::Sha256 => Ok(Sha256::digest(data).to_vec()),
+        //     MessageDigest::Sha384 => Ok(Sha384::digest(data).to_vec()),
+        //     MessageDigest::Sha512 => Ok(Sha512::digest(data).to_vec()),
+        // }
+        Ok(data.into())
+    }
+}
+
+struct CertWrapper<'a>(&'a TbsCertificate<'a>);
+
+impl<'a> SigningPublicKey for CertWrapper<'a> {
+    fn get_parameters(&self) -> Result<(SignatureAlgorithm, MessageDigest), CoseError> {
+        if self.0.subject_pki.algorithm.algorithm != OID_KEY_TYPE_EC_PUBLIC_KEY {
+            return Err(CoseError::UnsupportedError("Unsupported key type".into()));
+        }
+        match self.0.subject_pki.subject_public_key.data.len() {
+            65 => Ok((SignatureAlgorithm::ES256, MessageDigest::Sha256)),
+            97 => Ok((SignatureAlgorithm::ES384, MessageDigest::Sha384)),
+            129 => Ok((SignatureAlgorithm::ES512, MessageDigest::Sha512)),
+            _ => Err(CoseError::UnsupportedError("Unsupported key type".into())),
+        }
+    }
+
+    fn verify(&self, digest: &[u8], signature: &[u8]) -> Result<bool, CoseError> {
+        if self.0.signature.algorithm != OID_SIG_ECDSA_WITH_SHA384 {
+            return Err(CoseError::UnsupportedError(
+                "Unsupported signature type".into(),
+            ));
+        }
+        let pubkey = UnparsedPublicKey::new(
+            &ECDSA_P384_SHA384_FIXED,
+            &self.0.subject_pki.subject_public_key.data,
+        );
+        pubkey
+            .verify(digest, signature)
+            .map_err(|_| CoseError::UnverifiedSignature)
+            .map(|_| true)
+    }
 }
 
 #[cfg(test)]
@@ -401,8 +469,8 @@ mod tests {
 
     use super::verify;
 
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real Nitro enclave
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+    // on the custom attestation server of a real instance
     #[test]
     fn test_aws_none_specified() {
         let attestation =
@@ -411,42 +479,90 @@ mod tests {
 
         let decoded = verify(&attestation, Default::default()).unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x00000193bef3f3b0);
+        assert_eq!(decoded.timestamp_ms, 0x0000019ba6c8dab7);
         assert_eq!(
             decoded.pcrs[0],
             hex!(
-                "189038eccf28a3a098949e402f3b3d86a876f4915c5b02d546abb5d8c507ceb1755b8192d8cfca66e8f226160ca4c7a6"
+                "6e7fd58cca2dcd0b6ca3186c260e47f33d33e4c63b9819609d5b75efb55453529fed4098a7383bfca18d3ca869ff202f"
             )
         );
         assert_eq!(
             decoded.pcrs[1],
             hex!(
-                "5d3938eb05288e20a981038b1861062ff4174884968a39aee5982b312894e60561883576cc7381d1a7d05b809936bd16"
+                "c10ef05cbff856c3b0b83793118e887985b0ab263162db25badf0affcb01746494a984db2ba517608c2eade447d2dbe9"
             )
         );
         assert_eq!(
             decoded.pcrs[2],
             hex!(
-                "6c3ef363c488a9a86faa63a44653fd806e645d4540b40540876f3b811fc1bceecf036a4703f07587c501ee45bb56a1aa"
+                "518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4"
             )
         );
-        assert_eq!(decoded.pcrs[3], [0u8; 48]);
-        assert_eq!(decoded.user_data, [0u8; 0].into());
         assert_eq!(
-            decoded.public_key.as_ref(),
+            decoded.pcrs[3],
             hex!(
-                "e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd36d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb"
+                "98441c7f7625d10058c47683aec486ce311c633235eb555593a7ee791121e3578ae72d04ecef661f272d59058b77af35"
             )
         );
+        assert_eq!(
+            decoded.pcrs[4],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[5],
+            hex!(
+                "39c33c06e6a163f8f04f23b43d1b342677abfcd3bebbd3777bf0429fadb6a7ef5e2e533c0bf7d6dc9aec44370b29d5f4"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[6],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[7],
+            hex!(
+                "6dac65857819c581c671ab7edafac3cdf85700c880392d98127af1c94e305f96baa73564f721bf0cee3b190d90c2750f"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[8],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[9],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[10],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[11],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(decoded.user_data.as_ref(), hex!("1234"));
+        assert_eq!(decoded.public_key.as_ref(), hex!("abcd"));
         assert_eq!(decoded.root_public_key.as_ref(), AWS_ROOT_KEY);
         assert_eq!(
             decoded.image_id,
-            hex!("a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602")
+            hex!("b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00")
         );
     }
 
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real Nitro enclave
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+    // on the custom attestation server of a real instance
     #[test]
     fn test_aws_all_specified() {
         let attestation =
@@ -456,298 +572,203 @@ mod tests {
         let decoded = verify(
             &attestation,
             AttestationExpectations {
-                timestamp_ms: Some(0x00000193bef3f3b0),
+                timestamp_ms: Some(0x0000019ba6c8dab7),
                 age_ms: Some((
                     300000,
-                    0x00000193bef3f3b0 + 300000,
+                    0x0000019ba6c8dab7 + 300000,
                 )),
-                pcrs: Some([
-                    hex!("189038eccf28a3a098949e402f3b3d86a876f4915c5b02d546abb5d8c507ceb1755b8192d8cfca66e8f226160ca4c7a6"),
-                    hex!("5d3938eb05288e20a981038b1861062ff4174884968a39aee5982b312894e60561883576cc7381d1a7d05b809936bd16"),
-                    hex!("6c3ef363c488a9a86faa63a44653fd806e645d4540b40540876f3b811fc1bceecf036a4703f07587c501ee45bb56a1aa"),
-                    [0; 48],
-                ]),
-                public_key: Some(&hex!("e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd36d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb")),
-                user_data: Some(&[0; 0]),
+                pcrs: [
+                    Some(hex!( "6e7fd58cca2dcd0b6ca3186c260e47f33d33e4c63b9819609d5b75efb55453529fed4098a7383bfca18d3ca869ff202f")),
+                    Some(hex!( "c10ef05cbff856c3b0b83793118e887985b0ab263162db25badf0affcb01746494a984db2ba517608c2eade447d2dbe9")),
+                    Some(hex!("518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4")),
+                    Some(hex!("98441c7f7625d10058c47683aec486ce311c633235eb555593a7ee791121e3578ae72d04ecef661f272d59058b77af35")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("39c33c06e6a163f8f04f23b43d1b342677abfcd3bebbd3777bf0429fadb6a7ef5e2e533c0bf7d6dc9aec44370b29d5f4")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("6dac65857819c581c671ab7edafac3cdf85700c880392d98127af1c94e305f96baa73564f721bf0cee3b190d90c2750f")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    Some(hex!("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+                ],
+                public_key: Some(&hex!("abcd")),
+                user_data: Some(&hex!("1234")),
                 root_public_key: Some(&AWS_ROOT_KEY),
-                image_id: Some(&hex!("a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602")),
+                image_id: Some(&hex!("b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00")),
             },
         )
         .unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x00000193bef3f3b0);
+        assert_eq!(decoded.timestamp_ms, 0x0000019ba6c8dab7);
         assert_eq!(
             decoded.pcrs[0],
             hex!(
-                "189038eccf28a3a098949e402f3b3d86a876f4915c5b02d546abb5d8c507ceb1755b8192d8cfca66e8f226160ca4c7a6"
+                "6e7fd58cca2dcd0b6ca3186c260e47f33d33e4c63b9819609d5b75efb55453529fed4098a7383bfca18d3ca869ff202f"
             )
         );
         assert_eq!(
             decoded.pcrs[1],
             hex!(
-                "5d3938eb05288e20a981038b1861062ff4174884968a39aee5982b312894e60561883576cc7381d1a7d05b809936bd16"
+                "c10ef05cbff856c3b0b83793118e887985b0ab263162db25badf0affcb01746494a984db2ba517608c2eade447d2dbe9"
             )
         );
         assert_eq!(
             decoded.pcrs[2],
             hex!(
-                "6c3ef363c488a9a86faa63a44653fd806e645d4540b40540876f3b811fc1bceecf036a4703f07587c501ee45bb56a1aa"
+                "518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4"
             )
         );
-        assert_eq!(decoded.pcrs[3], [0u8; 48]);
-        assert_eq!(decoded.user_data, [0u8; 0].into());
         assert_eq!(
-            decoded.public_key.as_ref(),
+            decoded.pcrs[3],
             hex!(
-                "e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd36d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb"
+                "98441c7f7625d10058c47683aec486ce311c633235eb555593a7ee791121e3578ae72d04ecef661f272d59058b77af35"
             )
         );
+        assert_eq!(
+            decoded.pcrs[4],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[5],
+            hex!(
+                "39c33c06e6a163f8f04f23b43d1b342677abfcd3bebbd3777bf0429fadb6a7ef5e2e533c0bf7d6dc9aec44370b29d5f4"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[6],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[7],
+            hex!(
+                "6dac65857819c581c671ab7edafac3cdf85700c880392d98127af1c94e305f96baa73564f721bf0cee3b190d90c2750f"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[8],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[9],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[10],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(
+            decoded.pcrs[11],
+            hex!(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            )
+        );
+        assert_eq!(decoded.user_data.as_ref(), hex!("1234"));
+        assert_eq!(decoded.public_key.as_ref(), hex!("abcd"));
         assert_eq!(decoded.root_public_key.as_ref(), AWS_ROOT_KEY);
         assert_eq!(
             decoded.image_id,
-            hex!("a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602")
+            hex!("b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00")
         );
     }
 
-    // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
     // on a custom mock attestation server running locally
     #[test]
     fn test_mock_none_specified() {
         let attestation =
-            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom.bin")
+            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/mock.bin")
                 .unwrap();
 
         let decoded = verify(&attestation, Default::default()).unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x00000193bf444e30);
-        assert_eq!(decoded.pcrs[0], [0; 48]);
-        assert_eq!(decoded.pcrs[1], [1; 48]);
-        assert_eq!(decoded.pcrs[2], [2; 48]);
-        assert_eq!(decoded.pcrs[3], [0u8; 48]);
-        assert_eq!(decoded.user_data.as_ref(), hex!("abcdef"));
-        assert_eq!(decoded.public_key.as_ref(), hex!("12345678"));
+        assert_eq!(decoded.timestamp_ms, 0x0000019babf13dfd);
+        assert_eq!(decoded.pcrs[0], [4; 48]);
+        assert_eq!(decoded.pcrs[1], [5; 48]);
+        assert_eq!(decoded.pcrs[2], [6; 48]);
+        assert_eq!(decoded.pcrs[3], [7; 48]);
+        assert_eq!(decoded.pcrs[4], [8; 48]);
+        assert_eq!(decoded.pcrs[5], [9; 48]);
+        assert_eq!(decoded.pcrs[6], [10; 48]);
+        assert_eq!(decoded.pcrs[7], [11; 48]);
+        assert_eq!(decoded.pcrs[8], [12; 48]);
+        assert_eq!(decoded.pcrs[9], [13; 48]);
+        assert_eq!(decoded.pcrs[10], [14; 48]);
+        assert_eq!(decoded.pcrs[11], [15; 48]);
+        assert_eq!(decoded.user_data.as_ref(), hex!("1234"));
+        assert_eq!(decoded.public_key.as_ref(), hex!("abcd"));
         assert_eq!(decoded.root_public_key.as_ref(), MOCK_ROOT_KEY);
         assert_eq!(
             decoded.image_id,
-            hex!("b45dfd1807c1f4b81ef28b44682fba5d4d5522baac808a44b7302cbfda5144e7")
+            hex!("e3caee4ad768d705b977a3687c74b25ff89e4dbd71091e16e04b3f9f867c926b")
         );
     }
 
-    // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
+    // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
     // on a custom mock attestation server running locally
     #[test]
     fn test_mock_all_specified() {
         let attestation =
-            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom.bin")
+            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/mock.bin")
                 .unwrap();
 
         let decoded = verify(
             &attestation,
             AttestationExpectations {
-                timestamp_ms: Some(0x00000193bf444e30),
-                age_ms: Some((300000, 0x00000193bf444e30 + 300000)),
-                pcrs: Some([[0; 48], [1; 48], [2; 48], [0; 48]]),
-                public_key: Some(&hex!("12345678")),
-                user_data: Some(&hex!("abcdef")),
+                timestamp_ms: Some(0x0000019babf13dfd),
+                age_ms: Some((300000, 0x0000019babf13dfd + 300000)),
+                pcrs: [
+                    Some([4; 48]),
+                    Some([5; 48]),
+                    Some([6; 48]),
+                    Some([7; 48]),
+                    Some([8; 48]),
+                    Some([9; 48]),
+                    Some([10; 48]),
+                    Some([11; 48]),
+                    Some([12; 48]),
+                    Some([13; 48]),
+                    Some([14; 48]),
+                    Some([15; 48]),
+                ],
+                public_key: Some(&hex!("abcd")),
+                user_data: Some(&hex!("1234")),
                 root_public_key: Some(&MOCK_ROOT_KEY),
                 image_id: Some(&hex!(
-                    "b45dfd1807c1f4b81ef28b44682fba5d4d5522baac808a44b7302cbfda5144e7"
+                    "e3caee4ad768d705b977a3687c74b25ff89e4dbd71091e16e04b3f9f867c926b"
                 )),
             },
         )
         .unwrap();
 
-        assert_eq!(decoded.timestamp_ms, 0x00000193bf444e30);
-        assert_eq!(decoded.pcrs[0], [0; 48]);
-        assert_eq!(decoded.pcrs[1], [1; 48]);
-        assert_eq!(decoded.pcrs[2], [2; 48]);
-        assert_eq!(decoded.pcrs[3], [0u8; 48]);
-        assert_eq!(decoded.user_data.as_ref(), hex!("abcdef"));
-        assert_eq!(decoded.public_key.as_ref(), hex!("12345678"));
+        assert_eq!(decoded.timestamp_ms, 0x0000019babf13dfd);
+        assert_eq!(decoded.pcrs[0], [4; 48]);
+        assert_eq!(decoded.pcrs[1], [5; 48]);
+        assert_eq!(decoded.pcrs[2], [6; 48]);
+        assert_eq!(decoded.pcrs[3], [7; 48]);
+        assert_eq!(decoded.pcrs[4], [8; 48]);
+        assert_eq!(decoded.pcrs[5], [9; 48]);
+        assert_eq!(decoded.pcrs[6], [10; 48]);
+        assert_eq!(decoded.pcrs[7], [11; 48]);
+        assert_eq!(decoded.pcrs[8], [12; 48]);
+        assert_eq!(decoded.pcrs[9], [13; 48]);
+        assert_eq!(decoded.pcrs[10], [14; 48]);
+        assert_eq!(decoded.pcrs[11], [15; 48]);
+        assert_eq!(decoded.user_data.as_ref(), hex!("1234"));
+        assert_eq!(decoded.public_key.as_ref(), hex!("abcd"));
         assert_eq!(decoded.root_public_key.as_ref(), MOCK_ROOT_KEY);
         assert_eq!(
             decoded.image_id,
-            hex!("b45dfd1807c1f4b81ef28b44682fba5d4d5522baac808a44b7302cbfda5144e7")
-        );
-    }
-
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real Nitro enclave
-    #[test]
-    fn test_aws_pcr16_none_specified() {
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/aws_pcr16.bin",
-        )
-        .unwrap();
-
-        let decoded = verify(&attestation, Default::default()).unwrap();
-
-        assert_eq!(decoded.timestamp_ms, 0x00000196811b1c0b);
-        assert_eq!(
-            decoded.pcrs[0],
-            hex!(
-                "2984ab215649c40ffe8f8b80cfadee47f1b06760f7d9257981f64b2758c347fafa6c733591b25e75ae7e9d1cb86ad5df"
-            )
-        );
-        assert_eq!(
-            decoded.pcrs[1],
-            hex!(
-                "ed7759aa996a2e94c6086f24f61f354f75f9ea7f93a74f55d65c2cb5590d1af3930c9adbc57bb543764fa1f5c444f495"
-            )
-        );
-        assert_eq!(
-            decoded.pcrs[2],
-            hex!(
-                "27216d3fbedb900be4bdbdb2d5be27b9e8254989e123aaa97f24d1b0fd1016d001323eb9d09a9d25e8e1e1298d68e9c6"
-            )
-        );
-        assert_eq!(
-            decoded.pcrs[3],
-            hex!(
-                "30e84b2d7eeffe6d90a475797b35e59a11b0da473eee4b3b8edfe73daf0279801bb18730c39db7f27f2f77b7b458cb9e"
-            )
-        );
-        assert_eq!(decoded.user_data, [0u8; 0].into());
-        assert_eq!(
-            decoded.public_key.as_ref(),
-            hex!("2af77183f4772f00e269c7ffadb0eca298bf76711bbe94471a4944ede5ada084")
-        );
-        assert_eq!(decoded.root_public_key.as_ref(), AWS_ROOT_KEY);
-        assert_eq!(
-            decoded.image_id,
-            hex!("c28909dc8803cf0edf6113f3fb81d0494f4c92b63087242200e18a5be347aacd")
-        );
-    }
-
-    // generated using `curl <ip>:<port>/attestation/raw`
-    // on the attestation server of a real Nitro enclave
-    #[test]
-    fn test_aws_pcr16_all_specified() {
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/aws_pcr16.bin",
-        )
-        .unwrap();
-
-        let decoded = verify(
-            &attestation,
-            AttestationExpectations {
-                timestamp_ms: Some(0x00000196811b1c0b),
-                age_ms: Some((
-                    300000,
-                    0x00000196811b1c0b + 300000,
-                )),
-                pcrs: Some([
-                    hex!("2984ab215649c40ffe8f8b80cfadee47f1b06760f7d9257981f64b2758c347fafa6c733591b25e75ae7e9d1cb86ad5df"),
-                    hex!("ed7759aa996a2e94c6086f24f61f354f75f9ea7f93a74f55d65c2cb5590d1af3930c9adbc57bb543764fa1f5c444f495"),
-                    hex!("27216d3fbedb900be4bdbdb2d5be27b9e8254989e123aaa97f24d1b0fd1016d001323eb9d09a9d25e8e1e1298d68e9c6"),
-                    hex!("30e84b2d7eeffe6d90a475797b35e59a11b0da473eee4b3b8edfe73daf0279801bb18730c39db7f27f2f77b7b458cb9e"),
-                ]),
-                public_key: Some(&hex!("2af77183f4772f00e269c7ffadb0eca298bf76711bbe94471a4944ede5ada084")),
-                user_data: Some(&[0; 0]),
-                root_public_key: Some(&AWS_ROOT_KEY),
-                image_id: Some(&hex!("c28909dc8803cf0edf6113f3fb81d0494f4c92b63087242200e18a5be347aacd")),
-            },
-        )
-        .unwrap();
-
-        assert_eq!(decoded.timestamp_ms, 0x00000196811b1c0b);
-        assert_eq!(
-            decoded.pcrs[0],
-            hex!(
-                "2984ab215649c40ffe8f8b80cfadee47f1b06760f7d9257981f64b2758c347fafa6c733591b25e75ae7e9d1cb86ad5df"
-            )
-        );
-        assert_eq!(
-            decoded.pcrs[1],
-            hex!(
-                "ed7759aa996a2e94c6086f24f61f354f75f9ea7f93a74f55d65c2cb5590d1af3930c9adbc57bb543764fa1f5c444f495"
-            )
-        );
-        assert_eq!(
-            decoded.pcrs[2],
-            hex!(
-                "27216d3fbedb900be4bdbdb2d5be27b9e8254989e123aaa97f24d1b0fd1016d001323eb9d09a9d25e8e1e1298d68e9c6"
-            )
-        );
-        assert_eq!(
-            decoded.pcrs[3],
-            hex!(
-                "30e84b2d7eeffe6d90a475797b35e59a11b0da473eee4b3b8edfe73daf0279801bb18730c39db7f27f2f77b7b458cb9e"
-            )
-        );
-        assert_eq!(decoded.user_data, [0u8; 0].into());
-        assert_eq!(
-            decoded.public_key.as_ref(),
-            hex!("2af77183f4772f00e269c7ffadb0eca298bf76711bbe94471a4944ede5ada084")
-        );
-        assert_eq!(decoded.root_public_key.as_ref(), AWS_ROOT_KEY);
-        assert_eq!(
-            decoded.image_id,
-            hex!("c28909dc8803cf0edf6113f3fb81d0494f4c92b63087242200e18a5be347aacd")
-        );
-    }
-
-    // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
-    // on a custom mock attestation server running locally
-    #[test]
-    fn test_mock_pcr16_none_specified() {
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom_pcr16.bin",
-        )
-        .unwrap();
-
-        let decoded = verify(&attestation, Default::default()).unwrap();
-
-        assert_eq!(decoded.timestamp_ms, 0x00000196870610d9);
-        assert_eq!(decoded.pcrs[0], [0; 48]);
-        assert_eq!(decoded.pcrs[1], [1; 48]);
-        assert_eq!(decoded.pcrs[2], [2; 48]);
-        assert_eq!(decoded.pcrs[3], [16; 48]);
-        assert_eq!(decoded.user_data.as_ref(), hex!("abcdef"));
-        assert_eq!(decoded.public_key.as_ref(), hex!("12345678"));
-        assert_eq!(decoded.root_public_key.as_ref(), MOCK_ROOT_KEY);
-        assert_eq!(
-            decoded.image_id,
-            hex!("20a182763745f956ddee6f8e9d14a66e23db836c0eb1a769a2ef4d3ab77bef1b")
-        );
-    }
-
-    // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
-    // on a custom mock attestation server running locally
-    #[test]
-    fn test_mock_pcr16_all_specified() {
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom_pcr16.bin",
-        )
-        .unwrap();
-
-        let decoded = verify(
-            &attestation,
-            AttestationExpectations {
-                timestamp_ms: Some(0x00000196870610d9),
-                age_ms: Some((300000, 0x00000196870610d9 + 300000)),
-                pcrs: Some([[0; 48], [1; 48], [2; 48], [16; 48]]),
-                public_key: Some(&hex!("12345678")),
-                user_data: Some(&hex!("abcdef")),
-                root_public_key: Some(&MOCK_ROOT_KEY),
-                image_id: Some(&hex!(
-                    "20a182763745f956ddee6f8e9d14a66e23db836c0eb1a769a2ef4d3ab77bef1b"
-                )),
-            },
-        )
-        .unwrap();
-
-        assert_eq!(decoded.timestamp_ms, 0x00000196870610d9);
-        assert_eq!(decoded.pcrs[0], [0; 48]);
-        assert_eq!(decoded.pcrs[1], [1; 48]);
-        assert_eq!(decoded.pcrs[2], [2; 48]);
-        assert_eq!(decoded.pcrs[3], [16; 48]);
-        assert_eq!(decoded.user_data.as_ref(), hex!("abcdef"));
-        assert_eq!(decoded.public_key.as_ref(), hex!("12345678"));
-        assert_eq!(decoded.root_public_key.as_ref(), MOCK_ROOT_KEY);
-        assert_eq!(
-            decoded.image_id,
-            hex!("20a182763745f956ddee6f8e9d14a66e23db836c0eb1a769a2ef4d3ab77bef1b")
+            hex!("e3caee4ad768d705b977a3687c74b25ff89e4dbd71091e16e04b3f9f867c926b")
         );
     }
 }

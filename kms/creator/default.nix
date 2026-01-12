@@ -1,28 +1,13 @@
 {
   nixpkgs,
   systemConfig,
-  fenix,
-  naersk,
+  crane,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  target = systemConfig.rust_target;
-  toolchain = with fenix.packages.${system};
-    combine [
-      stable.cargo
-      stable.rustc
-      targets.${target}.stable.rust-std
-    ];
-  naersk' = naersk.lib.${system}.override {
-    cargo = toolchain;
-    rustc = toolchain;
-  };
-  cc =
-    if systemConfig.static
-    then pkgs.pkgsStatic.stdenv.cc
-    else pkgs.stdenv.cc;
-  projectSrc = ./.;
-  libSrc = ../derive-utils;
+  crane' = crane.mkLib pkgs;
+  projectSrc = crane'.cleanCargoSource ./.;
+  libSrc = crane'.cleanCargoSource ../derive-utils;
   combinedSrc = pkgs.runCommand "combined-src" {} ''
     # Copy the project
     cp -r ${projectSrc} $out
@@ -36,23 +21,48 @@
     substituteInPlace $out/Cargo.toml \
       --replace 'path = "../derive-utils"' 'path = "./libs/derive-utils"'
   '';
-in rec {
-  uncompressed = naersk'.buildPackage {
+  commonArgs = {
+    strictDeps = true;
+    doCheck = false;
+    # DOES NOT run the check command
+    # short circuits it by running the true command instead
+    cargoCheckCommand = "true";
+
     src = combinedSrc;
-    CARGO_BUILD_TARGET = target;
-    TARGET_CC = "${cc}/bin/${cc.targetPrefix}cc";
-    nativeBuildInputs = [cc];
   };
+  deps = crane'.buildDepsOnly commonArgs;
+in rec {
+  default = crane'.buildPackage (commonArgs
+    // {
+      cargoArtifacts = deps;
+    });
 
-  compressed =
-    pkgs.runCommand "compressed" {
-      nativeBuildInputs = [pkgs.upx];
-    } ''
-      mkdir -p $out/bin
-      cp ${uncompressed}/bin/* $out/bin/
-      chmod +w $out/bin/*
-      upx $out/bin/*
-    '';
+  service = {dkg-public-key, ...} @ args: let
+    service-name = args.service-name or "kms-creator";
+    listen-addr = args.listen-addr or "0.0.0.0:1100";
+    signer = args.signer or "/root/secp256k1.sec";
+    condition-path = args.condition-path or "/root/init-params";
+    port = pkgs.lib.toInt (pkgs.lib.last (pkgs.lib.splitString ":" listen-addr));
+  in {
+    # systemd service
+    systemd.services.${service-name} = {
+      description = "Run KMS creator";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target" "network.target"];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = ''
+          ${default}/bin/kms-creator \
+            --listen-addr ${listen-addr} \
+            --signer ${signer} \
+            --dkg-public-key ${dkg-public-key} \
+            --condition-path ${condition-path}
+        '';
+        Restart = "always";
+      };
+    };
 
-  default = compressed;
+    # firewall rule
+    networking.firewall.allowedTCPPorts = [port];
+  };
 }

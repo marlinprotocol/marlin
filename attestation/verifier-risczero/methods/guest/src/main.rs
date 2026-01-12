@@ -80,80 +80,60 @@ fn verify(attestation: &[u8], commit_slice: impl Fn(&[u8])) {
     let timestamp =
         u64::from_be_bytes(attestation[offset + 25..offset + 33].try_into().unwrap()) / 1000;
 
-    // assert pcrs key
-    assert_eq!(attestation[offset + 33], 0x64); // text of size 4
-    assert_eq!(&attestation[offset + 34..offset + 38], b"pcrs");
-    assert!(attestation[offset + 38] == 0xb0 || attestation[offset + 38] == 0xb1); // pcrs is a map of size 16 or 17
-
-    // is there a custom PCR
-    let is_custom = attestation[offset + 38] == 0xb1;
+    // assert nitrotpm_pcrs key
+    assert_eq!(attestation[offset + 33], 0x6d); // text of size 13
+    assert_eq!(&attestation[offset + 34..offset + 47], b"nitrotpm_pcrs");
+    assert_eq!(attestation[offset + 47], 0xb8); // pcrs is a map of size 24
+    assert_eq!(attestation[offset + 48], 0x18); // pcrs is a map of size 24
 
     // hasher for accumulating an image id
     let mut image_id_hasher = Sha256::new();
     // bitflags denoting what pcrs are part of the computation
-    // this one has 0, 1, 2 and 16
-    image_id_hasher.update(&((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
+    // this one has 4-15
+    image_id_hasher.update(0x0000fff0u32.to_be_bytes());
 
-    offset += 39;
-    assert_eq!(
-        attestation[offset..offset + 3],
-        [
-            0x00, // pcr number
-            0x58, // bytes with one byte length follows
-            0x30, // 48 length
-        ]
-    );
-    println!("PCR0: {:?}", &attestation[offset + 3..offset + 51]);
-    image_id_hasher.update(&attestation[offset + 3..offset + 51]);
+    offset += 49;
 
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x01, 0x58, 0x30]);
-    println!("PCR1: {:?}", &attestation[offset + 3..offset + 51]);
-    image_id_hasher.update(&attestation[offset + 3..offset + 51]);
+    // skip pcrs 0-3
+    (0..=3).into_iter().for_each(|idx| {
+        assert_eq!(
+            attestation[offset..offset + 3],
+            [
+                idx,  // pcr number
+                0x58, // bytes with one byte length follows
+                0x30, // 48 length
+            ]
+        );
+        offset += 51;
+    });
 
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x02, 0x58, 0x30]);
-    println!("PCR2: {:?}", &attestation[offset + 3..offset + 51]);
-    image_id_hasher.update(&attestation[offset + 3..offset + 51]);
-
-    // skip rest of the pcrs, 3 to 15
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x03, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x04, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x05, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x06, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x07, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x08, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x09, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0a, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0b, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0c, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0d, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0e, 0x58, 0x30]);
-    offset += 51;
-    assert_eq!(attestation[offset..offset + 3], [0x0f, 0x58, 0x30]);
-    offset += 51;
-
-    // process custom pcr if exists
-    if is_custom {
-        assert_eq!(attestation[offset..offset + 3], [0x10, 0x58, 0x30]);
-        println!("PCR16: {:?}", &attestation[offset + 3..offset + 51]);
+    // parse pcrs 4-15
+    (4..=15).into_iter().for_each(|idx| {
+        assert_eq!(
+            attestation[offset..offset + 3],
+            [
+                idx,  // pcr number
+                0x58, // bytes with one byte length follows
+                0x30, // 48 length
+            ]
+        );
+        println!("PCR{idx}: {:?}", &attestation[offset + 3..offset + 51]);
         image_id_hasher.update(&attestation[offset + 3..offset + 51]);
         offset += 51;
-    } else {
-        image_id_hasher.update(&[0u8; 48]);
-    }
+    });
+
+    // skip pcrs 16-23
+    (16..=23).into_iter().for_each(|idx| {
+        assert_eq!(
+            attestation[offset..offset + 3],
+            [
+                idx,  // pcr number
+                0x58, // bytes with one byte length follows
+                0x30, // 48 length
+            ]
+        );
+        offset += 51;
+    });
     println!("Skipped rest of the pcrs");
 
     // commit image id
@@ -466,8 +446,8 @@ mod tests {
 
     #[test]
     fn test_aws() {
-        // generated using `curl <ip>:<port>/attestation/raw` on the attestation server of a
-        // real Nitro enclave
+        // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
+        // on the custom attestation server of a real instance
         let attestation =
             std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/aws.bin")
                 .unwrap();
@@ -478,19 +458,20 @@ mod tests {
 
         let expected_journal = [
             // timestamp
-            "00000193bef3f3b0",
+            "0000019ba6c8dab7",
             // image id
-            "a6b0824d3c47f51542b3a18e6245c408490bef88ddc8d5e1bf8b95ec7eba1602",
+            "b3dc7d48651dec3f088737ce37e0806a28e516e0caa01d54cf9438176a1c4d00",
             // root pubkey
             "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b17607",
             "0ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4",
             // pubkey len
-            "40",
+            "02",
             // pubkey
-            "e646f8b0071d5ba75931402522cc6a5c42a84a6fea238864e5ac9a0e12d83bd3",
-            "6d0c8109d3ca2b699fce8d082bf313f5d2ae249bb275b6b6e91e0fcd9262f4bb",
+            "abcd",
             // user data len
-            "0000",
+            "0002",
+            // user data
+            "1234",
         ].join("");
 
         assert_eq!(
@@ -501,10 +482,10 @@ mod tests {
 
     #[test]
     fn test_custom() {
-        // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
+        // generated using `curl <ip>:<port>/attestation/raw?public_key=abcd&user_data=1234`
         // on a custom mock attestation server running locally
         let attestation =
-            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom.bin")
+            std::fs::read(file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/mock.bin")
                 .unwrap();
 
         let (journal, committer) = create_committer();
@@ -513,92 +494,20 @@ mod tests {
 
         let expected_journal = [
             // timestamp
-            "00000193bf444e30",
+            "0000019babf13dfd",
             // image id
-            "b45dfd1807c1f4b81ef28b44682fba5d4d5522baac808a44b7302cbfda5144e7",
+            "e3caee4ad768d705b977a3687c74b25ff89e4dbd71091e16e04b3f9f867c926b",
             // root pubkey
             "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188",
             "fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410",
             // pubkey len
-            "04",
+            "02",
             // pubkey
-            "12345678",
+            "abcd",
             // user data len
-            "0003",
+            "0002",
             // user data
-            "abcdef",
-        ].join("");
-
-        assert_eq!(
-            expected_journal,
-            hex::encode(journal.borrow_mut().as_slice())
-        );
-    }
-
-    #[test]
-    fn test_aws_pcr16() {
-        // generated using `curl <ip>:<port>/attestation/raw` on the attestation server of a
-        // real Nitro enclave
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/aws_pcr16.bin",
-        )
-        .unwrap();
-
-        let (journal, committer) = create_committer();
-
-        verify(&attestation, committer);
-
-        let expected_journal = [
-            // timestamp
-            "00000196811b1c0b",
-            // image id
-            "c28909dc8803cf0edf6113f3fb81d0494f4c92b63087242200e18a5be347aacd",
-            // root pubkey
-            "fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b17607",
-            "0ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4",
-            // pubkey len
-            "20",
-            // pubkey
-            "2af77183f4772f00e269c7ffadb0eca298bf76711bbe94471a4944ede5ada084",
-            // user data len
-            "0000",
-        ].join("");
-
-        assert_eq!(
-            expected_journal,
-            hex::encode(journal.borrow_mut().as_slice())
-        );
-    }
-
-    #[test]
-    fn test_custom_pcr16() {
-        // generated using `curl <ip>:<port>/attestation/raw?public_key=12345678&user_data=abcdef`
-        // on a custom mock attestation server running locally
-        let attestation = std::fs::read(
-            file!().rsplit_once('/').unwrap().0.to_owned() + "/testcases/custom_pcr16.bin",
-        )
-        .unwrap();
-
-        let (journal, committer) = create_committer();
-
-        verify(&attestation, committer);
-
-        let expected_journal = [
-            // timestamp
-            "00000196870610d9",
-            // image id
-            "20a182763745f956ddee6f8e9d14a66e23db836c0eb1a769a2ef4d3ab77bef1b",
-            // root pubkey
-            "6c79411ebaae7489a4e8355545c0346784b31df5d08cb1f7c0097836a82f67240f2a7201862880a1d09a0bb326637188",
-            "fbbafab47a10abe3630fcf8c18d35d96532184985e582c0dce3dace8441f37b9cc9211dff935baae69e4872cc3494410",
-            // pubkey len
-            "04",
-            // pubkey
-            "12345678",
-            // user data len
-            "0003",
-            // user data
-            "abcdef",
+            "1234",
         ].join("");
 
         assert_eq!(

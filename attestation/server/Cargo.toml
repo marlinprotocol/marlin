@@ -2,7 +2,7 @@
 name = "attestation-server"
 version = "0.1.0"
 edition = "2024"
-license = "Apache-2.0"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 axum = "0.8.7"
@@ -10,6 +10,10 @@ clap = { version = "4.5.53", features = ["derive"] }
 hex = "0.4.3"
 nitro-tpm-attest = "1.0.1"
 tokio = { version = "1", features = ["full"] }
+
+[[bin]]
+name = "attestation-server-custom"
+path = "src/custom.rs"
 
 [profile.release]
 strip = true

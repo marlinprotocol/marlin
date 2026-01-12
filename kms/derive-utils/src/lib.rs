@@ -1,8 +1,8 @@
 use base58::ToBase58;
 use hmac::Hmac;
 use hmac::Mac;
-use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::SecretKey;
+use k256::elliptic_curve::sec1::ToEncodedPoint;
 use ruint::aliases::U256;
 use ruint::uint;
 use sha2::Digest;
@@ -290,10 +290,14 @@ mod tests {
 
     #[test]
     fn test_derive_enclave_seed() {
-        let root = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let root = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let image_id = hex!("107a6d53ba665ae961bb407bccf8b8bc95fa048e1eb59e012caac30ef29d72a9");
         // derived from an independent online implementation
-        let expected = hex!("b63552edbd62d2c95b3c8662934d6c0d1cb9dab6177ca59a6d228d586e5257a95a21725f3ca3cfb9b1f9816fd10ce6d877048b1f3d7e1496abee9d8afc7f54ce");
+        let expected = hex!(
+            "b63552edbd62d2c95b3c8662934d6c0d1cb9dab6177ca59a6d228d586e5257a95a21725f3ca3cfb9b1f9816fd10ce6d877048b1f3d7e1496abee9d8afc7f54ce"
+        );
 
         let seed = derive_enclave_seed(root, image_id);
 
@@ -302,11 +306,15 @@ mod tests {
 
     #[test]
     fn test_derive_enclave_seed_eth() {
-        let root = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let root = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let chain_id = 0x1234;
         let address = "0x92148e8F84096d0Dfe7E66a025d14D1e2594DDc2";
         // derived from an independent online implementation
-        let expected = hex!("2893103cf566e7d2df9da1aec5e6c3f66a1d03e4031d6cd22282bab6415fc4da8a16b299c1e570115f0ec4173fa1f192e22dea29e21c2328ace3773151eacdcb");
+        let expected = hex!(
+            "2893103cf566e7d2df9da1aec5e6c3f66a1d03e4031d6cd22282bab6415fc4da8a16b299c1e570115f0ec4173fa1f192e22dea29e21c2328ace3773151eacdcb"
+        );
 
         let seed = derive_enclave_contract_seed(root, chain_id, address);
 
@@ -315,11 +323,15 @@ mod tests {
 
     #[test]
     fn test_derive_enclave_seed_sol() {
-        let root = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let root = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let chain_id = 0x5678;
         let address = "BEYzkmcGNdhqHAPKQ7oz89n1RbAumm2kwtX113pPuCax";
         // derived from an independent online implementation
-        let expected = hex!("ac30d6400265019af7c7bca9386021ad9299c2094bc8ebdeef8f0143afd2740ae8d119478b336e7509e7d7cf2a9d6e9f8ffbb03aa78c4e3f59e9141e063f1421");
+        let expected = hex!(
+            "ac30d6400265019af7c7bca9386021ad9299c2094bc8ebdeef8f0143afd2740ae8d119478b336e7509e7d7cf2a9d6e9f8ffbb03aa78c4e3f59e9141e063f1421"
+        );
 
         let seed = derive_enclave_contract_seed(root, chain_id, address);
 
@@ -328,10 +340,14 @@ mod tests {
 
     #[test]
     fn test_derive_path_seed() {
-        let root = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let root = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let path = hex!("0336b1a0838f0bd3");
         // derived from an independent online implementation
-        let expected = hex!("77dd95c3ad1c4aec2370d79ad1cbab5399b0f893e203653c3a60a9a63f0c6f6d309cecab1007c4a893bc5e23180d5de25038420d70c309446c99581844f93fa0");
+        let expected = hex!(
+            "77dd95c3ad1c4aec2370d79ad1cbab5399b0f893e203653c3a60a9a63f0c6f6d309cecab1007c4a893bc5e23180d5de25038420d70c309446c99581844f93fa0"
+        );
 
         let seed = derive_path_seed(root, &path);
 
@@ -340,7 +356,9 @@ mod tests {
 
     #[test]
     fn test_to_secp256k1_secret() {
-        let derived = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let expected = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf3");
 
         let secret = to_secp256k1_secret(derived);
@@ -350,7 +368,9 @@ mod tests {
 
     #[test]
     fn test_to_secp256k1_secret_max() {
-        let derived = hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        let derived = hex!(
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
         let expected = hex!("000000000000000000000000000000014551231950b75fc4402da1732fc9bec0");
 
         let secret = to_secp256k1_secret(derived);
@@ -360,7 +380,9 @@ mod tests {
 
     #[test]
     fn test_to_secp256k1_secret_zero() {
-        let derived = hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+        let derived = hex!(
+            "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        );
         let expected = hex!("0000000000000000000000000000000000000000000000000000000000000001");
 
         let secret = to_secp256k1_secret(derived);
@@ -370,9 +392,13 @@ mod tests {
 
     #[test]
     fn test_to_secp256k1_public() {
-        let derived = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         // derived from an independent online implementation
-        let expected = hex!("19123e8d4b151f2b6b5f25a6d22b50a29522bc828b64c0764cf8e743dffe87d64af1c7457e17dffa208f986b347340295ecb8433d47d3b2221f81a619cef0a0b");
+        let expected = hex!(
+            "19123e8d4b151f2b6b5f25a6d22b50a29522bc828b64c0764cf8e743dffe87d64af1c7457e17dffa208f986b347340295ecb8433d47d3b2221f81a619cef0a0b"
+        );
 
         let public = to_secp256k1_public(derived);
 
@@ -381,7 +407,9 @@ mod tests {
 
     #[test]
     fn test_to_secp256k1_ethereum_address() {
-        let derived = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         // derived from an independent online implementation
         let expected = "0x92148e8f84096d0dfe7e66a025d14d1e2594ddc2";
 
@@ -392,7 +420,9 @@ mod tests {
 
     #[test]
     fn test_to_ed25519_secret() {
-        let derived = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let expected = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2");
 
         let secret = to_ed25519_secret(derived);
@@ -402,7 +432,9 @@ mod tests {
 
     #[test]
     fn test_to_ed25519_public() {
-        let derived = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         // derived from an independent online implementation
         let expected = hex!("980d98f6a6629647c840311b9d55e8808a75e16fd04468c115de3c4dbd6c249d");
 
@@ -413,7 +445,9 @@ mod tests {
 
     #[test]
     fn test_to_ed25519_solana_address() {
-        let derived = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdf2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         // derived from an independent online implementation
         let expected = "BEYzkmcGNdhqHAPKQ7oz89n1RbAumm2kwtX113pPuCax";
 
@@ -424,7 +458,9 @@ mod tests {
 
     #[test]
     fn test_to_x25519_secret() {
-        let derived = hex!("4790382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdb2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4790382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdb2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         let expected = hex!("4090382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cd72");
 
         let secret = to_x25519_secret(derived);
@@ -434,7 +470,9 @@ mod tests {
 
     #[test]
     fn test_to_x25519_public() {
-        let derived = hex!("4790382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdb2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5");
+        let derived = hex!(
+            "4790382ec7b7a00ee999a8da6f5d85e4159964c9f03448b3e3608e877a49cdb2031c4c25b95142cf02844a118bfafa2ad41aceda1191be332eee20b4bacd9be5"
+        );
         // derived from an independent online implementation
         let expected = hex!("7e80b46b5f95e629ef1b24b42d3af5dc4e6dd50046376d316956573db2e7d623");
 

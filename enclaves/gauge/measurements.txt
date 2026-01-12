@@ -1,0 +1,582 @@
+---
+version: 1
+events:
+- EventNum: 0
+  PCRIndex: 0
+  EventType: EV_NO_ACTION
+  Digest: "0000000000000000000000000000000000000000"
+  EventSize: 41
+  SpecID:
+  - Signature: Spec ID Event03
+    platformClass: 0
+    specVersionMinor: 0
+    specVersionMajor: 2
+    specErrata: 0
+    uintnSize: 2
+    numberOfAlgorithms: 3
+    Algorithms:
+    - Algorithm[0]:
+      algorithmId: sha256
+      digestSize: 32
+    - Algorithm[1]:
+      algorithmId: sha384
+      digestSize: 48
+    - Algorithm[2]:
+      algorithmId: sha512
+      digestSize: 64
+    vendorInfoSize: 0
+- EventNum: 1
+  PCRIndex: 0
+  EventType: EV_S_CRTM_VERSION
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "96a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7"
+  - AlgorithmId: sha384
+    Digest: "1dd6f7b457ad880d840d41c961283bab688e94e4b59359ea45686581e90feccea3c624b1226113f824f315eb60ae0a7c"
+  - AlgorithmId: sha512
+    Digest: "5ea71dc6d0b4f57bf39aadd07c208c35f06cd2bac5fde210397f70de11d439c62ec1cdf3183758865fd387fcea0bada2f6c37a4a17851dd1d78fefe6f204ee54"
+  EventSize: 2
+  Event: "0000"
+- EventNum: 2
+  PCRIndex: 0
+  EventType: EV_EFI_PLATFORM_FIRMWARE_BLOB
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "62196c08db63a4bf9d015105f5ec1592f8deae09975296ba629fb428d47bce81"
+  - AlgorithmId: sha384
+    Digest: "bb632b1b65f4f9c6df67951e617fa3fdc6cec323c3b5135a07bcabc37896fdaff27fbeacf2d62d3d765d961c5bf8f8ed"
+  - AlgorithmId: sha512
+    Digest: "441f3140227797c26c7879213d62dc13e038bd88e8ee16642a440b594c945caaf4c17e9f6e1ff3002697d511c3bcb8ed0ba00df57a30d3318ad45432bf48b1d5"
+  EventSize: 16
+  Event:
+    BlobBase: 0xbdf33a10
+    BlobLength: 0x10
+- EventNum: 3
+  PCRIndex: 7
+  EventType: EV_EFI_VARIABLE_DRIVER_CONFIG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "115aa827dbccfb44d216ad9ecfda56bdea620b860a94bed5b7a27bba1c4d02d8"
+  - AlgorithmId: sha384
+    Digest: "cfa4e2c606f572627bf06d5669cc2ab1128358d27b45bc63ee9ea56ec109cfafb7194006f847a6a74b5eaed6b73332ec"
+  - AlgorithmId: sha512
+    Digest: "d64901b6e1018f31046cbe3a09c36b1e5f2226fc1ddee9b893176d439a62fca8acd1c2b91ae25e99086087d72481ea9e05caa76e1777c0af75ad7e6ab82ce225"
+  EventSize: 53
+  Event:
+    VariableName: 8be4df61-93ca-11d2-aa0d-00e098032b8c
+    UnicodeNameLength: 10
+    VariableDataLength: 1
+    UnicodeName: SecureBoot
+    VariableData: "00"
+- EventNum: 4
+  PCRIndex: 7
+  EventType: EV_EFI_VARIABLE_DRIVER_CONFIG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "dea7b80ab53a3daaa24d5cc46c64e1fa9ffd03739f90aadbd8c0867c4a5b4890"
+  - AlgorithmId: sha384
+    Digest: "6f2e3cbc14f9def86980f5f66fd85e99d63e69a73014ed8a5633ce56eca5b64b692108c56110e22acadcef58c3250f1b"
+  - AlgorithmId: sha512
+    Digest: "a102c0fdb43102c5546fb04758a70acc5f5e798597d62bd2376cdeab37dddfb3b0ca67febc8c4e6069800449baebf9e0bbe7f063a7304a45652392f8c8bc7d17"
+  EventSize: 36
+  Event:
+    VariableName: 8be4df61-93ca-11d2-aa0d-00e098032b8c
+    UnicodeNameLength: 2
+    VariableDataLength: 0
+    UnicodeName: PK
+- EventNum: 5
+  PCRIndex: 7
+  EventType: EV_EFI_VARIABLE_DRIVER_CONFIG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "e670e121fcebd473b8bc41bb801301fc1d9afa33904f06f7149b74f12c47a68f"
+  - AlgorithmId: sha384
+    Digest: "d607c0efb41c0d757d69bca0615c3a9ac0b1db06c557d992e906c6b7dee40e0e031640c7bfd7bcd35844ef9edeadc6f9"
+  - AlgorithmId: sha512
+    Digest: "90bd5dac05d43171be2f1a705d7fc1937a566aab71031baab64ae6106160a148a8110d3326f5e22854a1823ad2131dea3556026601f8dd7628b37152ae97a68e"
+  EventSize: 38
+  Event:
+    VariableName: 8be4df61-93ca-11d2-aa0d-00e098032b8c
+    UnicodeNameLength: 3
+    VariableDataLength: 0
+    UnicodeName: KEK
+- EventNum: 6
+  PCRIndex: 7
+  EventType: EV_EFI_VARIABLE_DRIVER_CONFIG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "baf89a3ccace52750c5f0128351e0422a41597a1adfd50822aa363b9d124ea7c"
+  - AlgorithmId: sha384
+    Digest: "08a74f8963b337acb6c93682f934496373679dd26af1089cb4eaf0c30cf260a12e814856385ab8843e56a9acea19e127"
+  - AlgorithmId: sha512
+    Digest: "12152f5b5970582242a7ef7087f2a728b87eb9e58db8ca48b0921951a574e29e60887bf45bc00c15f6b96016a835b541bb80122a0409d37dbe6143c56207ed5a"
+  EventSize: 36
+  Event:
+    VariableName: d719b2cb-3d3a-4596-a3bc-dad00e67656f
+    UnicodeNameLength: 2
+    VariableDataLength: 0
+    UnicodeName: db
+- EventNum: 7
+  PCRIndex: 7
+  EventType: EV_EFI_VARIABLE_DRIVER_CONFIG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "9f75b6823bff6af1024a4e2036719cdd548d3cbc2bf1de8e7ef4d0ed01f94bf9"
+  - AlgorithmId: sha384
+    Digest: "18cc6e01f0c6ea99aa23f8a280423e94ad81d96d0aeb5180504fc0f7a40cb3619dd39bd6a95ec1680a86ed6ab0f9828d"
+  - AlgorithmId: sha512
+    Digest: "621bc3ee7b43730d1a34c7e9508b537204a1ce1fe5910dd77b5aada7e7a5f335de760b18cdd41dbf96c2588fa4652e35e2c1ca619646cae4f8aad51c953e77bd"
+  EventSize: 38
+  Event:
+    VariableName: d719b2cb-3d3a-4596-a3bc-dad00e67656f
+    UnicodeNameLength: 3
+    VariableDataLength: 0
+    UnicodeName: dbx
+- EventNum: 8
+  PCRIndex: 7
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 9
+  PCRIndex: 1
+  EventType: EV_EFI_VARIABLE_BOOT
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "6b1e73a0094b7b812d3b9e22cffb4f8239319847522c4fa103753b6950020f93"
+  - AlgorithmId: sha384
+    Digest: "52b9a02de946b947364b57d8210c63113b9058996e2a3ba7cead54af11ae0873b085d1e52bc01e4febe57ca05ca1332b"
+  - AlgorithmId: sha512
+    Digest: "523bb85dadc2834175740990383658ebc9b3d8d4426c60957f501a4668e65b0f806402e1bfa63f9ac4c180b2f7ccdef624900fbdeb7e68e16adb49798301b168"
+  EventSize: 54
+  Event:
+    VariableName: 8be4df61-93ca-11d2-aa0d-00e098032b8c
+    UnicodeNameLength: 9
+    VariableDataLength: 4
+    UnicodeName: BootOrder
+    VariableData: "00000100"
+- EventNum: 10
+  PCRIndex: 1
+  EventType: EV_EFI_VARIABLE_BOOT
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "3197be1e300fa1600d1884c3a4bd4a90a15405bfb546cf2e6cf6095f8c362a93"
+  - AlgorithmId: sha384
+    Digest: "23ada07f5261f12f34a0bd8e46760962d6b4d576a416f1fea1c64bc656b1d28eacf7047ae6e967c58fd2a98bfa74c298"
+  - AlgorithmId: sha512
+    Digest: "f9835b0e5b71f28305803af6a6c9df5b55406f0bb03bb13e6af731e13113c1fcde8c8c2404de71459197a774fbca7296f26da039b8da7aaf27579198dd999cb0"
+  EventSize: 110
+  Event:
+    VariableName: 8be4df61-93ca-11d2-aa0d-00e098032b8c
+    UnicodeNameLength: 8
+    VariableDataLength: 62
+    UnicodeName: Boot0000
+    VariableData: "090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
+- EventNum: 11
+  PCRIndex: 1
+  EventType: EV_EFI_VARIABLE_BOOT
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "834aeefa9d88a2495e3eb5eb7bdbead3c4baad20a18cd7cf42de71d04d937c45"
+  - AlgorithmId: sha384
+    Digest: "38d9714f012abe1873a022f81d6984435c317e6607dc8b80a73d8fedfcab8401008ace38d6a4594feb5db8678af13c02"
+  - AlgorithmId: sha512
+    Digest: "e342e8374a05f0759f9e91c0711dcb87b5247eda4574708415ec85e55d57df85221a1a85f2c26493ad6b52711fb84079efa135f3fb39f09a020d04c4c0dd94f5"
+  EventSize: 218
+  Event:
+    VariableName: 8be4df61-93ca-11d2-aa0d-00e098032b8c
+    UnicodeNameLength: 8
+    VariableDataLength: 170
+    UnicodeName: Boot0001
+    VariableData: "0100000026005500450046004900200041006d0061007a006f006e00200045006c0061007300740069006300200042006c006f0063006b002000530074006f0072006500200076006f006c003000350039006200340038006500350064003200320032003600300066003400330020003100000002010c00d041030a00000000010106000004031710000100000000000000000000007fff04004eac0881119f594d850ee21a522c59b2"
+- EventNum: 12
+  PCRIndex: 4
+  EventType: EV_EFI_ACTION
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "3d6772b4f84ed47595d72a2c4c5ffd15f5bb72c7507fe26f2aaee2c69d5633ba"
+  - AlgorithmId: sha384
+    Digest: "77a0dab2312b4e1e57a84d865a21e5b2ee8d677a21012ada819d0a98988078d3d740f6346bfe0abaa938ca20439a8d71"
+  - AlgorithmId: sha512
+    Digest: "03020279c5ea3676d6630c82a9931343225e8eab81529b65c786aeb6a445d3852a34dd193178f938b6b47345a72d4b647df309c971f7c02f0ede296a136a1086"
+  EventSize: 40
+  Event: |-
+    Calling EFI Application from Boot Option
+- EventNum: 13
+  PCRIndex: 0
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 14
+  PCRIndex: 1
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 15
+  PCRIndex: 2
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 16
+  PCRIndex: 3
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 17
+  PCRIndex: 4
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 18
+  PCRIndex: 5
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 19
+  PCRIndex: 6
+  EventType: EV_SEPARATOR
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+  - AlgorithmId: sha384
+    Digest: "394341b7182cd227c5c6b07ef8000cdfd86136c4292b8e576573ad7ed9ae41019f5818b4b971c9effc60e1ad9f1289f0"
+  - AlgorithmId: sha512
+    Digest: "ec2d57691d9b2d40182ac565032054b7d784ba96b18bcb5be0bb4e70e3fb041eff582c8af66ee50256539f2181d7f9e53627c0189da7e75a4d5ef10ea93b20b3"
+  EventSize: 4
+  Event: "00000000"
+- EventNum: 20
+  PCRIndex: 5
+  EventType: EV_EFI_GPT_EVENT
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "62a542f8884e1664a8f0f54373ee5b4bb4067cb5dbbe0e59bb4ee0be41204b39"
+  - AlgorithmId: sha384
+    Digest: "12bdfd5ef865b4e80ad2de95d9aff498d92cb9000a527015c1459f4dffe788a5793c331270da936ffd6a52a30af49a1c"
+  - AlgorithmId: sha512
+    Digest: "5807172b62fe5f77d5f05fa6425a474c23d897fff67022524b6b0661f31ae2de91592950ce07b7cd5fa5e59977f339703975c4cc4feb77accd807c0b42807b97"
+  EventSize: 484
+  Event: "4546492050415254000001005c000000d1856801000000000100000000000000cf351600000000000008000000000000ae35160000000000f7fe81b5ed24314f990b099ec86bba030200000000000000800000008000000008f8658d030000000000000028732ac11ff8d211ba4b00a0c93ec93b8a05c4dac02f0848a7efb8b4501c00ce0008000000000000ff070400000000000000000000000000650073007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000635fff77b6e73346acf41565b864c0e6187562ff98d3fd9e345ac916c2441b4b0008040000000000df2a0500000000000000000000000010730074006f00720065002d007600650072006900740079000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c6884842195c6489c11b0720656f69e63dbfb918b35c0e34f4a3831b2908d9ee02a050000000000a7351600000000000000000000000010730074006f00720065000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+- EventNum: 21
+  PCRIndex: 4
+  EventType: EV_EFI_BOOT_SERVICES_APPLICATION
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "59d1dd8a29a31a4a519805c54914e998dd3a728fe259bda358fccb8a81d4dba1"
+  - AlgorithmId: sha384
+    Digest: "4c9e49d3e07e46696a13975ad121a49d59480ef8cc0e08377e29a7d24ceadc2cd2efd5401ce8c96135561e5595885479"
+  - AlgorithmId: sha512
+    Digest: "ba280d494f07e7f2aa3b406c88f126012dc1c2fbda1b587325e106027f8e33d555ae241e166309c84bc54488e742202374a9d9c54f9ed23f9309649649687b98"
+  EventSize: 160
+  Event:
+    ImageLocationInMemory: 0xb7c58018
+    ImageLengthInMemory: 36133376
+    ImageLinkTimeAddress: 0x14df90000
+    LengthOfDevicePath: 128
+    DevicePath: '02010c00d041030a000000000101060000040317100001000000000000000000000004012a0001000000000800000000000000000400000000008a05c4dac02f0848a7efb8b4501c00ce0202040430005c004500460049005c0042004f004f0054005c0042004f004f0054005800360034002e0045004600490000007fff0400'
+- EventNum: 22
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "0da293e37ad5511c59be47993769aacb91b243f7d010288e118dc90e95aaef5a"
+  - AlgorithmId: sha384
+    Digest: "2fdc8531577607d99031d70fb3063e9e4aecf50a7eaa9c2b0bcda5c5a6e111302996c138465920cadea4416d36089651"
+  - AlgorithmId: sha512
+    Digest: "a231b3aa8b950af9567d2f7b1c2f9576b2fbad386a179e389bfaf759cb774af2135e5ec63b2b079098de3af39668acabf5e0915e66d8747f30554997df89690a"
+WARN: Event 22 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 14
+  Event:
+    String: ".\0l\0i\0n\0u\0x\0\0\0"
+- EventNum: 23
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "09ede030af99a4f242f40ad6d2fd2cfea881215c1c604c7b495ec35018c6f503"
+  - AlgorithmId: sha384
+    Digest: "0cbcf98155fdf51a8818b1a0b08b5ff09cd9b4ab97a35b074a89e9363a15752c3096198a7f3c5a1d80de474bc6ecb539"
+  - AlgorithmId: sha512
+    Digest: "85eea3b3ab7220571a7fbaccd09a01ec5a21e7a2fd786d4acc6becfca133a0ae48c275c4c06a6e4332db953ed5a5dde5df24d97c39d43a0cdafe835dd2678820"
+WARN: Event 23 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 14
+  Event:
+    String: ".\0l\0i\0n\0u\0x\0\0\0"
+- EventNum: 24
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "461203a89f23e36c3a4dc817f905b00484d2cf7e7d9376f13df91c41d84abe46"
+  - AlgorithmId: sha384
+    Digest: "93c4536618d5be4a74e2cb9caa0a4d8975ce70dc9efe0c53aa4cedbcda9d02f60c8a68fd01f960b876f9dd31818a6f41"
+  - AlgorithmId: sha512
+    Digest: "bc9a70f208c243bc9562241eb2bad568422a285f7ac49ac0419084fb1e7cef32a99792100a6cfffd3b8e0bd333be116d4ed13e257ad4794b1404fe28073b323e"
+WARN: Event 24 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 18
+  Event:
+    String: ".\0c\0m\0d\0l\0i\0n\0e\0\0\0"
+- EventNum: 25
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "89e2a8cfb547fd208c4a045bb9add32ae762f5c5e630fac30751be779e7d43bc"
+  - AlgorithmId: sha384
+    Digest: "09575999fc56ee39683743dc1df17e5b419b55942ce57ae197d55d9d7c101f5cf02d772274f2d7c29913bdb6366bb33d"
+  - AlgorithmId: sha512
+    Digest: "1a6253f9fabb3d02d91f5e22f0df382b1cb1ca26223d48eb8bae679f42abcb073a84bd270a448c56e723b8dcda8bef06b36cf8ee7a24bef6a6da9068cb604e9f"
+WARN: Event 25 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 18
+  Event:
+    String: ".\0c\0m\0d\0l\0i\0n\0e\0\0\0"
+- EventNum: 26
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "15ee37e75f1e8d42080e91fdbbd2560780918c81fe3687ae6d15c472bbdaac75"
+  - AlgorithmId: sha384
+    Digest: "1bcd2ed729fb9dc7b1a168ab4a6e2e04b66d7405ea2622d666780ec9f1eceb031010f0bdf37c46ab34e6a7201b73d5ae"
+  - AlgorithmId: sha512
+    Digest: "c9a9f832cc896b291aa438739bcaa2ed77f0b6a6664c33f1cebc056fb1465fa0431162e2336cbbf4e11522ec9351dbd41959c9e332016067c1fe9f231b891308"
+WARN: Event 26 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 16
+  Event:
+    String: ".\0i\0n\0i\0t\0r\0d\0\0\0"
+- EventNum: 27
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "bfd3e1a2dafcbccfa2dcafd3c10fc85e7c684099ee5fd24fd243d558df45b089"
+  - AlgorithmId: sha384
+    Digest: "a9b2586eeb286fa735ef60dc15c08134b93d7bd88caf72318f979bf58c19aa40c23cd84e7bf9e0afb13202d2f018ce10"
+  - AlgorithmId: sha512
+    Digest: "54df12ae7e8dec9d28223518735078a5642915b87e9c19a7e707ce046fd0e3e672e28324e7bbd293a8c8de286cede161fcd9c1dabc2f0c3e5269189f5fe90cd1"
+WARN: Event 27 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 16
+  Event:
+    String: ".\0i\0n\0i\0t\0r\0d\0\0\0"
+- EventNum: 28
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "da7a6d941caa9d28b8a3665c4865c143db8f99400ac88d883370ae3021636c30"
+  - AlgorithmId: sha384
+    Digest: "16b48d924b98bdfe9d5c97983801443e5371dae2de1a9911636b417b1b14a7d54d9c648a8c64510c3dbd5d6060387171"
+  - AlgorithmId: sha512
+    Digest: "8fab3a95061c62f231ebee9f915ed8c3963f1ff19d7edbd38931546ff94732e8ef42cd37dc2fe20d5de00c3f77cb2c000cb151ba9c67a77c72e76f61f3370a13"
+WARN: Event 28 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 14
+  Event:
+    String: ".\0u\0n\0a\0m\0e\0\0\0"
+- EventNum: 29
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "65a526d050090e379f6731562d9d231fb89d7cc32b9497ee9ad2069373c1a627"
+  - AlgorithmId: sha384
+    Digest: "94c1f4fcf1fc9c545296ea134cb3cf15c59ed86ba7b9450af39b03ba3bbbfabaefee31c3d49ac5baa0103bf218f96573"
+  - AlgorithmId: sha512
+    Digest: "2615501c6e27b69a2cc6df2aadbe49058c13cc9ac2869f8e9b7eb403ad3b00058561b412ee23f59f625cea5ac507ed59fe2061a50460d642c534cc579944d691"
+WARN: Event 29 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 14
+  Event:
+    String: ".\0u\0n\0a\0m\0e\0\0\0"
+- EventNum: 30
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "ff552fd255be18a3d61c0da88976fc71559d13aad12d1dfe1708cf950cc4b74c"
+  - AlgorithmId: sha384
+    Digest: "52a957bc706ceae8f202046a07342684b10ce67c73756def7713fe1246935abe07f7043f6b76d78e1e05772aaa46c56c"
+  - AlgorithmId: sha512
+    Digest: "0c15f37303126ccbb11b01046dbbc4f5d863a8d594edba01ef21b6888983c845f3b5f7c1149796b41f41e6f96e6def8114d5caf98d73c8e7c055ba6d195f361f"
+WARN: Event 30 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 12
+  Event:
+    String: ".\0s\0b\0a\0t\0\0\0"
+- EventNum: 31
+  PCRIndex: 11
+  EventType: EV_IPL
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "26c54fd557fce99f054c350a9e40c0399adab160c8bffe61667230883e6d5c72"
+  - AlgorithmId: sha384
+    Digest: "ebb40a8b8b67c1b36cc92fcf6034017b9aeef7de8ad0b25d1ad0ed9e4ebbb448379d829ce99a4e1686e5857d9ec06e61"
+  - AlgorithmId: sha512
+    Digest: "6ed600dee5a1af2dc89aabcd6cba4ef881138f136090b0528bed150a32fb606f9efcc622b7fe9536617803f61ee73de203ae494d324b8f2dcdcbb81e2459edfd"
+WARN: Event 31 is unexectedly not extending either PCR 8, 9, 12 or 14
+  EventSize: 12
+  Event:
+    String: ".\0s\0b\0a\0t\0\0\0"
+- EventNum: 32
+  PCRIndex: 9
+  EventType: EV_EVENT_TAG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "2ea8687de3216e50b5303f32bfcec3832d32fb2c391c353817485067161f60e2"
+  - AlgorithmId: sha384
+    Digest: "27035f35c8e9504dca1ad3d2464151614e47d45c5527c1eff5765ebb35ca414bd7a4f9bcd4b01c8b142874423da03c1c"
+  - AlgorithmId: sha512
+    Digest: "5a52bbba3f3ecc4cb8879d69bed278f5d294df311273c424fd81f2d654239e2b5b89f8b644edb9b0fe70f01a69894a6610fcd326f6a08f2b12a2175f434040eb"
+  EventSize: 34
+  Event: "ed223b8f1a0000004c4f414445445f494d4147453a3a4c6f61644f7074696f6e7300"
+- EventNum: 33
+  PCRIndex: 9
+  EventType: EV_EVENT_TAG
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "bfd3e1a2dafcbccfa2dcafd3c10fc85e7c684099ee5fd24fd243d558df45b089"
+  - AlgorithmId: sha384
+    Digest: "a9b2586eeb286fa735ef60dc15c08134b93d7bd88caf72318f979bf58c19aa40c23cd84e7bf9e0afb13202d2f018ce10"
+  - AlgorithmId: sha512
+    Digest: "54df12ae7e8dec9d28223518735078a5642915b87e9c19a7e707ce046fd0e3e672e28324e7bbd293a8c8de286cede161fcd9c1dabc2f0c3e5269189f5fe90cd1"
+  EventSize: 21
+  Event: "ec223b8f0d0000004c696e757820696e6974726400"
+- EventNum: 34
+  PCRIndex: 5
+  EventType: EV_EFI_ACTION
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "d8043d6b7b85ad358eb3b6ae6a873ab7ef23a26352c5dc4faa5aeedacf5eb41b"
+  - AlgorithmId: sha384
+    Digest: "214b0bef1379756011344877743fdc2a5382bac6e70362d624ccf3f654407c1b4badf7d8f9295dd3dabdef65b27677e0"
+  - AlgorithmId: sha512
+    Digest: "0fed3a4c9552021436534d27f3adb481e22b50b29e4b37a63f518540a651a174f149b69f500b0bdb2cb3bf4e0e21e0781451090af33e88f6bee4cbebd15c1668"
+  EventSize: 29
+  Event: |-
+    Exit Boot Services Invocation
+- EventNum: 35
+  PCRIndex: 5
+  EventType: EV_EFI_ACTION
+  DigestCount: 3
+  Digests:
+  - AlgorithmId: sha256
+    Digest: "b54f7542cbd872a81a9d9dea839b2b8d747c7ebd5ea6615c40f42f44a6dbeba0"
+  - AlgorithmId: sha384
+    Digest: "0a2e01c85deae718a530ad8c6d20a84009babe6c8989269e950d8cf440c6e997695e64d455c4174a652cd080f6230b74"
+  - AlgorithmId: sha512
+    Digest: "1bb30cdbd6da78fe2a8a161ef51176e22d64dce305b40b47243673af64a2b16fca6182116433e3891be94773f6d7d411275721d5bf7d40ea51a274d5c891637c"
+  EventSize: 40
+  Event: |-
+    Exit Boot Services Returned with Success
+pcrs:
+  sha256:
+    0  : 0x737f767a12f54e70eecbc8684011323ae2fe2dd9f90785577969d7a2013e8c12
+    1  : 0x9d2ef6e34645cf3e26edcb4a90c6c5bfde4230c8bf0a10066c9a09cac7994139
+    2  : 0x3d458cfe55cc03ea1f443f1562beec8df51c75e14a9fcf9a7234a13f198e7969
+    3  : 0x3d458cfe55cc03ea1f443f1562beec8df51c75e14a9fcf9a7234a13f198e7969
+    4  : 0x6fde3adf32bedf0b4b22c901a9a10f604a4d35336e50946e397968ac26e015dd
+    5  : 0xeb285614adb47adfdcf0c5790d0acf0c39192cbcd8574c9f394b0e06965934e3
+    6  : 0x3d458cfe55cc03ea1f443f1562beec8df51c75e14a9fcf9a7234a13f198e7969
+    7  : 0x65caf8dd1e0ea7a6347b635d2b379c93b9a1351edc2afc3ecda700e534eb3068
+    9  : 0x39f621ec414152ca63aeddaca14ba1bb0345cc689ab93e865a39d14ccb3c14de
+    11 : 0x5abaf0224aebe409431db2c5d9495107ab7c038ae574949f05a108d8878b2410
+  sha384:
+    0  : 0x6e901b16932f6e036747d7a57696e4a2cc864008ebc016826ca1d7bd42ab5ac8286ccf49cde6c0284cbc4b63d978a2ec
+    1  : 0x0117d9c757feae4ab686e6d5ccabe66f5f54dc8959d3e14633d0d8c2a83effedea0bb3a3b6bd8209549b930ed61e246e
+    2  : 0x518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4
+    3  : 0x518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4
+    4  : 0x0c9b8cabfb357d78435a5f5838e6b33314f1d81e970cbb0bb10840def0802a49fd2ed2c4250124de98b6791f888d2781
+    5  : 0x777c0069923cebd15485d4fe264f3505ec3695c526556efc79d9b91495e8b22762e10e3e0efe6fee582c1938ad99c258
+    6  : 0x518923b0f955d08da077c96aaba522b9decede61c599cea6c41889cfbea4ae4d50529d96fe4d1afdafb65e7f95bf23c4
+    7  : 0x98441c7f7625d10058c47683aec486ce311c633235eb555593a7ee791121e3578ae72d04ecef661f272d59058b77af35
+    9  : 0x8e5eef759e932b17a90195b6602d8b9f7afd7ede812789f8a51d671adc1b9b8b6cc1b9d94e3cbf9312b3c62cc2f5330d
+    11 : 0x929a55c1fa68245cc344faf1625883b63ba8e8cbc4409be8be1089e6966128c876b4d74c6f5f5bbb95d6bed4d74eabdc
+  sha512:
+    0  : 0x162edb4c50ca1cf767d22584df9be9bbbaa7e7fc8a69b81199ff3d65b26deccdb96c9de06ab14ba6bbd9b6677f944e27bb7d87d9fd38fd041205a390f752d1fe
+    1  : 0x4a80d3cbd90b8082cc1485b7391707f29a910b46a912f6285e9b2270828a88233e8ef7f025bf338e63d4d07119d9fcaef865cd6be1fe5d3ebe35e47d691ff112
+    2  : 0x27ec091533c4b9eea38dd14c3a3ecdef0a99c1e564cbe66dfe008250154e7839b0b75228fe8debcc4ca330e6aebc1abc74070bc9c9c1e26b939c9d916e45e13c
+    3  : 0x27ec091533c4b9eea38dd14c3a3ecdef0a99c1e564cbe66dfe008250154e7839b0b75228fe8debcc4ca330e6aebc1abc74070bc9c9c1e26b939c9d916e45e13c
+    4  : 0x57ed6ca5fce999e9404301c1f4058af8883c9790f97a616207e01ff4393cbcc6f3d35ff178c25fe18120835793884b8f6d485c2ab9a26562298312f8c89b59ea
+    5  : 0x3e2e90aa77753784352124539fe047770e8e4984cf6fb1b8d8ca70deecc6b90b60aee9d97671904830cfc2d484624cf986bfdd526ea365670f8346bbd13eca72
+    6  : 0x27ec091533c4b9eea38dd14c3a3ecdef0a99c1e564cbe66dfe008250154e7839b0b75228fe8debcc4ca330e6aebc1abc74070bc9c9c1e26b939c9d916e45e13c
+    7  : 0x7793d61d41cf40ae7cbf782dcac336ab5d8546d8b6c369fba740c784e16d4ec83247af2043f6352790a9eb9aab9c95ef318e5dd22c788e0848a10f8c87472a3e
+    9  : 0xf118908efa0d0012d4f91f9ee4c31d79ae223e9630341c1efba19451e60f49eabbd98a98555c92097576797890d4768cda9f7cd832539a7b10ea1dcc845459d8
+    11 : 0x32e09be5be45d110a03bfcd711315d95bc603dab9f08d3d6af9f50c5eee99005c931fb6b57de45cf6994f2e48989a42ddc8fdff92b9ed455118758cbebf5857d
