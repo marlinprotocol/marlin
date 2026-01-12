@@ -219,7 +219,8 @@ impl Aws {
     }
 
     /* AWS EC2 UTILITY */
-    pub async fn get_instance_public_ip(&self, instance_id: &str, region: &str) -> Result<String> {
+
+    pub async fn get_instance_ip(&self, instance_id: &str, region: &str) -> Result<String> {
         Ok(self
             .client(region)
             .await
@@ -245,6 +246,7 @@ impl Aws {
             .to_string())
     }
 
+    // launch instance with given params and return instance id and private ip
     pub async fn launch_instance(
         &self,
         job: &JobId,
@@ -252,7 +254,7 @@ impl Aws {
         region: &str,
         init_params: &[u8],
         ami_id: &str,
-    ) -> Result<String> {
+    ) -> Result<(String, String)> {
         let name_tag = Tag::builder().key("Name").value("JobRunner").build();
         let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
         let project_tag = Tag::builder().key("project").value("oyster").build();
@@ -281,7 +283,7 @@ impl Aws {
             .get_security_group(region)
             .await
             .context("could not get subnet")?;
-        Ok(self
+        let instance = self
             .client(region)
             .await
             .run_instances()
@@ -300,9 +302,18 @@ impl Aws {
             .instances()
             .first()
             .ok_or(anyhow!("no instance found"))?
+            .clone();
+
+        let instance_id = instance
             .instance_id()
-            .ok_or(anyhow!("could not parse group id"))?
-            .to_string())
+            .ok_or(anyhow!("could not parse instance id"))?
+            .to_string();
+
+        let private_ip = instance
+            .private_ip_address()
+            .ok_or(anyhow!("could not parse private ip"))?
+            .to_string();
+        Ok((instance_id, private_ip))
     }
 
     async fn terminate_instance(&self, instance_id: &str, region: &str) -> Result<()> {
@@ -451,11 +462,12 @@ impl Aws {
         }
     }
 
+    // return (exist, instance_id, state, rl_instance_id, private_ip)
     pub async fn get_job_instance_id(
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<(bool, String, String)> {
+    ) -> Result<(bool, String, String, String, String)> {
         let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
         let operator_filter = Filter::builder()
             .name("tag:operator")
@@ -484,12 +496,18 @@ impl Aws {
         let reservations = res.reservations();
 
         if reservations.is_empty() {
-            Ok((false, "".to_owned(), "".to_owned()))
+            Ok((false, "".to_owned(), "".to_owned(), "".to_owned(), "".to_owned()))
         } else {
             let instance = reservations[0]
                 .instances()
                 .first()
                 .ok_or(anyhow!("instance not found"))?;
+            let mut rl_instance_id = String::new();
+            for tag in instance.tags() {
+                if tag.key().unwrap_or("") == "rlInstanceId" {
+                    rl_instance_id = tag.value().unwrap_or("").to_string();
+                }
+            }
             Ok((
                 true,
                 instance
@@ -503,6 +521,11 @@ impl Aws {
                     .ok_or(anyhow!("could not parse instance state name"))?
                     .as_str()
                     .to_owned(),
+                rl_instance_id,
+                instance
+                    .private_ip_address()
+                    .ok_or(anyhow!("could not parse private ip"))?
+                    .to_string()
             ))
         }
     }
@@ -537,7 +560,7 @@ impl Aws {
     }
 
     async fn allocate_ip_addr(&self, job: &JobId, region: &str) -> Result<(String, String)> {
-        let (exist, alloc_id, public_ip, _, _, _) = self
+        let (exist, alloc_id, public_ip, _) = self
             .get_job_elastic_ip(job, region, false)
             .await
             .context("could not get elastic ip for job")?;
@@ -592,7 +615,7 @@ impl Aws {
         job: &JobId,
         region: &str,
         with_association: bool,
-    ) -> Result<(bool, String, String, String, String, String)> {
+    ) -> Result<(bool, String, String, String)> {
         let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
         let operator_filter = Filter::builder()
             .name("tag:operator")
@@ -628,23 +651,11 @@ impl Aws {
                     String::new(),
                     String::new(),
                     String::new(),
-                    String::new(),
-                    String::new(),
                 ),
                 Some(addrs) => {
                     if with_association == false {
                         // load private ip, eni id from tags
-                        let tags = addrs.tags();
-                        let mut private_ip = String::new();
-                        let mut eni_id = String::new();
-                        for tag in tags {
-                            if tag.key().unwrap_or("") == "PrivateIpAddress" {
-                                private_ip = tag.value().unwrap_or("").to_string();
-                            } else if tag.key().unwrap_or("") == "NetworkInterfaceId" {
-                                eni_id = tag.value().unwrap_or("").to_string();
-                            }
-                        }
-
+                        
                         (
                             true,
                             addrs
@@ -655,15 +666,11 @@ impl Aws {
                                 .public_ip()
                                 .ok_or(anyhow!("could not parse public ip"))?
                                 .to_string(),
-                            private_ip,
-                            eni_id,
                             String::new(),
                         )
                     } else if addrs.association_id().is_none() {
                         (
                             false,
-                            String::new(),
-                            String::new(),
                             String::new(),
                             String::new(),
                             String::new(),
@@ -680,14 +687,6 @@ impl Aws {
                                 .ok_or(anyhow!("could not parse public ip"))?
                                 .to_string(),
                             addrs
-                                .private_ip_address()
-                                .ok_or(anyhow!("could not parse private ip"))?
-                                .to_string(),
-                            addrs
-                                .network_interface_id()
-                                .ok_or(anyhow!("could not parse network interface id"))?
-                                .to_string(),
-                            addrs
                                 .association_id()
                                 .ok_or(anyhow!("could not parse association id"))?
                                 .to_string(),
@@ -698,78 +697,17 @@ impl Aws {
         )
     }
 
-    async fn get_instance_elastic_ip(
-        &self,
-        instance: &str,
-        region: &str,
-    ) -> Result<(bool, String, String)> {
-        let instance_id_filter = Filter::builder()
-            .name("instance-id")
-            .values(instance)
-            .build();
-
-        Ok(
-            match self
-                .client(region)
-                .await
-                .describe_addresses()
-                .filters(instance_id_filter)
-                .send()
-                .await
-                .context("could not describe elastic ips")?
-                // response parsing starts here
-                .addresses()
-                .first()
-            {
-                None => (false, String::new(), String::new()),
-                Some(addrs) => (
-                    true,
-                    addrs
-                        .allocation_id()
-                        .ok_or(anyhow!("could not parse allocation id"))?
-                        .to_string(),
-                    addrs
-                        .association_id()
-                        .ok_or(anyhow!("could not parse public ip"))?
-                        .to_string(),
-                ),
-            },
-        )
-    }
-
     async fn associate_address(
         &self,
+        instance_id: &str,
         alloc_id: &str,
         region: &str,
-        eni_id: &str,
-        private_ip: &str,
     ) -> Result<()> {
-        let tag_private_ip = Tag::builder()
-            .key("PrivateIpAddress")
-            .value(private_ip)
-            .build();
-        let tag_eni_id = Tag::builder()
-            .key("NetworkInterfaceId")
-            .value(eni_id)
-            .build();
-        let tags = vec![tag_private_ip, tag_eni_id];
-
-        self.client(region)
-            .await
-            .create_tags()
-            .resources(alloc_id)
-            .set_tags(Some(tags))
-            .send()
-            .await
-            .context("failed to set private IP & eni id tag for elastic IP")?;
-
-        self.client(region)
+         self.client(region)
             .await
             .associate_address()
             .allocation_id(alloc_id)
-            .network_interface_id(eni_id)
-            .private_ip_address(private_ip)
-            .allow_reassociation(true)
+            .instance_id(instance_id)
             .send()
             .await
             .context("could not associate elastic ip")?;
@@ -809,7 +747,7 @@ impl Aws {
         image_url: &str,
         init_params: &[u8],
     ) -> Result<()> {
-        let (mut exist, instance, state) = self
+        let (mut exist, instance, state, rl_instance_id, private_ip) = self
             .get_job_instance_id(job, region)
             .await
             .context("failed to get job instance")?;
@@ -822,7 +760,7 @@ impl Aws {
             } else if state == "stopping" || state == "stopped" {
                 // instance unhealthy, terminate
                 info!(instance, "Found existing unhealthy instance");
-                self.spin_down_instance(&instance, job, region, bandwidth)
+                self.spin_down_instance(&instance, job, &private_ip, region, bandwidth, &rl_instance_id)
                     .await
                     .context("failed to terminate instance")?;
 
@@ -1109,58 +1047,58 @@ impl Aws {
         if req_mem > mem || req_vcpu > v_cpus {
             return Err(anyhow!("Required memory or vcpus are more than available"));
         }
-        let instance = self
+        let (instance_id, private_ip) = self
             .launch_instance(job, instance_type, region, init_params, ami_id)
             .await
             .context("could not launch instance")?;
         sleep(Duration::from_secs(100)).await;
 
-        let res = self.post_spin_up(job, &instance, region, bandwidth).await;
+        let res = self.post_spin_up(job, &instance_id, &private_ip, region, bandwidth).await;
 
         if let Err(err) = res {
             error!(?err, "Error during post spin up");
-            self.spin_down_instance(&instance, job, region, bandwidth)
+            self.spin_down_instance(&instance_id, job, &private_ip, region, bandwidth, "")
                 .await
                 .context("could not spin down instance after error during post spin up")?;
             return Err(err).context("error during post spin up");
         }
-        Ok(instance)
+        Ok(instance_id)
     }
 
     async fn post_spin_up(
         &self,
         job: &JobId,
         instance_id: &str,
+        private_ip: &str,
         region: &str,
         bandwidth: u64,
     ) -> Result<()> {
         // allocate Elastic IP
+        // associate Elastic IP
         // select and configure rate limiter
-        // associate secondary IP and Elastic IP
         let (alloc_id, ip) = self
             .allocate_ip_addr(job, region)
             .await
             .context("error allocating ip address")?;
         info!(ip, "Elastic Ip allocated");
 
-        let (sec_ip, eni_id) = self
-            .select_rate_limiter(job, region, bandwidth, instance_id)
+        self.associate_address(instance_id, &alloc_id, region)
+        .await
+        .context("could not associate ip address")?;
+
+        self
+            .select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
             .await
             .context("could not select rate limiter")?;
 
-        self.associate_address(&alloc_id, region, &eni_id, &sec_ip)
-            .await
-            .context("could not associate ip address")?;
         Ok(())
     }
 
     async fn configure_rate_limiter(
         &self,
         job: &JobId,
-        instance_id: &str,
+        private_ip: &str,
         rl_instance_id: &str,
-        sec_ip: &str,
-        eni_mac: &str,
         bandwidth: u64, // in kbit/sec
         instance_bandwidth_limit: u64,
         region: &str,
@@ -1168,7 +1106,7 @@ impl Aws {
         // TODO: rollback on failure
         // SSH into Rate Limiter instance and configure NAT and tc
         let rl_ip = self
-            .get_instance_public_ip(rl_instance_id, region)
+            .get_instance_ip(rl_instance_id, region)
             .await
             .context("could not get rate limiter instance ip")?;
 
@@ -1177,17 +1115,10 @@ impl Aws {
             .await
             .context("error establishing ssh connection")?;
 
-        // Get instance private IP
-        let private_ip = self
-            .get_instance_private_ip(instance_id, region)
-            .await
-            .context("could not get instance private ip")?;
-
-        // OPTION: Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup
-        // everything
+        // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
         let add_rl_cmd = format!(
-            "sudo ~/add_rl.sh {} {} {} {} {} {}",
-            job.id, sec_ip, private_ip, eni_mac, bandwidth * 1000, instance_bandwidth_limit
+            "sudo ~/add_rl.sh {} {} {} {}",
+            job.id, private_ip, bandwidth * 1000, instance_bandwidth_limit
         );
 
         let (_, stderr) = Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl.sh command")?;
@@ -1200,32 +1131,6 @@ impl Aws {
 
         Ok(())
 
-    }
-
-    async fn get_instance_private_ip(&self, instance_id: &str, region: &str) -> Result<String> {
-        Ok(self
-            .client(region)
-            .await
-            .describe_instances()
-            .filters(
-                Filter::builder()
-                    .name("instance-id")
-                    .values(instance_id)
-                    .build(),
-            )
-            .send()
-            .await
-            .context("could not describe instances")?
-            // response parsing from here
-            .reservations()
-            .first()
-            .ok_or(anyhow!("no reservation found"))?
-            .instances()
-            .first()
-            .ok_or(anyhow!("no instances with the given id"))?
-            .private_ip_address()
-            .ok_or(anyhow!("could not parse private ip address"))?
-            .to_string())
     }
 
     pub async fn get_instance_bandwidth_limit(&self, instance_type: InstanceType, region: &str) -> Result<u64> {
@@ -1271,15 +1176,17 @@ impl Aws {
         Ok(bandwidth_limit_bps)
     }
 
+    // TODO: return error if all rate limiters are full
     async fn select_rate_limiter(
         &self,
         job: &JobId,
+        instance_id: &str,
+        private_ip: &str,
         region: &str,
         bandwidth: u64,
-        instance_id: &str,
-    ) -> Result<(String, String)> {
+    ) -> Result<()> {
         // get all the rate limiter vm from region
-        // check available bandwidth and secondary IP is allowed
+        // check available bandwidth
         // bandwidth is in kbit/sec
         let project_filter = Filter::builder()
             .name("tag:project")
@@ -1320,72 +1227,42 @@ impl Aws {
                 ).await
                 .context("could not get instance bandwidth limit")?;
                 for eni in instance.network_interfaces() {
-
                     if let Some(eni_id) = eni.network_interface_id() {
-                        let Some(eni_mac) = eni.mac_address() else {
+                        if eni.mac_address().is_none() {
                             debug!(
                                 "MAC address not found for ENI {}. Skipping ENI",
                                 eni_id
                             );
                             continue;
                         };
-                        let res = self
-                            .client(region)
-                            .await
-                            .assign_private_ip_addresses()
-                            .network_interface_id(eni_id)
-                            .secondary_private_ip_address_count(1)
-                            .send()
-                            .await;
-                        if let Ok(assigned_ip) = res {
-                            if assigned_ip.assigned_private_ip_addresses.is_none() {
-                                debug!(
-                                    "No secondary private IP address assigned Rate Limit instance [{}], ENI [{}]",
-                                    rl_instance_id,
-                                    eni_id
-                                );
-                                continue;
-                            } else {
-                                let sec_ip = assigned_ip
-                                    .assigned_private_ip_addresses()
-                                    .first()
-                                    .ok_or(anyhow!("no assigned private ip address found"))?
-                                    .private_ip_address()
-                                    .ok_or(anyhow!("no private ip address found"))?
-                                    .to_string();
-
-                                // RL IP, secondary IP,
-                                if self.configure_rate_limiter(
-                                    job,
-                                    instance_id,
-                                    &rl_instance_id,
-                                    &sec_ip,
-                                    eni_mac,
-                                    bandwidth,
-                                    instance_bandwidth_limit,
-                                    region
-                                ).await.is_err() {
-                                    warn!(
-                                        "Error configuring Rate Limit instance [{}], ENI [{}]",
-                                        rl_instance_id,
-                                        eni_id
-                                    );
-                                    self.unassign_secondary_ip(eni_id, sec_ip.as_str(), region)
-                                        .await
-                                        .context("could not unassign secondary ip")?;
-                                    continue;
-                                }
-                                return Ok((sec_ip, eni_id.to_string()));
-                            }
-                        } else {
-                            debug!(
-                                ?res,
-                                "Error assigning secondary private IP address Rate Limit instance [{}], ENI [{}]",
+                        if self.configure_rate_limiter(
+                            job,
+                            private_ip,
+                            &rl_instance_id,
+                            bandwidth,
+                            instance_bandwidth_limit,
+                            region
+                        ).await.is_err() {
+                            warn!(
+                                "Error configuring Rate Limit instance [{}], ENI [{}]",
                                 rl_instance_id,
                                 eni_id
                             );
                             continue;
                         }
+                        let tag_rl_id = Tag::builder()
+                            .key("rlInstanceId")
+                            .value(&rl_instance_id)
+                            .build();
+                        self.client(region)
+                            .await
+                            .create_tags()
+                            .resources(instance_id)
+                            .tags(tag_rl_id)
+                            .send()
+                            .await
+                            .context("could not tag job instance with rl instance id")?; // TODO: revert rate limiter config on failure
+                        return Ok(());
                     }
                 }
 
@@ -1397,7 +1274,7 @@ impl Aws {
     }
 
     async fn spin_down_impl(&self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
-        let (exist, instance, state) = self
+        let (exist, instance, state, rl_instance_id, private_ip) = self
             .get_job_instance_id(job, region)
             .await
             .context("failed to get job instance")?;
@@ -1411,7 +1288,7 @@ impl Aws {
 
         // cleanup instance and related resources
         info!(instance, "Terminating existing instance");
-        self.spin_down_instance(&instance, job, region, bandwidth)
+        self.spin_down_instance(&instance, job, &private_ip, region, bandwidth, &rl_instance_id)
             .await
             .context("failed to terminate instance")?;
 
@@ -1464,14 +1341,13 @@ impl Aws {
     async fn remove_rate_limiter_config(
         &self,
         job: &JobId,
-        rl_instance_id: &str,
-        sec_ip: &str,
         private_ip: &str,
-        eni_mac: &str,
+        rl_instance_id: &str,
         bandwidth: u64, // in kbit/sec
+        region: &str,
     ) -> Result<()> {
         let rl_ip = self
-            .get_instance_public_ip(rl_instance_id, "ap-southeast-2")
+            .get_instance_ip(rl_instance_id, region)
             .await
             .context("could not get rate limiter instance ip")?;
 
@@ -1481,8 +1357,8 @@ impl Aws {
             .context("error establishing ssh connection")?;
 
         let remove_rl_cmd = format!(
-            "sudo ~/remove_rl.sh {} {} {} {} {}",
-            job.id, sec_ip, private_ip, eni_mac, bandwidth * 1000
+            "sudo ~/remove_rl.sh {} {} {}",
+            job.id, private_ip, bandwidth * 1000
         );
 
         let (_, stderr) = Self::ssh_exec(sess, &remove_rl_cmd)
@@ -1494,85 +1370,28 @@ impl Aws {
         return Ok(());
     }
 
-    async fn get_rate_limiter_instance_id(&self, eni_id: &str, region: &str) -> Result<String> {
-        Ok(self
-            .client(region)
-            .await
-            .describe_network_interfaces()
-            .network_interface_ids(eni_id)
-            .send()
-            .await
-            .context("could not describe network interfaces")?
-            // response parsing from here
-            .network_interfaces()
-            .first()
-            .ok_or(anyhow!("no network interface found"))?
-            .attachment()
-            .ok_or(anyhow!("no attachment found for network interface"))?
-            .instance_id()
-            .ok_or(anyhow!("could not parse instance id"))?
-            .to_string())
-    }
-
-    async fn get_eni_mac_address(&self, eni_id: &str, region: &str) -> Result<String> {
-        Ok(self
-            .client(region)
-            .await
-            .describe_network_interfaces()
-            .network_interface_ids(eni_id)
-            .send()
-            .await
-            .context("could not describe network interfaces")?
-            // response parsing from here
-            .network_interfaces()
-            .first()
-            .ok_or(anyhow!("no network interface found"))?
-            .mac_address()
-            .ok_or(anyhow!("could not parse mac address"))?
-            .to_string())
-    }
-
-    async fn unassign_secondary_ip(
-        &self,
-        eni_id: &str,
-        sec_ip: &str,
-        region: &str,
-    ) -> Result<()> {
-        let res = self.client(region)
-            .await
-            .unassign_private_ip_addresses()
-            .network_interface_id(eni_id)
-            .private_ip_addresses(sec_ip)
-            .send()
-            .await;
-        if let Err(err) = res {
-            let svc_err = err.as_service_error();
-            if !svc_err.is_none() && svc_err.unwrap().meta().code() == Some("InvalidParameterValue") {
-                info!("Secondary IP [{}] already unassigned from ENI [{}]", sec_ip, eni_id);
-                return Ok(());
-            }
-            error!(?err, "Error unassigning secondary private IP address ENI [{}], IP [{}]", eni_id, sec_ip);
-            return Err(err).context("could not unassign secondary ip");
-        }
-        Ok(())
-    }
-
-    // TODO: handle all error cases, continue cleanup even if some steps fail or will it be retried later?
+    // TODO: handle all error cases
     async fn spin_down_instance(
         &self,
         instance_id: &str,
         job: &JobId,
+        private_ip: &str,
         region: &str,
         bandwidth: u64,
+        rl_instance_id: &str,
     ) -> Result<()> {
-        // Check elastic ip association and cleanup
         // check rate limiter config and cleanup
-        // check aws secondary ip assignment and unassign
+        // Check elastic ip association and cleanup
         // check elastic ip and release
         // terminate instance if exist
 
-        // disassociation of elastic IP if association exists
-        let (exist, _, _, _, _, association_id) = self
+        if !rl_instance_id.is_empty() {
+            self.remove_rate_limiter_config(job, private_ip, &rl_instance_id, bandwidth, region)
+                .await
+                .context("could not remove rate limiter config")?;
+        }
+        
+        let (exist, _, _, association_id) = self
             .get_job_elastic_ip(job, region, true)
             .await
             .context("could not get elastic ip of job")?;
@@ -1583,34 +1402,13 @@ impl Aws {
                 .context("could not disassociate address")?;
 
         }
-
-        // get eni_id, sec_ip from elastic ip tags
-        let (exist, alloc_id, _, sec_ip, eni_id,  _) = self
+        
+        let (exist, alloc_id, _,  _) = self
             .get_job_elastic_ip(job, region, false)
             .await
             .context("could not get elastic ip of job")?;
 
         if exist {
-            let eni_mac = self
-                .get_eni_mac_address(eni_id.as_str(), region)
-                .await
-                .context("could not get eni mac address")?;
-            let rl_instance_id = self
-                .get_rate_limiter_instance_id(eni_id.as_str(), region)
-                .await
-                .context("could not get rate limiter instance id")?;
-            let private_ip = self.get_instance_private_ip(instance_id, region)
-                .await
-                .context("could not get private ip of instance")?;
-
-            self.remove_rate_limiter_config(job, &rl_instance_id, &sec_ip, &private_ip, &eni_mac, bandwidth)
-                .await
-                .context("could not remove rate limiter config")?;
-
-            self.unassign_secondary_ip(eni_id.as_str(), sec_ip.as_str(), region)
-                .await
-                .context("could not unassign secondary ip")?;
-
             self.release_address(alloc_id.as_str(), region)
                 .await
                 .context("could not release address")?;
@@ -1659,20 +1457,36 @@ impl InfraProvider for Aws {
 
     async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
 
-        let (found, _, elastic_ip, _, _, _) = self
+        let instance = self
+            .get_job_instance_id(job, region)
+            .await
+            .context("could not get instance id for job instance ip")?;
+
+        if !instance.0 {
+            return Err(anyhow!("Instance not found for job - {}", job.id));
+        }
+
+        let instance_ip = self
+            .get_instance_ip(&instance.1, region)
+            .await
+            .context("could not get instance ip")?;
+
+        let (found, _, elastic_ip, _) = self
             .get_job_elastic_ip(job, region, true)
             .await
             .context("could not get job elastic ip")?;
 
-        if found {
-            return Ok(elastic_ip);
+        // it is possible for the two above to differ while the instance is initializing (maybe
+        // terminating?), better to error out instead of potentially showing a temporary IP
+        if found && instance_ip == elastic_ip {
+            return Ok(instance_ip);
         }
 
         Err(anyhow!("Instance is still initializing"))
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        let (exists, instance_id, state) = self
+        let (exists, _, state, _, _) = self
             .get_job_instance_id(job, region)
             .await
             .context("could not get instance id for job")?;
@@ -1832,34 +1646,5 @@ mod tests {
         );
         let bandwidth_limit = bandwidth_limit_result.unwrap();
         println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
-    }
-
-    // TODO: complete test by adding create instance and assign secondary ip before unassigning
-    #[tokio::test]
-    async fn test_unassign_secondary_ip() {
-        let mut filter = EnvFilter::new("info,aws_config=warn");
-        if let Ok(var) = std::env::var("RUST_LOG") {
-            filter = filter.add_directive(var.parse().unwrap());
-        }
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_env_filter(filter)
-            .init();
-        let aws = Aws::new(
-            "cp".to_string(),
-            &["ap-southeast-2".to_string()],
-            "rlgen".to_string(),
-            None,
-            None,
-        )
-        .await;
-        let eni_id = "eni-0e378f556e57a37df"; // replace with a valid ENI ID for testing
-        let sec_ip = "172.31.42.188"; // replace with a valid secondary IP for testing
-        let unassign_result = aws.unassign_secondary_ip(eni_id, sec_ip, "ap-southeast-2").await;
-        assert!(
-            unassign_result.is_ok(),
-            "Unassign secondary IP failed: {:?}",
-            unassign_result.err()
-        );
     }
 }
