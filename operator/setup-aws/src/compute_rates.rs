@@ -219,8 +219,7 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
                         .as_str()
                         .unwrap()
                         .parse::<usize>()
-                        .unwrap()
-                        / 2,
+                        .unwrap(),
                     memory: (v["product"]["attributes"]["memory"]
                         .as_str()
                         .unwrap()
@@ -229,8 +228,7 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
                         .0
                         .parse::<f64>()
                         .unwrap()
-                        * 1024.0
-                        / 2.0) as usize,
+                        * 1024.0) as usize,
                     arch: if arch == "x86_64" {
                         "amd64".into()
                     } else {
