@@ -105,7 +105,6 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
         .flat_map(|v| v.instance_types().iter())
         .filter_map(|i| {
             if i.hypervisor() != Some(&InstanceTypeHypervisor::Nitro)
-                || i.v_cpu_info().unwrap().default_cores().unwrap() < 2
                 || !FAMILIES.contains(
                     &i.instance_type()
                         .unwrap()
