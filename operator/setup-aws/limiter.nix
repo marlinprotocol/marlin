@@ -3,8 +3,6 @@
   nixpkgs,
   systemConfig,
 }: let
-  system = systemConfig.system;
-  pkgs = nixpkgs.legacyPackages.${system};
   modulesPath = "${nixpkgs}/nixos/modules";
   nixosConfig = {config, ...}: {
     imports = [
