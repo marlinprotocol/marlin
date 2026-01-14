@@ -6,6 +6,7 @@
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages.${system};
   modulesPath = "${nixpkgs}/nixos/modules";
+  limiter_scripts = pkgs.callPackage ./limiter-scripts.nix {};
   nixosConfig = {config, ...}: {
     imports = [
       # use the minimal profile as the starting point
@@ -20,6 +21,10 @@
       "${modulesPath}/profiles/qemu-guest.nix"
       # image.repart support
       "${modulesPath}/image/repart.nix"
+    ];
+
+    environment.systemPackages = [
+      limiter_scripts
     ];
 
     # state version
