@@ -1,42 +1,13 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 
-
-let nidx = 192;
-
 let tags = {
     manager: "pulumi",
-    project: `oyster`,
+    project: "marlin-cvm",
 }
 
 let regions: aws.Region[] = [
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2",
-    "ca-central-1",
-    "sa-east-1",
-    "eu-north-1",
-    "eu-west-3",
-    "eu-west-2",
-    "eu-west-1",
-    "eu-central-1",
-    "eu-central-2",
-    "eu-south-1",
-    "eu-south-2",
-    "me-south-1",
-    "me-central-1",
-    "af-south-1",
     "ap-south-1",
-    "ap-south-2",
-    "ap-northeast-1",
-    "ap-northeast-2",
-    "ap-northeast-3",
-    "ap-southeast-1",
-    "ap-southeast-2",
-    "ap-southeast-3",
-    "ap-southeast-4",
-    "ap-east-1",
 ]
 
 let providers: { [key: string]: aws.Provider } = {}
@@ -49,24 +20,24 @@ let rtas: { [key: string]: aws.ec2.RouteTableAssociation } = {}
 let sgs: { [key: string]: { [key: string]: aws.ec2.SecurityGroup } } = {}
 let instances: { [key: string]: aws.ec2.Instance } = {}
 
-
 regions.forEach((region, ridx) => {
-    // providers
+    // provider
     providers[region] = new aws.Provider(region, {
         region: region,
-        profile: new pulumi.Config('aws').get("profile"),
+        profile: new pulumi.Config("aws").get("profile"),
     })
 
-    let keyPair = new aws.ec2.KeyPair(`${tags.project}`, {
+    // keypair for limiter vm
+    let keypair = new aws.ec2.KeyPair(`${tags.project}`, {
         keyName: `${tags.project}`,
-        publicKey: new pulumi.Config().require(`oysterPubKey`),
+        publicKey: new pulumi.Config().require("pubkey"),
     }, {
         provider: providers[region],
     })
 
     // vpcs
     vpcs[region] = new aws.ec2.Vpc(`${tags.project}-${region}-vpc`, {
-        cidrBlock: `10.${nidx}.${2 * ridx}.0/23`,
+        cidrBlock: `10.${ridx}.0.0/16`,
         enableDnsHostnames: true,
         enableDnsSupport: true,
         tags: tags,
@@ -74,27 +45,27 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     })
 
-    // oyster cvm subnets
+    // cvm subnet
     subnets[`${region}-cvm`] = new aws.ec2.Subnet(`${tags.project}-${region}-cvm`, {
-        cidrBlock: `10.${nidx}.${2 * ridx}.0/24`,
+        cidrBlock: `10.${ridx}.0.0/17`,
         mapPublicIpOnLaunch: true,
-        tags: {...tags, ...{type: "cvm"}},
+        tags: { ...tags, ...{ type: "cvm" } },
         vpcId: vpcs[region].id,
     }, {
         provider: providers[region],
     });
 
-    // rate limiter subnet
+    // limiter subnet
     subnets[`${region}-rl`] = new aws.ec2.Subnet(`${tags.project}-${region}-rl`, {
-        cidrBlock: `10.${nidx}.${2 * ridx + 1}.0/24`,
+        cidrBlock: `10.${ridx}.128.0/17`,
         mapPublicIpOnLaunch: false,
-        tags: {...tags, ...{type: "rate-limiter"}},
+        tags: { ...tags, ...{ type: "limiter" } },
         vpcId: vpcs[region].id,
     }, {
         provider: providers[region],
     });
 
-    // internet gateways
+    // internet gateway
     igs[region] = new aws.ec2.InternetGateway(`${tags.project}-${region}-ig`, {
         vpcId: vpcs[region].id,
         tags: tags,
@@ -102,7 +73,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    // IGW route table
+    // igw route table
     rts[`${region}-igw`] = new aws.ec2.RouteTable(`${tags.project}-${region}-rt-igw`, {
         vpcId: vpcs[region].id,
         tags: tags,
@@ -110,7 +81,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    // IGW route table associations
+    // igw route table associations
     rtas[`${region}-igw`] = new aws.ec2.RouteTableAssociation(`${tags.project}-${region}-igw-rta`, {
         gatewayId: igs[region].id,
         routeTableId: rts[`${region}-igw`].id,
@@ -118,7 +89,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    // CVM route table
+    // cvm route table
     rts[`${region}-cvm`] = new aws.ec2.RouteTable(`${tags.project}-${region}-rt-cvm`, {
         vpcId: vpcs[region].id,
         tags: tags,
@@ -126,7 +97,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    // CVM route table associations
+    // cvm route table associations
     rtas[`${region}-cvm`] = new aws.ec2.RouteTableAssociation(`${tags.project}-${region}-cvm-rta`, {
         subnetId: subnets[`${region}-cvm`].id,
         routeTableId: rts[`${region}-cvm`].id,
@@ -134,7 +105,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    // rate limiter route table
+    // limiter route table
     rts[`${region}-rl`] = new aws.ec2.RouteTable(`${tags.project}-${region}-rt-rl`, {
         vpcId: vpcs[region].id,
         tags: tags,
@@ -142,16 +113,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    // rate limiter internet route
-    new aws.ec2.Route(`${tags.project}-${region}-rl-ig-route`, {
-        routeTableId: rts[`${region}-rl`].id,
-        destinationCidrBlock: "0.0.0.0/0",
-        gatewayId: igs[region].id,
-    }, {
-        provider: providers[region],
-    });
-
-    // rate limiter route table associations
+    // limiter route table associations
     rtas[`${region}-rl`] = new aws.ec2.RouteTableAssociation(`${tags.project}-${region}-rl-rta`, {
         subnetId: subnets[`${region}-rl`].id,
         routeTableId: rts[`${region}-rl`].id,
@@ -161,7 +123,7 @@ regions.forEach((region, ridx) => {
 
     // security groups
     sgs[region] = {}
-    sgs[region].oyster_cvm = new aws.ec2.SecurityGroup(`${tags.project}-${region}-oyster-cvm`, {
+    sgs[region].cvm = new aws.ec2.SecurityGroup(`${tags.project}-${region}-cvm`, {
         vpcId: vpcs[region].id,
         egress: [{
             cidrBlocks: ['0.0.0.0/0'],
@@ -180,7 +142,7 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    sgs[region].oyster_rate_limiter = new aws.ec2.SecurityGroup(`${tags.project}-${region}-oyster-rate-limiter`, {
+    sgs[region].limiter = new aws.ec2.SecurityGroup(`${tags.project}-${region}-limiter`, {
         vpcId: vpcs[region].id,
         egress: [{
             cidrBlocks: ['0.0.0.0/0'],
@@ -201,21 +163,30 @@ regions.forEach((region, ridx) => {
 
     const ami = aws.ec2.getAmi({
         filters: [
-            { name: "name", values: ["marlin/oyster/worker-rate-limiter-amd64*"] },
+            { name: "name", values: ["marlin/limiter-amd64-*"] },
         ],
         owners: ["self"],
         mostRecent: true,
-    }, { provider: providers[region] }).then(ami => ami.id );
+    }, { provider: providers[region] }).then(ami => ami.id);
 
     instances[`${region}-rl`] = new aws.ec2.Instance(`${tags.project}-${region}-rl-instance`, {
         ami: ami,
-        instanceType: "c6a.xlarge",
+        instanceType: "t3.small",
         subnetId: subnets[`${region}-rl`].id,
-        keyName: keyPair.keyName,
+        keyName: keypair.keyName,
         associatePublicIpAddress: true,
         sourceDestCheck: false,
-        securityGroups: [sgs[region].oyster_rate_limiter.id],
-        tags: {...tags, ...{type: "rate-limiter"}},
+        securityGroups: [sgs[region].limiter.id],
+        tags: { ...tags, ...{ type: "limiter" } },
+    }, {
+        provider: providers[region],
+    });
+
+    // limiter internet route
+    new aws.ec2.Route(`${tags.project}-${region}-rl-ig-route`, {
+        routeTableId: rts[`${region}-rl`].id,
+        destinationCidrBlock: "0.0.0.0/0",
+        gatewayId: igs[region].id,
     }, {
         provider: providers[region],
     });
@@ -223,19 +194,18 @@ regions.forEach((region, ridx) => {
     // igw cvm subnet route
     new aws.ec2.Route(`${tags.project}-${region}-igw-cvm-route`, {
         routeTableId: rts[`${region}-igw`].id,
-        destinationCidrBlock: `10.${nidx}.${2 * ridx}.0/24`,
+        destinationCidrBlock: `10.${ridx}.0.0/17`,
         networkInterfaceId: instances[`${region}-rl`].primaryNetworkInterfaceId,
     }, {
         provider: providers[region],
     })
 
     // cvm internet route
-    new aws.ec2.Route(`${tags.project}-${region}-ig-route`, {
+    new aws.ec2.Route(`${tags.project}-${region}-cvm-ig-route`, {
         routeTableId: rts[`${region}-cvm`].id,
         destinationCidrBlock: "0.0.0.0/0",
         networkInterfaceId: instances[`${region}-rl`].primaryNetworkInterfaceId,
     }, {
         provider: providers[region],
     })
-
 })
