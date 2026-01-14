@@ -6,6 +6,7 @@
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages.${system};
   modulesPath = "${nixpkgs}/nixos/modules";
+  limiter_scripts = pkgs.callPackage ./limiter-scripts.nix {};
   nixosConfig = {config, ...}: {
     imports = [
       # use the minimal profile as the starting point
@@ -102,7 +103,11 @@
     services.cloud-init.enable = true;
     services.cloud-init.network.enable = true;
 
-    # TODO: set up limiter
+    # install limiter scripts
+    environment.systemPackages = [
+      limiter_scripts
+    ];
+
   };
   nixosSystem = nixpkgs.lib.nixosSystem {
     system = systemConfig.system;
