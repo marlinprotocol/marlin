@@ -23,10 +23,6 @@
       "${modulesPath}/image/repart.nix"
     ];
 
-    environment.systemPackages = [
-      limiter_scripts
-    ];
-
     # state version
     system.stateVersion = "25.11";
 
@@ -107,7 +103,11 @@
     services.cloud-init.enable = true;
     services.cloud-init.network.enable = true;
 
-    # TODO: set up limiter
+    # install limiter scripts
+    environment.systemPackages = [
+      limiter_scripts
+    ];
+
   };
   nixosSystem = nixpkgs.lib.nixosSystem {
     system = systemConfig.system;
