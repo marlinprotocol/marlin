@@ -1117,11 +1117,11 @@ impl Aws {
 
         // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
         let add_rl_cmd = format!(
-            "sudo ~/add_rl.sh {} {} {} {}",
+            "add_rl {} {} {} {}",
             job.id, private_ip, bandwidth * 1000, instance_bandwidth_limit
         );
 
-        let (_, stderr) = Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl.sh command")?;
+        let (_, stderr) = Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
 
         if !stderr.is_empty() {
             error!(stderr = ?stderr, "Error setting up Rate Limiter");
@@ -1357,17 +1357,17 @@ impl Aws {
             .context("error establishing ssh connection")?;
 
         let remove_rl_cmd = format!(
-            "sudo ~/remove_rl.sh {} {} {}",
+            "remove_rl {} {} {}",
             job.id, private_ip, bandwidth * 1000
         );
 
         let (_, stderr) = Self::ssh_exec(sess, &remove_rl_cmd)
-            .context("Failed to run remove_rl.sh command")?;
+            .context("Failed to run remove_rl command")?;
 
         if !stderr.is_empty() {
             error!(stderr = ?stderr, "Error removing Rate Limiter configuration");
         }
-        return Ok(());
+        Ok(())
     }
 
     // TODO: handle all error cases
