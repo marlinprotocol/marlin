@@ -192,7 +192,7 @@ impl Aws {
 
         sess.set_tcp_stream(tcp);
         sess.handshake()?;
-        sess.userauth_pubkey_file("ubuntu", None, Path::new(&self.key_location), None)?;
+        sess.userauth_pubkey_file("root", None, Path::new(&self.key_location), None)?;
         info!(ip_address, "SSH connection established");
         Ok(sess)
     }
@@ -257,7 +257,7 @@ impl Aws {
     ) -> Result<(String, String)> {
         let name_tag = Tag::builder().key("Name").value("JobRunner").build();
         let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("oyster").build();
+        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
         let job_tag = Tag::builder().key("jobId").value(&job.id).build();
         let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
         let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
@@ -332,7 +332,7 @@ impl Aws {
     pub async fn get_security_group(&self, region: &str) -> Result<String> {
         let filter = Filter::builder()
             .name("tag:project")
-            .values("oyster")
+            .values("marlin-cvm")
             .build();
 
         Ok(self
@@ -355,7 +355,7 @@ impl Aws {
     pub async fn get_subnet(&self, region: &str) -> Result<String> {
         let project_filter = Filter::builder()
             .name("tag:project")
-            .values("oyster")
+            .values("marlin-cvm")
             .build();
 
         let type_filter = Filter::builder()
@@ -571,7 +571,7 @@ impl Aws {
         }
 
         let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("oyster").build();
+        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
         let job_tag = Tag::builder().key("jobId").value(&job.id).build();
         let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
         let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
@@ -864,7 +864,7 @@ impl Aws {
                     .build();
                 let project_tag = aws_sdk_ebs::types::Tag::builder()
                     .key("project")
-                    .value("oyster")
+                    .value("marlin-cvm")
                     .build();
                 let job_tag = aws_sdk_ebs::types::Tag::builder()
                     .key("jobId")
@@ -960,7 +960,7 @@ impl Aws {
                     TagSpecification::builder()
                         .resource_type(ResourceType::Image)
                         .tags(Tag::builder().key("managedBy").value("marlin").build())
-                        .tags(Tag::builder().key("project").value("oyster").build())
+                        .tags(Tag::builder().key("project").value("marlin-cvm").build())
                         .tags(Tag::builder().key("jobId").value(&job.id).build())
                         .tags(Tag::builder().key("operator").value(&job.operator).build())
                         .tags(
@@ -1176,7 +1176,6 @@ impl Aws {
         Ok(bandwidth_limit_bps)
     }
 
-    // TODO: return error if all rate limiters are full
     async fn select_rate_limiter(
         &self,
         job: &JobId,
@@ -1190,11 +1189,11 @@ impl Aws {
         // bandwidth is in kbit/sec
         let project_filter = Filter::builder()
             .name("tag:project")
-            .values("oyster")
+            .values("marlin-cvm")
             .build();
         let rl_filter = Filter::builder()
             .name("tag:type")
-            .values("rate-limiter")
+            .values("limiter")
             .build();
         let res = self
             .client(region)
