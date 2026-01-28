@@ -12,34 +12,7 @@ use tokio_stream::StreamExt;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
-static REGIONS: [&str; 26] = [
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2",
-    "ca-central-1",
-    "sa-east-1",
-    "eu-north-1",
-    "eu-west-3",
-    "eu-west-2",
-    "eu-west-1",
-    "eu-central-1",
-    "eu-central-2",
-    "eu-south-1",
-    "eu-south-2",
-    "me-south-1",
-    "me-central-1",
-    "af-south-1",
-    "ap-south-1",
-    "ap-northeast-1",
-    "ap-northeast-2",
-    "ap-northeast-3",
-    "ap-southeast-1",
-    "ap-southeast-2",
-    "ap-southeast-3",
-    "ap-southeast-4",
-    "ap-east-1",
-];
+static REGIONS: [&str; 1] = ["ap-south-1"];
 
 static FAMILIES: [&str; 36] = [
     "m5", "m5a", "m5n", "m5zn", "m6a", "m6g", "m6i", "m6in", "m7g", "m7a", "m7i", "m8g", //
@@ -132,7 +105,6 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
         .flat_map(|v| v.instance_types().iter())
         .filter_map(|i| {
             if i.hypervisor() != Some(&InstanceTypeHypervisor::Nitro)
-                || i.v_cpu_info().unwrap().default_cores().unwrap() < 2
                 || !FAMILIES.contains(
                     &i.instance_type()
                         .unwrap()
@@ -246,8 +218,7 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
                         .as_str()
                         .unwrap()
                         .parse::<usize>()
-                        .unwrap()
-                        / 2,
+                        .unwrap(),
                     memory: (v["product"]["attributes"]["memory"]
                         .as_str()
                         .unwrap()
@@ -256,8 +227,7 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
                         .0
                         .parse::<f64>()
                         .unwrap()
-                        * 1024.0
-                        / 2.0) as usize,
+                        * 1024.0) as usize,
                     arch: if arch == "x86_64" {
                         "amd64".into()
                     } else {
