@@ -1073,23 +1073,24 @@ impl Aws {
         region: &str,
         bandwidth: u64,
     ) -> Result<()> {
+        // select and configure rate limiter
         // allocate Elastic IP
         // associate Elastic IP
-        // select and configure rate limiter
+        self
+            .select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
+            .await
+            .context("could not select rate limiter")?;
+
         let (alloc_id, ip) = self
             .allocate_ip_addr(job, region)
             .await
             .context("error allocating ip address")?;
+
         info!(ip, "Elastic Ip allocated");
 
         self.associate_address(instance_id, &alloc_id, region)
         .await
         .context("could not associate ip address")?;
-
-        self
-            .select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
-            .await
-            .context("could not select rate limiter")?;
 
         Ok(())
     }
@@ -1103,8 +1104,7 @@ impl Aws {
         instance_bandwidth_limit: u64,
         region: &str,
     ) -> Result<()> {
-        // TODO: rollback on failure
-        // SSH into Rate Limiter instance and configure NAT and tc
+        // SSH into Rate Limiter instance and configure tc
         let rl_ip = self
             .get_instance_ip(rl_instance_id, region)
             .await
@@ -1125,7 +1125,6 @@ impl Aws {
 
         if !stderr.is_empty() {
             error!(stderr = ?stderr, "Error setting up Rate Limiter");
-            // TODO: rollback on failure
             return Err(anyhow!(stderr)).context("Error setting up Rate Limiter");
         }
 
@@ -1379,17 +1378,11 @@ impl Aws {
         bandwidth: u64,
         rl_instance_id: &str,
     ) -> Result<()> {
-        // check rate limiter config and cleanup
         // Check elastic ip association and cleanup
         // check elastic ip and release
+        // check rate limiter config and cleanup
         // terminate instance if exist
 
-        if !rl_instance_id.is_empty() {
-            self.remove_rate_limiter_config(job, private_ip, &rl_instance_id, bandwidth, region)
-                .await
-                .context("could not remove rate limiter config")?;
-        }
-        
         let (exist, _, _, association_id) = self
             .get_job_elastic_ip(job, region, true)
             .await
@@ -1412,6 +1405,12 @@ impl Aws {
                 .await
                 .context("could not release address")?;
             info!("Elastic IP released");
+        }
+
+        if !rl_instance_id.is_empty() {
+            self.remove_rate_limiter_config(job, private_ip, &rl_instance_id, bandwidth, region)
+                .await
+                .context("could not remove rate limiter config")?;
         }
 
         self.terminate_instance(instance_id, region)
