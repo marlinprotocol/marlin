@@ -1,51 +1,9 @@
 use axum::{Json, extract::State, http::StatusCode};
-use futures::stream::{StreamExt, TryStreamExt};
 use log::{error, info, warn};
-use netlink_packet_core::{
-    DefaultNla, NLM_F_ACK, NLM_F_CREATE, NLM_F_EXCL, NLM_F_REQUEST, NetlinkMessage,
-};
-use netlink_packet_route::tc::{
-    TcAttribute, TcFilterU32Option, TcHandle, TcMessage, TcOption, TcU32Key, TcU32Selector,
-};
-use netlink_packet_route::{AddressFamily, RouteNetlinkMessage};
-use rtnetlink::new_connection;
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
-struct struct_tc_ratespec {
-    cell_log: u8,
-    __reserved: u8,
-    overhead: u16,
-    cell_align: i16,
-    mpu: u16,
-    rate: u32,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
-struct struct_tc_htb_opt {
-    rate: struct_tc_ratespec,
-    ceil: struct_tc_ratespec,
-    buffer: u32,
-    cbuffer: u32,
-    quantum: u32,
-    level: u32,
-    prio: u32,
-}
-
-impl struct_tc_htb_opt {
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(std::mem::size_of::<Self>());
-        unsafe {
-            let ptr = self as *const Self as *const u8;
-            bytes.extend_from_slice(std::slice::from_raw_parts(ptr, std::mem::size_of::<Self>()));
-        }
-        bytes
-    }
-}
+use std::sync::Mutex;
 
 pub struct AppState {
     pub bandwidth_available: Mutex<u64>,
@@ -70,7 +28,7 @@ pub async fn create_job(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateJobRequest>,
 ) -> (StatusCode, Json<CreateJobRequest>) {
-    let mut available = state.bandwidth_available.lock().await;
+    let mut available = state.bandwidth_available.lock().unwrap();
 
     if *available < payload.bandwidth_limit {
         error!(
@@ -86,10 +44,10 @@ pub async fn create_job(
     );
     info!("Received job request: {:?}", payload);
 
-    match allocate_class_id(&state.interface).await {
+    match allocate_class_id(&state.interface) {
         Ok(class_id) => {
             info!("Allocated Class ID: 1:{}", class_id);
-            if let Err(e) = setup_tc(&state.interface, class_id, &payload).await {
+            if let Err(e) = setup_tc(&state.interface, class_id, &payload) {
                 error!("Error setting up TC: {}", e);
                 return (StatusCode::INTERNAL_SERVER_ERROR, Json(payload));
             }
@@ -106,7 +64,6 @@ pub async fn create_job(
         payload.job_id, *available
     );
 
-    // Lock is released when available goes out of scope
     (StatusCode::CREATED, Json(payload))
 }
 
@@ -114,10 +71,10 @@ pub async fn delete_job(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<DeleteJobRequest>,
 ) -> (StatusCode, Json<DeleteJobRequest>) {
-    let mut available = state.bandwidth_available.lock().await;
+    let mut available = state.bandwidth_available.lock().unwrap();
     info!("Acquired lock for job deletion: {}", payload.job_id);
 
-    if let Err(e) = cleanup_tc(&state.interface, &payload.private_ip).await {
+    if let Err(e) = cleanup_tc(&state.interface, &payload.private_ip) {
         error!("Error cleaning up TC for {}: {}", payload.private_ip, e);
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(payload));
     }
@@ -131,40 +88,36 @@ pub async fn delete_job(
     (StatusCode::OK, Json(payload))
 }
 
-async fn allocate_class_id(
-    interface: &str,
-) -> Result<u16, Box<dyn std::error::Error + Send + Sync>> {
-    let (connection, handle, _) = new_connection()?;
-    tokio::spawn(connection);
+fn allocate_class_id(interface: &str) -> Result<u16, Box<dyn std::error::Error>> {
+    let output = Command::new("tc")
+        .args(["class", "show", "dev", interface])
+        .output()?;
 
-    let mut links = handle
-        .link()
-        .get()
-        .match_name(interface.to_string())
-        .execute();
-    let link = if let Some(link) = links.try_next().await? {
-        link
-    } else {
-        return Err(format!("Interface {} not found", interface).into());
-    };
-    let if_index = link.header.index;
+    if !output.status.success() {
+        return Err(format!(
+            "tc class show failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
 
-    // List all classes on the interface
-    let mut classes = handle.traffic_class(if_index as i32).get().execute();
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let mut existing_ids = std::collections::HashSet::new();
 
-    while let Some(res) = classes.next().await {
-        let msg = res?;
-        let handle_u32 = u32::from(msg.header.handle);
-        let major = (handle_u32 >> 16) as u16;
-        let minor = (handle_u32 & 0xFFFF) as u16;
-
-        if major == 1 {
-            existing_ids.insert(minor);
+    for line in stdout.lines() {
+        // Example: class htb 1:1 parent 1: leaf 8001: prio 0 rate ...
+        if let Some(pos) = line.find("class htb 1:") {
+            let start = pos + "class htb 1:".len();
+            if let Some(end) = line[start..].find(' ') {
+                if let Ok(id) = line[start..start + end].parse::<u16>() {
+                    existing_ids.insert(id);
+                }
+            } else if let Ok(id) = line[start..].parse::<u16>() {
+                existing_ids.insert(id);
+            }
         }
     }
 
-    // Find unused ID between 1 and 9999
     for id in 1..=9999 {
         if !existing_ids.contains(&id) {
             return Ok(id);
@@ -174,113 +127,96 @@ async fn allocate_class_id(
     Err("No available Class IDs".into())
 }
 
-async fn setup_tc(
+fn setup_tc(
     interface: &str,
     class_id: u16,
     payload: &CreateJobRequest,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (connection, mut handle, _) = new_connection()?;
-    tokio::spawn(connection);
+) -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Add TC Class
+    let class_output = Command::new("tc")
+        .args([
+            "class",
+            "add",
+            "dev",
+            interface,
+            "parent",
+            "1:",
+            "classid",
+            &format!("1:{}", class_id),
+            "htb",
+            "rate",
+            &format!("{}bit", payload.bandwidth_limit),
+            "burst",
+            "4000m",
+        ])
+        .output()?;
 
-    let mut links = handle
-        .link()
-        .get()
-        .match_name(interface.to_string())
-        .execute();
-    let link = if let Some(link) = links.try_next().await? {
-        link
-    } else {
-        return Err(format!("Interface {} not found", interface).into());
-    };
-    let if_index = link.header.index;
-
-    // 1. Add TC Class (HTB)
-    let mut htb_opt = struct_tc_htb_opt::default();
-    htb_opt.rate.rate = payload.bandwidth_limit as u32;
-    htb_opt.ceil.rate = payload.bandwidth_limit as u32;
-    htb_opt.buffer = 200000;
-    htb_opt.cbuffer = 200000;
-
-    let mut msg = TcMessage::default();
-    msg.header.index = if_index as i32;
-    msg.header.parent = TcHandle { major: 1, minor: 0 };
-    msg.header.handle = TcHandle {
-        major: 1,
-        minor: class_id,
-    };
-    msg.header.family = AddressFamily::Unspec;
-
-    msg.attributes.push(TcAttribute::Kind("htb".to_string()));
-    msg.attributes
-        .push(TcAttribute::Options(vec![TcOption::Other(
-            DefaultNla::new(1, htb_opt.to_bytes()),
-        )]));
-
-    let mut nl_msg = NetlinkMessage::from(RouteNetlinkMessage::NewTrafficClass(msg));
-    nl_msg.header.flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL;
-
-    let mut response = handle.request(nl_msg)?;
-    while let Some(_) = response.next().await {}
-
-    // 2. Add TC Filter (u32)
-    let ip_bytes: Vec<u8> = payload
-        .private_ip
-        .split('.')
-        .map(|s| s.parse::<u8>().unwrap_or(0))
-        .collect();
-    if ip_bytes.len() != 4 {
-        return Err("Invalid IPv4 address".into());
+    if !class_output.status.success() {
+        return Err(format!(
+            "tc class add failed: {}",
+            String::from_utf8_lossy(&class_output.stderr)
+        )
+        .into());
     }
-    let ip_u32 = u32::from_be_bytes([ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3]]);
 
-    let mut key = TcU32Key::default();
-    key.mask = 0xffffffff;
-    key.val = ip_u32;
-    key.off = 12;
-    key.offmask = 0;
+    // 2. Add TC Filter
+    let filter_output = Command::new("tc")
+        .args([
+            "filter",
+            "add",
+            "dev",
+            interface,
+            "protocol",
+            "ip",
+            "parent",
+            "1:0",
+            "prio",
+            "1",
+            "u32",
+            "match",
+            "ip",
+            "src",
+            &payload.private_ip,
+            "flowid",
+            &format!("1:{}", class_id),
+        ])
+        .output()?;
 
-    let mut selector = TcU32Selector::default();
-    selector.keys.push(key);
-    selector.nkeys = 1;
+    if !filter_output.status.success() {
+        return Err(format!(
+            "tc filter add failed: {}",
+            String::from_utf8_lossy(&filter_output.stderr)
+        )
+        .into());
+    }
 
-    handle
-        .traffic_filter(if_index as i32)
-        .add()
-        .parent(u32::from(TcHandle { major: 1, minor: 0 }))
-        .priority(1)
-        .protocol(0x0800) // ETH_P_IP
-        .u32(&[
-            TcFilterU32Option::Selector(selector),
-            TcFilterU32Option::ClassId(TcHandle {
-                major: 1,
-                minor: class_id,
-            }),
-        ])?
-        .execute()
-        .await?;
-
+    info!(
+        "Successfully set up TC for job {} on interface {}",
+        payload.job_id, interface
+    );
     Ok(())
 }
 
-async fn cleanup_tc(
+fn cleanup_tc(
     interface: &str,
     private_ip: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (connection, mut handle, _) = new_connection()?;
-    tokio::spawn(connection);
+    // 1. Find filter based on IP
+    let output = Command::new("tc")
+        .args(["filter", "show", "dev", interface, "parent", "1:"])
+        .output()?;
 
-    let mut links = handle
-        .link()
-        .get()
-        .match_name(interface.to_string())
-        .execute();
-    let link = if let Some(link) = links.try_next().await? {
-        link
-    } else {
-        return Err(format!("Interface {} not found", interface).into());
-    };
-    let if_index = link.header.index;
+    if !output.status.success() {
+        return Err(format!(
+            "tc filter show failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
 
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse IP to hex for matching in u32 output
     let ip_bytes: Vec<u8> = private_ip
         .split('.')
         .map(|s| s.parse::<u8>().unwrap_or(0))
@@ -288,85 +224,72 @@ async fn cleanup_tc(
     if ip_bytes.len() != 4 {
         return Err("Invalid IPv4 address".into());
     }
-    let target_ip_u32 = u32::from_be_bytes([ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3]]);
-
-    // 1. Find filter based on IP
-    let mut filters_stream = handle.traffic_filter(if_index as i32).get().execute();
+    let ip_hex = format!(
+        "{:02x}{:02x}{:02x}{:02x}",
+        ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3]
+    );
 
     let mut found_filter_handle = None;
-    let mut found_filter_info = None;
     let mut found_class_id = None;
-
-    while let Some(res) = filters_stream.next().await {
-        let msg = res?;
-        let mut matches_ip = false;
-        let mut class_id = None;
-
-        for attr in &msg.attributes {
-            if let TcAttribute::Options(opts) = attr {
-                for opt in opts {
-                    if let TcOption::U32(u32_opt) = opt {
-                        match u32_opt {
-                            TcFilterU32Option::Selector(sel) => {
-                                for key in &sel.keys {
-                                    if key.off == 12
-                                        && key.val == target_ip_u32
-                                        && key.mask == 0xffffffff
-                                    {
-                                        matches_ip = true;
-                                    }
-                                }
-                            }
-                            TcFilterU32Option::ClassId(cid) => {
-                                class_id = Some(*cid);
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
-        }
-
-        if matches_ip {
-            found_filter_handle = Some(msg.header.handle);
-            found_filter_info = Some(msg.header.info);
-            found_class_id = class_id;
+    let mut prev_line = "";
+    for line in stdout.lines() {
+        // Example: filter parent 1: protocol ip pref 1 u32 chain 0 fh 800::800 order 2048 key eq at 12 mask ffffffff match 0a000001 at 12 flowid 1:1
+        if line.contains(&ip_hex) {
+            found_filter_handle = prev_line
+                .split("fh ")
+                .nth(1)
+                .and_then(|s| s.split_whitespace().next())
+                .map(|s| s.to_string());
+            found_class_id = prev_line
+                .split("flowid ")
+                .nth(1)
+                .and_then(|s| s.split_whitespace().next())
+                .map(|s| s.to_string());
             break;
         }
+        prev_line = line;
     }
 
-    if let Some(filter_handle) = found_filter_handle {
-        info!("Found filter {:?} for IP {}", filter_handle, private_ip);
+    if let (Some(handle), Some(classid)) = (found_filter_handle, found_class_id) {
+        info!(
+            "Found filter handle {} and class ID {} for IP {}",
+            handle, classid, private_ip
+        );
 
         // 2. Delete Filter
-        let mut del_msg = TcMessage::default();
-        del_msg.header.index = if_index as i32;
-        del_msg.header.handle = filter_handle;
-        del_msg.header.parent = TcHandle { major: 1, minor: 0 };
-        del_msg.header.info = found_filter_info.unwrap_or(0);
+        let del_filter = Command::new("tc")
+            .args([
+                "filter", "del", "dev", interface, "parent", "1:", "protocol", "ip", "pref", "1",
+                "handle", &handle, "u32",
+            ])
+            .output()?;
 
-        let mut nl_msg = NetlinkMessage::from(RouteNetlinkMessage::DelTrafficFilter(del_msg));
-        nl_msg.header.flags = NLM_F_REQUEST | NLM_F_ACK;
-
-        let mut response = handle.request(nl_msg)?;
-        while let Some(_) = response.next().await {}
-
-        if let Some(class_id) = found_class_id {
-            info!("Deleting class {:?}", class_id);
-            // 3. Delete Class
-            let mut del_msg = TcMessage::default();
-            del_msg.header.index = if_index as i32;
-            del_msg.header.handle = class_id;
-            del_msg.header.parent = TcHandle { major: 1, minor: 0 };
-
-            let mut nl_msg = NetlinkMessage::from(RouteNetlinkMessage::DelTrafficClass(del_msg));
-            nl_msg.header.flags = NLM_F_REQUEST | NLM_F_ACK;
-
-            let mut response = handle.request(nl_msg)?;
-            while let Some(_) = response.next().await {}
+        if !del_filter.status.success() {
+            return Err(format!(
+                "tc filter del failed: {}",
+                String::from_utf8_lossy(&del_filter.stderr)
+            )
+            .into());
         }
+
+        // 3. Delete Class
+        let del_class = Command::new("tc")
+            .args([
+                "class", "del", "dev", interface, "parent", "1:", "classid", &classid,
+            ])
+            .output()?;
+
+        if !del_class.status.success() {
+            return Err(format!(
+                "tc class del failed: {}",
+                String::from_utf8_lossy(&del_class.stderr)
+            )
+            .into());
+        }
+
+        info!("Successfully cleaned up TC for IP {}", private_ip);
     } else {
-        warn!("No filter found for IP {}", private_ip);
+        warn!("No TC configuration found for IP {}", private_ip);
     }
 
     Ok(())

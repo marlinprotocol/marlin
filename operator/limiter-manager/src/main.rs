@@ -3,22 +3,14 @@ use axum::{
     routing::{delete, get, post},
 };
 use clap::Parser;
-use futures::stream::{StreamExt, TryStreamExt};
 use log::{error, info};
-use netlink_packet_core::{
-    NLM_F_ACK, NLM_F_CREATE, NLM_F_REPLACE, NLM_F_REQUEST, NetlinkMessage, NetlinkPayload,
-};
-use netlink_packet_route::{
-    RouteNetlinkMessage,
-    tc::{TcAttribute, TcHandle, TcMessage},
-};
-use rtnetlink::new_connection;
+use std::process::Command;
 use tokio::net::TcpListener;
 
 mod handlers;
 use handlers::{AppState, create_job, delete_job};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -42,7 +34,7 @@ async fn main() {
     let args = Args::parse();
 
     // Initialize Traffic Control
-    if let Err(e) = init_tc(&args.interface).await {
+    if let Err(e) = init_tc(&args.interface) {
         error!("Failed to initialize TC: {}", e);
         // We might want to exit here if TC is critical
         // std::process::exit(1);
@@ -66,44 +58,29 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn init_tc(interface_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let (connection, mut handle, _) = new_connection()?;
-    tokio::spawn(connection);
+fn init_tc(interface_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let output = Command::new("tc")
+        .args([
+            "qdisc",
+            "add",
+            "dev",
+            interface_name,
+            "root",
+            "handle",
+            "1:",
+            "htb",
+        ])
+        .output()?;
 
-    let mut links = handle
-        .link()
-        .get()
-        .match_name(interface_name.to_string())
-        .execute();
-    let link = if let Some(link) = links.try_next().await? {
-        link
-    } else {
-        return Err(format!("Interface {} not found", interface_name).into());
-    };
-
-    let index = link.header.index;
-    info!("Found interface {} with index {}", interface_name, index);
-
-    // Manual QDisc construction to ensure HTB kind is set
-    // TC_H_ROOT is 0xFFFFFFFF
-    let mut tc_msg = TcMessage::with_index(index as i32);
-    // Explicitly convert u32 to TcHandle if needed, or assume From<u32>
-    tc_msg.header.handle = TcHandle::from(0x10000u32);
-    tc_msg.header.parent = TcHandle::from(0xFFFFFFFFu32);
-    tc_msg.attributes.push(TcAttribute::Kind("htb".to_string()));
-
-    let mut req = NetlinkMessage::from(RouteNetlinkMessage::NewQueueDiscipline(tc_msg));
-    // Use REPLACE to overwrite existing qdisc (like 'tc qdisc replace') avoiding EEXIST
-    req.header.flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_REPLACE;
-
-    let mut response_stream = handle.request(req)?;
-    while let Some(msg) = response_stream.next().await {
-        if let NetlinkPayload::Error(err) = msg.payload {
-            if let Some(code) = err.code {
-                if code.get() != 0 {
-                    return Err(format!("TC Netlink Error: {}", code).into());
-                }
-            }
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        if err.contains("File exists") {
+            info!(
+                "Root qdisc already exists on {}, skipping add.",
+                interface_name
+            );
+        } else {
+            return Err(format!("tc qdisc add failed: {}", err).into());
         }
     }
 
