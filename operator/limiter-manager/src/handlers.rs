@@ -1,12 +1,14 @@
 use axum::{Json, extract::State, http::StatusCode};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 pub struct AppState {
     pub bandwidth_available: Mutex<u64>,
+    pub ongoing_jobs: Mutex<HashSet<String>>,
     pub interface: String,
 }
 
@@ -28,6 +30,14 @@ pub async fn create_job(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateJobRequest>,
 ) -> (StatusCode, Json<CreateJobRequest>) {
+    {
+        let ongoing_jobs = state.ongoing_jobs.lock().unwrap();
+        if ongoing_jobs.contains(&payload.job_id) {
+            info!("Job {} already exists, returning success.", payload.job_id);
+            return (StatusCode::CREATED, Json(payload));
+        }
+    }
+
     let mut available = state.bandwidth_available.lock().unwrap();
 
     if *available < payload.bandwidth_limit {
@@ -59,6 +69,11 @@ pub async fn create_job(
     }
 
     *available -= payload.bandwidth_limit;
+    {
+        let mut ongoing_jobs = state.ongoing_jobs.lock().unwrap();
+        ongoing_jobs.insert(payload.job_id.clone());
+    }
+
     info!(
         "Job {} created. Remaining bandwidth: {}",
         payload.job_id, *available
@@ -71,15 +86,33 @@ pub async fn delete_job(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<DeleteJobRequest>,
 ) -> (StatusCode, Json<DeleteJobRequest>) {
+    {
+        let ongoing_jobs = state.ongoing_jobs.lock().unwrap();
+        if !ongoing_jobs.contains(&payload.job_id) {
+            info!(
+                "Job {} not found in ongoing list, returning success.",
+                payload.job_id
+            );
+            return (StatusCode::OK, Json(payload));
+        }
+    }
+
     let mut available = state.bandwidth_available.lock().unwrap();
     info!("Acquired lock for job deletion: {}", payload.job_id);
 
     if let Err(e) = cleanup_tc(&state.interface, &payload.private_ip) {
+        // This path is actually hard to reach now as cleanup_tc handles its errors internally,
+        // but we keep it for safety if cleanup_tc logic changes or fatal errors occur.
         error!("Error cleaning up TC for {}: {}", payload.private_ip, e);
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(payload));
     }
 
     *available += payload.bandwidth;
+    {
+        let mut ongoing_jobs = state.ongoing_jobs.lock().unwrap();
+        ongoing_jobs.remove(&payload.job_id);
+    }
+
     info!(
         "Job {} deleted. Bandwidth restored: {}. Current available: {}",
         payload.job_id, payload.bandwidth, *available
@@ -105,7 +138,6 @@ fn allocate_class_id(interface: &str) -> Result<u16, Box<dyn std::error::Error>>
     let mut existing_ids = std::collections::HashSet::new();
 
     for line in stdout.lines() {
-        // Example: class htb 1:1 parent 1: leaf 8001: prio 0 rate ...
         if let Some(pos) = line.find("class htb 1:") {
             let start = pos + "class htb 1:".len();
             if let Some(end) = line[start..].find(' ') {
@@ -132,7 +164,6 @@ fn setup_tc(
     class_id: u16,
     payload: &CreateJobRequest,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Add TC Class
     let class_output = Command::new("tc")
         .args([
             "class",
@@ -159,7 +190,6 @@ fn setup_tc(
         .into());
     }
 
-    // 2. Add TC Filter
     let filter_output = Command::new("tc")
         .args([
             "filter",
@@ -204,19 +234,26 @@ fn cleanup_tc(
     // 1. Find filter based on IP
     let output = Command::new("tc")
         .args(["filter", "show", "dev", interface, "parent", "1:"])
-        .output()?;
+        .output();
+
+    let output = match output {
+        Ok(out) => out,
+        Err(e) => {
+            error!("Failed to execute tc filter show: {}", e);
+            return Ok(()); // Move on successfully
+        }
+    };
 
     if !output.status.success() {
-        return Err(format!(
+        error!(
             "tc filter show failed: {}",
             String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        );
+        return Ok(()); // Move on successfully
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Parse IP to hex for matching in u32 output
     let ip_bytes: Vec<u8> = private_ip
         .split('.')
         .map(|s| s.parse::<u8>().unwrap_or(0))
@@ -233,7 +270,6 @@ fn cleanup_tc(
     let mut found_class_id = None;
     let mut prev_line = "";
     for line in stdout.lines() {
-        // Example: filter parent 1: protocol ip pref 1 u32 chain 0 fh 800::800 order 2048 key eq at 12 mask ffffffff match 0a000001 at 12 flowid 1:1
         if line.contains(&ip_hex) {
             found_filter_handle = prev_line
                 .split("fh ")
@@ -257,37 +293,46 @@ fn cleanup_tc(
         );
 
         // 2. Delete Filter
-        let del_filter = Command::new("tc")
+        let del_filter_res = Command::new("tc")
             .args([
                 "filter", "del", "dev", interface, "parent", "1:", "protocol", "ip", "pref", "1",
                 "handle", &handle, "u32",
             ])
-            .output()?;
+            .output();
 
-        if !del_filter.status.success() {
-            return Err(format!(
-                "tc filter del failed: {}",
-                String::from_utf8_lossy(&del_filter.stderr)
-            )
-            .into());
+        match del_filter_res {
+            Ok(out) if !out.status.success() => {
+                error!(
+                    "tc filter del failed: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+            Err(e) => error!("Failed to execute tc filter del: {}", e),
+            _ => info!("Successfully deleted filter for IP {}", private_ip),
         }
 
         // 3. Delete Class
-        let del_class = Command::new("tc")
+        let del_class_res = Command::new("tc")
             .args([
                 "class", "del", "dev", interface, "parent", "1:", "classid", &classid,
             ])
-            .output()?;
+            .output();
 
-        if !del_class.status.success() {
-            return Err(format!(
-                "tc class del failed: {}",
-                String::from_utf8_lossy(&del_class.stderr)
-            )
-            .into());
+        match del_class_res {
+            Ok(out) if !out.status.success() => {
+                error!(
+                    "tc class del failed: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+            Err(e) => error!("Failed to execute tc class del: {}", e),
+            _ => info!(
+                "Successfully deleted class {} for IP {}",
+                classid, private_ip
+            ),
         }
 
-        info!("Successfully cleaned up TC for IP {}", private_ip);
+        info!("Finished TC cleanup attempt for IP {}", private_ip);
     } else {
         warn!("No TC configuration found for IP {}", private_ip);
     }

@@ -9,6 +9,7 @@ use tokio::net::TcpListener;
 
 mod handlers;
 use handlers::{AppState, create_job, delete_job};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -42,6 +43,7 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         bandwidth_available: Mutex::new(args.bandwidth),
+        ongoing_jobs: Mutex::new(HashSet::new()),
         interface: args.interface.clone(),
     });
 
