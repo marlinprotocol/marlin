@@ -12,8 +12,8 @@
 #define MAX_CAPACITY 1000000000000ULL // 1 TB
 
 struct rate_config {
-  __u64 rate;      // bytes per 2^30 ns
-  __u64 fill_time; // in ns
+  __u64 rate;      // tokens (bytes) per 2^30 ns
+  __u64 fill_time; // in 2^10 ns
 };
 
 struct bucket_state {
@@ -77,7 +77,7 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   struct bucket_state *state = bpf_map_lookup_elem(&state_map, &src_ip);
   if (!state) {
     struct bucket_state new_state = {0};
-    new_state.last_time = bpf_ktime_get_ns();
+    new_state.last_time = bpf_ktime_get_ns() >> 10;
     new_state.tokens = START_CAPACITY;
 
     // Try to update. If it fails (race condition), lookup again.
@@ -91,7 +91,7 @@ int xdp_rate_limit(struct xdp_md *ctx) {
 
   bpf_spin_lock(&state->lock);
 
-  __u64 now = bpf_ktime_get_ns();
+  __u64 now = bpf_ktime_get_ns() >> 10;
   __u64 pkt_len = (__u64)(data_end - data);
 
   // Calculate time and clamp to prevent overflows
@@ -101,7 +101,7 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   }
 
   // Calculate tokens to add
-  __u64 tokens_to_add = delta * rate->rate >> 30;
+  __u64 tokens_to_add = delta * rate->rate >> 20;
 
   state->tokens += tokens_to_add;
   if (state->tokens > MAX_CAPACITY) {
