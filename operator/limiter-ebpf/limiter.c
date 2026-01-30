@@ -11,6 +11,11 @@
 #define START_CAPACITY 1000000ULL     // 1 MB
 #define MAX_CAPACITY 1000000000000ULL // 1 TB
 
+struct rate_config {
+  __u64 rate;      // bytes per 2^30 ns
+  __u64 fill_time; // in ns
+};
+
 struct bucket_state {
   struct bpf_spin_lock lock;
   __u64 last_time; // in 2^10 ns
@@ -21,8 +26,8 @@ struct bucket_state {
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __uint(max_entries, NUM_ENTRIES);
-  __type(key, __u32);   // Source IP
-  __type(value, __u64); // Rate, bytes per 2^30 ns
+  __type(key, __u32); // Source IP
+  __type(value, struct rate_config);
   __uint(pinning, LIBBPF_PIN_BY_NAME);
 } config_map SEC(".maps");
 
@@ -62,7 +67,7 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   __u32 src_ip = ip->saddr;
 
   // Lookup rate
-  __u64 *rate = bpf_map_lookup_elem(&config_map, &src_ip);
+  struct rate_config *rate = bpf_map_lookup_elem(&config_map, &src_ip);
   if (!rate) {
     // No rate limit configured for this IP
     return XDP_PASS;
@@ -72,7 +77,7 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   struct bucket_state *state = bpf_map_lookup_elem(&state_map, &src_ip);
   if (!state) {
     struct bucket_state new_state = {0};
-    new_state.last_time = bpf_ktime_get_ns() >> 10;
+    new_state.last_time = bpf_ktime_get_ns();
     new_state.tokens = START_CAPACITY;
 
     // Try to update. If it fails (race condition), lookup again.
@@ -86,22 +91,17 @@ int xdp_rate_limit(struct xdp_md *ctx) {
 
   bpf_spin_lock(&state->lock);
 
-  __u64 now = bpf_ktime_get_ns() >> 10;
+  __u64 now = bpf_ktime_get_ns();
   __u64 pkt_len = (__u64)(data_end - data);
 
-  // Calculate tokens to add
+  // Calculate time and clamp to prevent overflows
   __u64 delta = now - state->last_time;
-
-  // Calculate tokens to add with overflow protection
-  __u64 product;
-  __u64 tokens_to_add;
-
-  if (__builtin_mul_overflow(delta, *rate, &product)) {
-    // Overflow occurred, likely exceeded capacity long ago
-    tokens_to_add = MAX_CAPACITY;
-  } else {
-    tokens_to_add = product >> 20;
+  if (delta > rate->fill_time) {
+    delta = rate->fill_time;
   }
+
+  // Calculate tokens to add
+  __u64 tokens_to_add = delta * rate->rate >> 30;
 
   state->tokens += tokens_to_add;
   if (state->tokens > MAX_CAPACITY) {
