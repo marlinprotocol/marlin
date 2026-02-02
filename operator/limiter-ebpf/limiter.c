@@ -80,10 +80,10 @@ int xdp_rate_limit(struct xdp_md *ctx) {
     return XDP_DROP;
   }
 
-  bpf_spin_lock(&state->lock);
-
   __u64 now = bpf_ktime_get_ns() >> 10;
   __u64 pkt_len = (__u64)(data_end - data);
+
+  bpf_spin_lock(&state->lock);
 
   // Calculate time and clamp to prevent overflows
   __u64 delta = now - state->last_time;
