@@ -2,7 +2,7 @@ use std::fs;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use aya::maps::HashMap;
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -87,9 +87,11 @@ fn ip_to_key(ip: Ipv4Addr) -> u32 {
     u32::from(ip).to_be()
 }
 
+// NOTE: the map should never contain entries that are not in the file
+
 fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64) -> Result<()> {
     if rate == 0 {
-        anyhow::bail!("Rate cannot be 0");
+        bail!("Rate cannot be 0");
     }
     // Calculate fill_time to achieve 1 TiB (2^40 bytes) capacity
     // Capacity = Rate * FillTime
@@ -102,14 +104,7 @@ fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64) -> Re
     // fill_time = 2^60 / rate
     let fill_time = (1u64 << 60) / rate;
 
-    // 1. Update Map
-    let mut map = get_map(map_path)?;
-    let key = ip_to_key(ip);
-    let val = RateConfig { rate, fill_time };
-    map.insert(key, val, 0)?; // 0 flags
-    info!("Added {} to map", ip);
-
-    // 2. Update File
+    // 1. Update File
     let mut entries = read_file(file_path)?;
     // Remove existing if any
     entries.retain(|e| e.ip != ip);
@@ -120,6 +115,13 @@ fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64) -> Re
     });
     write_file(file_path, &entries)?;
     info!("Updated file {:?}", file_path);
+
+    // 2. Update Map
+    let mut map = get_map(map_path)?;
+    let key = ip_to_key(ip);
+    let val = RateConfig { rate, fill_time };
+    map.insert(key, val, 0)?; // 0 flags
+    info!("Added {} to map", ip);
 
     Ok(())
 }
