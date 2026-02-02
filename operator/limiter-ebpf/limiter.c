@@ -33,10 +33,11 @@ struct {
 
 // Map for keeping track of token buckets
 struct {
-  __uint(type, BPF_MAP_TYPE_LRU_HASH);
+  __uint(type, BPF_MAP_TYPE_HASH);
   __uint(max_entries, NUM_ENTRIES);
   __type(key, __u32); // Source IP
   __type(value, struct bucket_state);
+  __uint(pinning, LIBBPF_PIN_BY_NAME);
 } state_map SEC(".maps");
 
 SEC("xdp")
