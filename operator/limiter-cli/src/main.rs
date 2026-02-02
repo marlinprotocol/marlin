@@ -28,8 +28,6 @@ enum Commands {
         ip: Ipv4Addr,
         #[arg(long, help = "Tokens (bytes) per 2^30 ns (~1 sec)")]
         rate: u64,
-        #[arg(long, help = "Fill time in 2^10 ns (~1 us) units")]
-        fill_time: u64,
     },
     Remove {
         #[arg(long)]
@@ -61,12 +59,8 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Commands::Add {
-            ip,
-            rate,
-            fill_time,
-        } => {
-            add_entry(&cli.map_path, &cli.file, ip, rate, fill_time)?;
+        Commands::Add { ip, rate } => {
+            add_entry(&cli.map_path, &cli.file, ip, rate)?;
         }
         Commands::Remove { ip } => {
             remove_entry(&cli.map_path, &cli.file, ip)?;
@@ -93,13 +87,21 @@ fn ip_to_key(ip: Ipv4Addr) -> u32 {
     u32::from(ip).to_be()
 }
 
-fn add_entry(
-    map_path: &str,
-    file_path: &PathBuf,
-    ip: Ipv4Addr,
-    rate: u64,
-    fill_time: u64,
-) -> Result<()> {
+fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64) -> Result<()> {
+    if rate == 0 {
+        anyhow::bail!("Rate cannot be 0");
+    }
+    // Calculate fill_time to achieve 1 TiB (2^40 bytes) capacity
+    // Capacity = Rate * FillTime
+    // Rate (bytes/sec) ~ rate (arg)
+    // FillTime (sec) ~ fill_time (arg)
+    // Precise: Capacity = (rate / 2^30) * (fill_time * 2^10) = rate * fill_time / 2^20
+    // We want Capacity = 2^40
+    // 2^40 = rate * fill_time / 2^20
+    // rate * fill_time = 2^60
+    // fill_time = 2^60 / rate
+    let fill_time = (1u64 << 60) / rate;
+
     // 1. Update Map
     let mut map = get_map(map_path)?;
     let key = ip_to_key(ip);
