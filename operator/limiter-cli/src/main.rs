@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
+use tracing::{info, warn};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -55,7 +56,7 @@ struct Entry {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
     match cli.command {
@@ -93,7 +94,7 @@ fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64, fill_
     let key = ip_to_key(ip);
     let val = RateConfig { rate, fill_time };
     map.insert(key, val, 0)?; // 0 flags
-    println!("Added {} to map", ip);
+    info!("Added {} to map", ip);
 
     // 2. Update File
     let mut entries = read_file(file_path)?;
@@ -101,7 +102,7 @@ fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64, fill_
     entries.retain(|e| e.ip != ip);
     entries.push(Entry { ip, rate, fill_time });
     write_file(file_path, &entries)?;
-    println!("Updated file {:?}", file_path);
+    info!("Updated file {:?}", file_path);
 
     Ok(())
 }
@@ -111,8 +112,8 @@ fn remove_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr) -> Result<()>
     let mut map = get_map(map_path)?;
     let key = ip_to_key(ip);
     match map.remove(&key) {
-        Ok(_) => println!("Removed {} from map", ip),
-        Err(e) => println!("Failed to remove from map (might not exist): {}", e),
+        Ok(_) => info!("Removed {} from map", ip),
+        Err(e) => warn!("Failed to remove from map (might not exist): {}", e),
     }
 
     // 2. Update File
@@ -121,9 +122,9 @@ fn remove_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr) -> Result<()>
     entries.retain(|e| e.ip != ip);
     if entries.len() != initial_len {
         write_file(file_path, &entries)?;
-        println!("Removed {} from file {:?}", ip, file_path);
+        info!("Removed {} from file {:?}", ip, file_path);
     } else {
-        println!("IP {} not found in file {:?}", ip, file_path);
+        warn!("IP {} not found in file {:?}", ip, file_path);
     }
 
     Ok(())
@@ -140,9 +141,9 @@ fn load_entries(map_path: &str, file_path: &PathBuf) -> Result<()> {
             fill_time: entry.fill_time,
         };
         map.insert(key, val, 0)?;
-        println!("Loaded {}", entry.ip);
+        info!("Loaded {}", entry.ip);
     }
-    println!("Loaded all entries from file {:?}", file_path);
+    info!("Loaded all entries from file {:?}", file_path);
     Ok(())
 }
 
