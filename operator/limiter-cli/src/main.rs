@@ -34,6 +34,7 @@ enum Commands {
         ip: Ipv4Addr,
     },
     Load,
+    Show,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -67,6 +68,9 @@ async fn main() -> Result<()> {
         }
         Commands::Load => {
             load_entries(&cli.map_path, &cli.file)?;
+        }
+        Commands::Show => {
+            show_entries(&cli.map_path)?;
         }
     }
 
@@ -163,6 +167,19 @@ fn load_entries(map_path: &str, file_path: &PathBuf) -> Result<()> {
         info!("Loaded {}", entry.ip);
     }
     info!("Loaded all entries from file {:?}", file_path);
+    Ok(())
+}
+
+fn show_entries(map_path: &str) -> Result<()> {
+    let map = get_map(map_path)?;
+    println!("{:<20} | {:<20} | {:<20}", "IP", "Rate", "Fill Time");
+    println!("{}", "-".repeat(66));
+
+    for item in map.iter() {
+        let (key, val) = item?;
+        let ip = Ipv4Addr::from(u32::from_be(key));
+        println!("{:<20} | {:<20} | {:<20}", ip, val.rate, val.fill_time);
+    }
     Ok(())
 }
 
