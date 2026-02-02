@@ -52,17 +52,15 @@ pub trait InfraProvider {
         &mut self,
         job: &JobId,
         instance_type: &str,
-        family: &str,
         region: &str,
         req_mem: i64,
         req_vcpu: i32,
         bandwidth: u64,
         image_url: &str,
-        debug: bool,
         init_params: &[u8],
     ) -> impl Future<Output = Result<()>> + Send;
 
-    fn spin_down(&mut self, job: &JobId, region: &str) -> impl Future<Output = Result<()>> + Send;
+    fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> impl Future<Output = Result<()>> + Send;
 
     fn get_job_ip(&self, job: &JobId, region: &str) -> impl Future<Output = Result<String>> + Send;
 
@@ -81,33 +79,29 @@ where
         &mut self,
         job: &JobId,
         instance_type: &str,
-        family: &str,
         region: &str,
         req_mem: i64,
         req_vcpu: i32,
         bandwidth: u64,
         image_url: &str,
-        debug: bool,
         init_params: &[u8],
     ) -> Result<()> {
         (**self)
             .spin_up(
                 job,
                 instance_type,
-                family,
                 region,
                 req_mem,
                 req_vcpu,
                 bandwidth,
                 image_url,
-                debug,
                 init_params,
             )
             .await
     }
 
-    async fn spin_down(&mut self, job: &JobId, region: &str) -> Result<()> {
-        (**self).spin_down(job, region).await
+    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
+        (**self).spin_down(job, region, bandwidth).await
     }
 
     async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
@@ -596,15 +590,13 @@ struct JobState<'a> {
     last_settled: Duration,
     rate: U256,
     original_rate: U256,
-    family: String,
     min_rate: U256,
     bandwidth: u64,
-    eif_url: String,
+    eif_url: String, // [Update Note] TODO: Change name of eif
     instance_type: String,
     region: String,
     req_vcpus: i32,
     req_mem: i64,
-    debug: bool,
     init_params: Box<[u8]>,
 
     // whether instance should exist or not
@@ -633,8 +625,6 @@ impl<'a> JobState<'a> {
             last_settled: context.now_timestamp(),
             rate: U256::from(1),
             original_rate: U256::from(1),
-            // salmon is the default for jobs (usually old) without any family specified
-            family: "salmon".to_owned(),
             min_rate: U256::MAX,
             bandwidth: 0,
             eif_url: String::new(),
@@ -642,7 +632,6 @@ impl<'a> JobState<'a> {
             region: "ap-south-1".to_string(),
             req_vcpus: 2,
             req_mem: 4096,
-            debug: false,
             init_params: Box::new([0; 0]),
             infra_state: false,
             infra_change_time: Instant::now(),
@@ -728,13 +717,11 @@ impl<'a> JobState<'a> {
                 .spin_up(
                     &self.job_id,
                     self.instance_type.as_str(),
-                    self.family.as_str(),
                     &self.region,
                     self.req_mem,
                     self.req_vcpus,
                     self.bandwidth,
                     &self.eif_url,
-                    self.debug,
                     &self.init_params,
                 )
                 .await;
@@ -746,7 +733,7 @@ impl<'a> JobState<'a> {
             true
         } else {
             // terminate mode
-            let res = infra_provider.spin_down(&self.job_id, &self.region).await;
+            let res = infra_provider.spin_down(&self.job_id, &self.region, self.bandwidth).await;
             if let Err(err) = res {
                 error!(?err, "Failed to terminate instance");
                 return false;
@@ -1078,16 +1065,6 @@ impl<'a> JobState<'a> {
             info!(self.req_vcpus, "Required vcpu");
         }
 
-        let family = metadata_json["family"].as_str();
-        if update && family.is_some() && self.family != family.unwrap() {
-            return Err(anyhow!("Family change not allowed"));
-        } else if family.is_some() {
-            self.family = family.unwrap().to_owned();
-            info!(self.family, "Family");
-        }
-
-        let debug = metadata_json["debug"].as_bool().unwrap_or(false);
-        self.debug = debug;
 
         let Some(url) = metadata_json["url"].as_str() else {
             return Err(anyhow!("EIF url not found! Exiting job"));
@@ -1337,13 +1314,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1389,13 +1364,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1441,13 +1414,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: true,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1470,7 +1441,7 @@ mod tests {
         let job_id = format!("{:064x}", 1);
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"family\":\"tuna\"}".to_string(),31000000000000u64,31000u64,0)),
+            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
             (301, Action::Close),
         ];
 
@@ -1493,13 +1464,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "tuna".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1548,13 +1517,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1604,13 +1571,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1897,13 +1862,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1952,13 +1915,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2007,13 +1968,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2136,13 +2095,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2352,13 +2309,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/updated-enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2405,13 +2360,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2494,13 +2447,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2547,13 +2498,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2600,13 +2549,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2616,82 +2563,11 @@ mod tests {
                     time: start_time + Duration::from_secs(400),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/updated-enclave.eif".into(),
-                    debug: false,
-                    init_params: [].into(),
-                    contract_address: "xyz".into(),
-                    chain_id: "123".into(),
-                    instance_id: compute_instance_id(0),
-                }),
-                TestAwsOutcome::SpinDown(test::SpinDownOutcome {
-                    time: start_time + Duration::from_secs(505),
-                    job: job_id,
-                    region: "ap-south-1".into(),
-                }),
-            ],
-        };
-
-        run_test(start_time, logs, job_manager_params, test_results).await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_debug_update_after_spin_up() {
-        let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
-
-        let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"debug\":true}".to_string(),31000000000000u64,31000u64,0)),
-            (400, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
-        ];
-
-        let job_manager_params = JobManagerParams {
-            job_id: market::JobId {
-                id: job_id.clone(),
-                operator: "abc".into(),
-                contract: "xyz".into(),
-                chain: "123".into(),
-            },
-            allowed_regions: vec!["ap-south-1".to_owned()],
-            address_whitelist: vec![],
-            address_blacklist: vec![],
-        };
-
-        let test_results = TestResults {
-            res: JobResult::Done,
-            outcomes: vec![
-                TestAwsOutcome::SpinUp(test::SpinUpOutcome {
-                    time: start_time + Duration::from_secs(300),
-                    job: job_id.clone(),
-                    instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
-                    region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
-                    bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
-                    debug: true,
-                    init_params: [].into(),
-                    contract_address: "xyz".into(),
-                    chain_id: "123".into(),
-                    instance_id: compute_instance_id(0),
-                }),
-                TestAwsOutcome::SpinUp(test::SpinUpOutcome {
-                    time: start_time + Duration::from_secs(400),
-                    job: job_id.clone(),
-                    instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
-                    region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
-                    bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2739,13 +2615,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2792,13 +2666,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2808,13 +2680,11 @@ mod tests {
                     time: start_time + Duration::from_secs(400),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2861,13 +2731,11 @@ mod tests {
                     time: start_time + Duration::from_secs(300),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2877,13 +2745,11 @@ mod tests {
                     time: start_time + Duration::from_secs(400),
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
-                    family: "salmon".into(),
                     region: "ap-south-1".into(),
                     req_mem: 4096,
                     req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
-                    debug: false,
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),

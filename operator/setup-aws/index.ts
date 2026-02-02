@@ -48,7 +48,7 @@ regions.forEach((region, ridx) => {
     // cvm subnet
     subnets[`${region}-cvm`] = new aws.ec2.Subnet(`${tags.project}-${region}-cvm`, {
         cidrBlock: `10.${ridx}.0.0/17`,
-        mapPublicIpOnLaunch: true,
+        mapPublicIpOnLaunch: false,
         tags: { ...tags, ...{ type: "cvm" } },
         vpcId: vpcs[region].id,
     }, {
