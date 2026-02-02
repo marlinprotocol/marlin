@@ -8,7 +8,6 @@
 #include <linux/ip.h>
 
 #define NUM_ENTRIES 65536
-#define START_CAPACITY 1000000ULL     // 1 MB
 #define MAX_CAPACITY 1000000000000ULL // 1 TB
 
 struct rate_config {
