@@ -76,9 +76,8 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   // Lookup or initialize bucket state
   struct bucket_state *state = bpf_map_lookup_elem(&state_map, &src_ip);
   if (!state) {
-    // Should not happen
-    // config program should also set this map entry
-    return XDP_ABORTED;
+    // This is possible while config is being removed, just drop
+    return XDP_DROP;
   }
 
   bpf_spin_lock(&state->lock);
