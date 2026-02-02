@@ -77,17 +77,9 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   // Lookup or initialize bucket state
   struct bucket_state *state = bpf_map_lookup_elem(&state_map, &src_ip);
   if (!state) {
-    struct bucket_state new_state = {0};
-    new_state.last_time = bpf_ktime_get_ns() >> 10;
-    new_state.tokens = START_CAPACITY;
-
-    // Try to update. If it fails (race condition), lookup again.
-    bpf_map_update_elem(&state_map, &src_ip, &new_state, BPF_NOEXIST);
-    state = bpf_map_lookup_elem(&state_map, &src_ip);
-    if (!state) {
-      // Should not happen, but safe fallback
-      return XDP_ABORTED;
-    }
+    // Should not happen
+    // config program should also set this map entry
+    return XDP_ABORTED;
   }
 
   bpf_spin_lock(&state->lock);
