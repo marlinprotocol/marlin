@@ -1,10 +1,11 @@
+use std::fs;
+use std::net::Ipv4Addr;
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use aya::maps::HashMap;
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::net::Ipv4Addr;
-use std::path::PathBuf;
 use tracing::{info, warn};
 
 #[derive(Parser)]
@@ -44,7 +45,7 @@ struct RateConfig {
     fill_time: u64,
 }
 
-// Safety: RateConfig is a POD type
+// SAFETY: RateConfig is a POD type
 unsafe impl aya::Pod for RateConfig {}
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -57,10 +58,14 @@ struct Entry {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let cli = Cli::parse();
 
+    let cli = Cli::parse();
     match cli.command {
-        Commands::Add { ip, rate, fill_time } => {
+        Commands::Add {
+            ip,
+            rate,
+            fill_time,
+        } => {
             add_entry(&cli.map_path, &cli.file, ip, rate, fill_time)?;
         }
         Commands::Remove { ip } => {
@@ -88,7 +93,13 @@ fn ip_to_key(ip: Ipv4Addr) -> u32 {
     u32::from(ip).to_be()
 }
 
-fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64, fill_time: u64) -> Result<()> {
+fn add_entry(
+    map_path: &str,
+    file_path: &PathBuf,
+    ip: Ipv4Addr,
+    rate: u64,
+    fill_time: u64,
+) -> Result<()> {
     // 1. Update Map
     let mut map = get_map(map_path)?;
     let key = ip_to_key(ip);
@@ -100,7 +111,11 @@ fn add_entry(map_path: &str, file_path: &PathBuf, ip: Ipv4Addr, rate: u64, fill_
     let mut entries = read_file(file_path)?;
     // Remove existing if any
     entries.retain(|e| e.ip != ip);
-    entries.push(Entry { ip, rate, fill_time });
+    entries.push(Entry {
+        ip,
+        rate,
+        fill_time,
+    });
     write_file(file_path, &entries)?;
     info!("Updated file {:?}", file_path);
 
