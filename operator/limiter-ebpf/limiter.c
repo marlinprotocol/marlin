@@ -86,7 +86,12 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   bpf_spin_lock(&state->lock);
 
   // Calculate time and clamp to prevent overflows
-  __u64 delta = now - state->last_time;
+  __u64 delta;
+  if (state->last_time == 0) {
+    delta = 0;
+  } else {
+    delta = now - state->last_time;
+  }
   if (delta > rate->fill_time) {
     delta = rate->fill_time;
   }
