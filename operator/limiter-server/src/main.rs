@@ -22,16 +22,16 @@ const START_CAPACITY: u64 = 1_000_000;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value = "/sys/fs/bpf/config_map", env = "CONFIG_MAP_PATH")]
+    #[arg(long, default_value = "/sys/fs/bpf/xdp/globals/config_map")]
     config_map_path: String,
 
-    #[arg(long, default_value = "/sys/fs/bpf/state_map", env = "STATE_MAP_PATH")]
+    #[arg(long, default_value = "/sys/fs/bpf/xdp/globals/state_map")]
     state_map_path: String,
 
-    #[arg(short, long, default_value = "ratelimits.json", env = "RATELIMITS_FILE")]
+    #[arg(long, default_value = "ratelimits.json")]
     file: PathBuf,
 
-    #[arg(long, default_value = "0.0.0.0:3000", env = "SERVER_ADDR")]
+    #[arg(long, default_value = "0.0.0.0:3000")]
     addr: String,
 }
 
@@ -168,7 +168,7 @@ async fn list_handler(
     // Alternatively we could read from the map.
     // Reading from file is cheaper and less prone to BPF map transient errors.
     let _guard = state.lock.lock().await;
-    
+
     match read_file(&state.file_path) {
         Ok(entries) => Ok(Json(entries)),
         Err(e) => {
@@ -298,7 +298,7 @@ fn load_entries(map_path: &str, state_map_path: &str, file_path: &PathBuf) -> Re
             tokens: START_CAPACITY,
         };
         state_map.insert(key, state, 0)?;
-        
+
         info!("Loaded {}", entry.ip);
     }
     info!("Loaded all entries from file {:?}", file_path);
