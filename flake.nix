@@ -67,7 +67,10 @@
         attestation-server = attestation.server.standard.service;
         kms-root-server = kms.root-server.service;
       };
-      operator.limiter-cli = import ./operator/limiter-cli {
+      operator.limiter-ebpf = import ./operator/limiter-ebpf {
+        inherit nixpkgs systemConfig;
+      };
+      operator.limiter-server = import ./operator/limiter-server {
         inherit nixpkgs systemConfig crane;
       };
       operator.setup-aws.limiter = import ./operator/setup-aws/limiter.nix {
