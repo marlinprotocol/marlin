@@ -11,7 +11,7 @@ in rec {
     src = ./.;
 
     nativeBuildInputs = [
-      pkgs.clang
+      pkgs.llvmPackages.clang-unwrapped
       pkgs.llvm
     ];
 
@@ -72,7 +72,7 @@ in rec {
 
     # systemd service to make room for the ebpf program
     systemd.services.limiter-ebpf = {
-      description = "Set ethtool combined channels on default route interface";
+      description = "Load ebpf program";
 
       wants = ["limiter-nic-channels.service"];
       after = ["limiter-nic-channels.service"];
