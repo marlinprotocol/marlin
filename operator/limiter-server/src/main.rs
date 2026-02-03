@@ -83,6 +83,15 @@ struct Entry {
     fill_time: u64,
 }
 
+#[derive(Serialize)]
+struct StatusEntry {
+    ip: Ipv4Addr,
+    rate: u64,
+    fill_time: u64,
+    tokens: Option<u64>,
+    last_time: Option<u64>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -163,13 +172,11 @@ async fn remove_handler(
 
 async fn list_handler(
     State(state): State<AppState>,
-) -> Result<Json<Vec<Entry>>, (StatusCode, String)> {
-    // We read from file as the source of truth for "configured" entries
-    // Alternatively we could read from the map.
-    // Reading from file is cheaper and less prone to BPF map transient errors.
+) -> Result<Json<Vec<StatusEntry>>, (StatusCode, String)> {
+    // Read from maps to get live status including tokens
     let _guard = state.lock.lock().await;
-
-    match read_file(&state.file_path) {
+    
+    match get_list_from_maps(&state.config_map_path, &state.state_map_path) {
         Ok(entries) => Ok(Json(entries)),
         Err(e) => {
             warn!("Failed to list entries: {:#}", e);
@@ -179,6 +186,33 @@ async fn list_handler(
 }
 
 // --- Helper functions (synchronous logic, but run inside async handlers) ---
+
+fn get_list_from_maps(config_path: &str, state_path: &str) -> Result<Vec<StatusEntry>> {
+    let config_map = get_config_map(config_path)?;
+    // We try to get state map, but if it fails we might still want to return config?
+    // But for now, if state map is broken, we probably want to error out.
+    let state_map = get_state_map(state_path)?;
+    let mut entries = Vec::new();
+
+    for item in config_map.iter() {
+        let (key, config) = item?;
+        let ip = Ipv4Addr::from(u32::from_be(key));
+        
+        let (tokens, last_time) = match state_map.get(&key, 0) {
+            Ok(s) => (Some(s.tokens), Some(s.last_time)),
+            Err(_) => (None, None),
+        };
+
+        entries.push(StatusEntry {
+            ip,
+            rate: config.rate,
+            fill_time: config.fill_time,
+            tokens,
+            last_time,
+        });
+    }
+    Ok(entries)
+}
 
 fn get_config_map(path: &str) -> Result<HashMap<aya::maps::MapData, u32, RateConfig>> {
     let map_data =
@@ -298,7 +332,7 @@ fn load_entries(map_path: &str, state_map_path: &str, file_path: &PathBuf) -> Re
             tokens: START_CAPACITY,
         };
         state_map.insert(key, state, 0)?;
-
+        
         info!("Loaded {}", entry.ip);
     }
     info!("Loaded all entries from file {:?}", file_path);
