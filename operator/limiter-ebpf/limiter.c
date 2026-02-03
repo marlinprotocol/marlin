@@ -88,7 +88,8 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   // Calculate time and clamp to prevent overflows
   __u64 delta;
   if (state->last_time == 0) {
-    delta = 0;
+    // ~1s by default
+    delta = 1 << 20;
   } else {
     delta = now - state->last_time;
   }
