@@ -1,45 +1,58 @@
 use std::fs;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
 use aya::maps::HashMap;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
+use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 
 const START_CAPACITY: u64 = 1_000_000;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
-struct Cli {
-    #[arg(short, long, default_value = "/sys/fs/bpf/xdp/globals/config_map")]
+struct Args {
+    #[arg(short, long, default_value = "/sys/fs/bpf/config_map", env = "CONFIG_MAP_PATH")]
     config_map_path: String,
 
-    #[arg(long, default_value = "/sys/fs/bpf/xdp/globals/state_map")]
+    #[arg(long, default_value = "/sys/fs/bpf/state_map", env = "STATE_MAP_PATH")]
     state_map_path: String,
 
-    #[arg(short, long, default_value = "ratelimits.json")]
+    #[arg(short, long, default_value = "ratelimits.json", env = "RATELIMITS_FILE")]
     file: PathBuf,
 
-    #[command(subcommand)]
-    command: Commands,
+    #[arg(long, default_value = "0.0.0.0:3000", env = "SERVER_ADDR")]
+    addr: String,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    Add {
-        #[arg(long)]
-        ip: Ipv4Addr,
-        #[arg(long, help = "Tokens (bytes) per 2^30 ns (~1 sec)")]
-        rate: u64,
-    },
-    Remove {
-        #[arg(long)]
-        ip: Ipv4Addr,
-    },
-    Load,
-    Show,
+#[derive(Clone)]
+struct AppState {
+    config_map_path: String,
+    state_map_path: String,
+    file_path: PathBuf,
+    // Mutex to synchronize access to the file and maps
+    lock: Arc<Mutex<()>>,
+}
+
+#[derive(Deserialize)]
+struct AddRequest {
+    ip: Ipv4Addr,
+    rate: u64,
+}
+
+#[derive(Deserialize)]
+struct RemoveRequest {
+    ip: Ipv4Addr,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -73,31 +86,99 @@ struct Entry {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+    let args = Args::parse();
 
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Add { ip, rate } => {
-            add_entry(
-                &cli.config_map_path,
-                &cli.state_map_path,
-                &cli.file,
-                ip,
-                rate,
-            )?;
-        }
-        Commands::Remove { ip } => {
-            remove_entry(&cli.config_map_path, &cli.state_map_path, &cli.file, ip)?;
-        }
-        Commands::Load => {
-            load_entries(&cli.config_map_path, &cli.state_map_path, &cli.file)?;
-        }
-        Commands::Show => {
-            show_entries(&cli.config_map_path, &cli.state_map_path)?;
-        }
+    // Load initial entries
+    info!("Loading initial entries from {:?}", args.file);
+    if let Err(e) = load_entries(&args.config_map_path, &args.state_map_path, &args.file) {
+        warn!("Failed to load initial entries: {}", e);
+        // Continue anyway? Or exit? Let's exit if we can't load the state we're supposed to have.
+        // But maybe the file doesn't exist yet, which load_entries handles gracefully (returns empty).
+        // If it returns error, it's a real error.
+        return Err(e);
     }
+
+    let state = AppState {
+        config_map_path: args.config_map_path,
+        state_map_path: args.state_map_path,
+        file_path: args.file,
+        lock: Arc::new(Mutex::new(())),
+    };
+
+    let app = Router::new()
+        .route("/add", post(add_handler))
+        .route("/remove", post(remove_handler))
+        .route("/list", get(list_handler))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+
+    let addr: SocketAddr = args.addr.parse().context("Invalid address format")?;
+    info!("Listening on {}", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
+
+async fn add_handler(
+    State(state): State<AppState>,
+    Json(req): Json<AddRequest>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    let _guard = state.lock.lock().await;
+
+    match add_entry(
+        &state.config_map_path,
+        &state.state_map_path,
+        &state.file_path,
+        req.ip,
+        req.rate,
+    ) {
+        Ok(_) => Ok(Json(format!("Added {}", req.ip))),
+        Err(e) => {
+            warn!("Failed to add entry: {:#}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        }
+    }
+}
+
+async fn remove_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RemoveRequest>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    let _guard = state.lock.lock().await;
+
+    match remove_entry(
+        &state.config_map_path,
+        &state.state_map_path,
+        &state.file_path,
+        req.ip,
+    ) {
+        Ok(_) => Ok(Json(format!("Removed {}", req.ip))),
+        Err(e) => {
+            warn!("Failed to remove entry: {:#}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        }
+    }
+}
+
+async fn list_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Entry>>, (StatusCode, String)> {
+    // We read from file as the source of truth for "configured" entries
+    // Alternatively we could read from the map.
+    // Reading from file is cheaper and less prone to BPF map transient errors.
+    let _guard = state.lock.lock().await;
+    
+    match read_file(&state.file_path) {
+        Ok(entries) => Ok(Json(entries)),
+        Err(e) => {
+            warn!("Failed to list entries: {:#}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        }
+    }
+}
+
+// --- Helper functions (synchronous logic, but run inside async handlers) ---
 
 fn get_config_map(path: &str) -> Result<HashMap<aya::maps::MapData, u32, RateConfig>> {
     let map_data =
@@ -115,7 +196,6 @@ fn get_state_map(path: &str) -> Result<HashMap<aya::maps::MapData, u32, BucketSt
 }
 
 fn ip_to_key(ip: Ipv4Addr) -> u32 {
-    // Convert IP to network byte order u32
     u32::from(ip).to_be()
 }
 
@@ -130,7 +210,6 @@ fn add_entry(
         bail!("Rate cannot be 0");
     }
     // Calculate fill_time to achieve 1 TiB (2^40 bytes) capacity
-    // 2^40 = rate * fill_time / 2^20  =>  rate * fill_time = 2^60
     let fill_time = (1u64 << 60) / rate;
 
     // 1. Update File
@@ -155,7 +234,7 @@ fn add_entry(
     let mut state_map = get_state_map(state_map_path)?;
     let state = BucketState {
         lock: 0,
-        last_time: 0, // 0 means "start from beginning/boot", so first packet will likely trigger max refill
+        last_time: 0,
         tokens: START_CAPACITY,
     };
     state_map.insert(key, state, 0)?;
@@ -213,45 +292,16 @@ fn load_entries(map_path: &str, state_map_path: &str, file_path: &PathBuf) -> Re
         };
         config_map.insert(key, config, 0)?;
 
-        // For load, we also reset/init the state
         let state = BucketState {
             lock: 0,
             last_time: 0,
             tokens: START_CAPACITY,
         };
         state_map.insert(key, state, 0)?;
-
+        
         info!("Loaded {}", entry.ip);
     }
     info!("Loaded all entries from file {:?}", file_path);
-    Ok(())
-}
-
-fn show_entries(map_path: &str, state_map_path: &str) -> Result<()> {
-    let config_map = get_config_map(map_path)?;
-    // We can also try to show state, but it might change rapidly
-    let state_map = get_state_map(state_map_path)?;
-
-    println!(
-        "{:<15} | {:<12} | {:<12} | {:<12} | {:<12}",
-        "IP", "Rate", "Fill Time", "Tokens", "Last Time"
-    );
-    println!("{}", "-".repeat(75));
-
-    for item in config_map.iter() {
-        let (key, config) = item?;
-        let ip = Ipv4Addr::from(u32::from_be(key));
-
-        let state_info = match state_map.get(&key, 0) {
-            Ok(s) => format!("{:<12} | {:<12}", s.tokens, s.last_time),
-            Err(_) => format!("{:<12} | {:<12}", "N/A", "N/A"),
-        };
-
-        println!(
-            "{:<15} | {:<12} | {:<12} | {}",
-            ip, config.rate, config.fill_time, state_info
-        );
-    }
     Ok(())
 }
 
