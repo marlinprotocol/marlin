@@ -2,6 +2,8 @@
 {
   nixpkgs,
   systemConfig,
+  limiter-ebpf,
+  limiter-server,
 }: let
   modulesPath = "${nixpkgs}/nixos/modules";
   nixosConfig = {config, ...}: {
@@ -18,6 +20,10 @@
       "${modulesPath}/profiles/qemu-guest.nix"
       # image.repart support
       "${modulesPath}/image/repart.nix"
+
+      # enclave services
+      limiter-ebpf
+      limiter-server
     ];
 
     # state version
@@ -100,7 +106,7 @@
     services.cloud-init.enable = true;
     services.cloud-init.network.enable = true;
 
-    # TODO: set up limiter
+    systemd.services.limiter-server.after = ["limiter-ebpf.service"];
   };
   nixosSystem = nixpkgs.lib.nixosSystem {
     system = systemConfig.system;

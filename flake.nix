@@ -75,6 +75,8 @@
       };
       operator.setup-aws.limiter = import ./operator/setup-aws/limiter.nix {
         inherit nixpkgs systemConfig;
+        limiter-ebpf = operator.limiter-ebpf.service;
+        limiter-server = operator.limiter-server.service;
       };
     };
     check = {
