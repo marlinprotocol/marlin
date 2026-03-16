@@ -143,7 +143,6 @@ contract MarketV1 is
 
     //-------------------------------- Jobs start --------------------------------//
 
-    bytes32 public constant RATE_LOCK_SELECTOR = keccak256("RATE_LOCK");
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE"); // 0x66f144ecd65ad16d38ecdba8687842af4bc05fde66fe3d999569a3006349785f
 
     struct Job {
