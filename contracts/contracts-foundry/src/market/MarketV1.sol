@@ -52,7 +52,14 @@ contract MarketV1 is
         return super.supportsInterface(interfaceId);
     }
 
-    function _authorizeUpgrade(address /*account*/ ) internal view override onlyAdmin {}
+    function _authorizeUpgrade(
+        address /*account*/
+    )
+        internal
+        view
+        override
+        onlyAdmin
+    {}
 
     //-------------------------------- Overrides end --------------------------------//
 
@@ -60,10 +67,7 @@ contract MarketV1 is
 
     uint256[50] private __gap_1;
 
-    function initialize(address _admin, address _token)
-        public
-        initializer
-    {
+    function initialize(address _admin, address _token) public initializer {
         __Context_init_unchained();
         __ERC165_init_unchained();
         __AccessControl_init_unchained();
@@ -166,7 +170,9 @@ contract MarketV1 is
     event CreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
     event NoticePeriodUpdated(uint256 noticePeriod);
 
-    event JobOpened(bytes32 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp);
+    event JobOpened(
+        bytes32 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
+    );
     event JobSettled(bytes32 indexed jobId, uint256 lastSettled);
     event JobClosed(bytes32 indexed jobId, uint256 timestamp);
     event JobDeposited(bytes32 indexed jobId, address indexed token, address indexed from, uint256 amount);
@@ -309,10 +315,7 @@ contract MarketV1 is
 
         uint256 lastSettled = jobs[_jobId].lastSettled;
         if (block.timestamp > lastSettled) {
-            require(
-                _jobSettle(_jobId, jobs[_jobId].rate),
-                "insufficient funds to settle before revising rate"
-            );
+            require(_jobSettle(_jobId, jobs[_jobId].rate), "insufficient funds to settle before revising rate");
         }
 
         // update rate and lastSettled
@@ -420,10 +423,7 @@ contract MarketV1 is
      * @param   _jobId  The job to update the metadata of.
      * @param   _metadata  The new metadata of the job.
      */
-    function jobMetadataUpdate(bytes32 _jobId, string calldata _metadata)
-        external
-        onlyJobOwner(_jobId)
-    {
+    function jobMetadataUpdate(bytes32 _jobId, string calldata _metadata) external onlyJobOwner(_jobId) {
         _jobMetadataUpdate(_jobId, _metadata);
     }
 

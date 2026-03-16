@@ -25,7 +25,9 @@ contract TestAttestationAuther is AttestationAuther, IAttestationVerifier {
         bytes32 _family,
         bool _shouldVerify
     )
-        AttestationAuther(_admin, _approver, _revoker, this, _verifier, _guestId, _rootKey, _maxAgeMs, _imageId, _family)
+        AttestationAuther(
+            _admin, _approver, _revoker, this, _verifier, _guestId, _rootKey, _maxAgeMs, _imageId, _family
+        )
     {
         shouldVerify = _shouldVerify;
     }
@@ -552,10 +554,7 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         vm.assume(_publicKey.length == 64);
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         IAttestationVerifier.Attestation memory attestation = IAttestationVerifier.Attestation({
-            imageId: imageId,
-            timestampMs: _timestampMs,
-            publicKey: _publicKey,
-            userData: _userData
+            imageId: imageId, timestampMs: _timestampMs, publicKey: _publicKey, userData: _userData
         });
         bytes32 _addr = bytes32(uint256(uint160(uint256(keccak256(_publicKey)))));
         vm.expectEmit();
@@ -577,10 +576,7 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         auther.setShouldVerify(false);
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         IAttestationVerifier.Attestation memory attestation = IAttestationVerifier.Attestation({
-            imageId: imageId,
-            timestampMs: _timestampMs,
-            publicKey: _publicKey,
-            userData: _userData
+            imageId: imageId, timestampMs: _timestampMs, publicKey: _publicKey, userData: _userData
         });
         vm.expectRevert("auther not verified");
         vm.warp(4);
@@ -597,10 +593,7 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         vm.assume(_publicKey.length == 64);
         _timestampMs = uint64(bound(_timestampMs, 0, 2000));
         IAttestationVerifier.Attestation memory attestation = IAttestationVerifier.Attestation({
-            imageId: imageId,
-            timestampMs: _timestampMs,
-            publicKey: _publicKey,
-            userData: _userData
+            imageId: imageId, timestampMs: _timestampMs, publicKey: _publicKey, userData: _userData
         });
         vm.warp(4);
 
