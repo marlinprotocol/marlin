@@ -6,7 +6,6 @@ pragma solidity ^0.8.0;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /* Contracts */
-import {LockUpgradeable} from "../lock/LockUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
@@ -29,8 +28,7 @@ contract MarketV1 is
     AccessControlUpgradeable, // RBAC
     AccessControlEnumerableUpgradeable, // RBAC enumeration
     ERC1967UpgradeUpgradeable, // delegate slots, proxy admin, private upgrade
-    UUPSUpgradeable, // public upgrade
-    LockUpgradeable // time locks
+    UUPSUpgradeable // public upgrade
 {
     using SafeERC20 for IERC20;
 
@@ -86,19 +84,16 @@ contract MarketV1 is
 
     uint256[50] private __gap_1;
 
-    function initialize(address _admin, address _token, bytes32[] memory _selectors, uint256[] memory _lockWaitTimes)
+    function initialize(address _admin, address _token)
         public
         initializer
     {
-        require(_selectors.length == _lockWaitTimes.length);
-
         __Context_init_unchained();
         __ERC165_init_unchained();
         __AccessControl_init_unchained();
         __AccessControlEnumerable_init_unchained();
         __ERC1967Upgrade_init_unchained();
         __UUPSUpgradeable_init_unchained();
-        __Lock_init_unchained(_selectors, _lockWaitTimes);
 
         _setupRole(DEFAULT_ADMIN_ROLE, _admin);
 
