@@ -3,7 +3,6 @@
 pragma solidity ^0.8.0;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
 
 import {AttestationAuther} from "./AttestationAuther.sol";
@@ -62,6 +61,8 @@ contract AttestationVerifier is AttestationAuther, IAttestationVerifier {
     /// @param _signature ECDSA signature of the attestation
     /// @param _attestation Attestation data structure to verify
     function verify(bytes calldata _signature, Attestation calldata _attestation) external view {
+        // TODO: use inline assembly to optimize
+        // forge-lint: disable-next-item(asm-keccak256)
         bytes32 _hashStruct = keccak256(
             abi.encode(
                 ATTESTATION_TYPEHASH,
@@ -71,6 +72,8 @@ contract AttestationVerifier is AttestationAuther, IAttestationVerifier {
                 keccak256(_attestation.userData)
             )
         );
+        // TODO: use inline assembly to optimize
+        // forge-lint: disable-next-item(asm-keccak256)
         bytes32 _digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, _hashStruct));
 
         address _signer = ECDSA.recover(_digest, _signature);

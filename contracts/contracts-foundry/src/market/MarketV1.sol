@@ -26,7 +26,7 @@ contract MarketV1 is
     using SafeERC20 for IERC20;
 
     // in case we add more contracts in the inheritance chain
-    uint256[500] private __gap_0;
+    uint256[500] private __gap_0; // forge-lint: disable-line(mixed-case-variable)
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     // disable all initializers and reinitializers
@@ -36,8 +36,12 @@ contract MarketV1 is
     }
 
     modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "only admin");
+        _onlyAdmin();
         _;
+    }
+
+    function _onlyAdmin() internal view {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "only admin");
     }
 
     //-------------------------------- Overrides start --------------------------------//
@@ -65,7 +69,7 @@ contract MarketV1 is
 
     //-------------------------------- Initializer start --------------------------------//
 
-    uint256[50] private __gap_1;
+    uint256[50] private __gap_1; // forge-lint: disable-line(mixed-case-variable)
 
     function initialize(address _admin, address _token) public initializer {
         __Context_init_unchained();
@@ -95,7 +99,7 @@ contract MarketV1 is
 
     mapping(address => Provider) public providers;
 
-    uint256[49] private __gap_2;
+    uint256[49] private __gap_2; // forge-lint: disable-line(mixed-case-variable)
 
     event ProviderAdded(address indexed provider, string cp);
     event ProviderRemoved(address indexed provider);
@@ -105,7 +109,7 @@ contract MarketV1 is
         require(bytes(providers[_provider].cp).length == 0, "already exists");
         require(bytes(_cp).length != 0, "invalid");
 
-        providers[_provider] = Provider(_cp);
+        providers[_provider] = Provider({cp: _cp});
 
         emit ProviderAdded(_provider, _cp);
     }
@@ -163,7 +167,7 @@ contract MarketV1 is
 
     uint256 public noticePeriod;
 
-    uint256[46] private __gap_3;
+    uint256[46] private __gap_3; // forge-lint: disable-line(mixed-case-variable)
 
     event TokenUpdated(address indexed oldToken, address indexed newToken);
     event CreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
@@ -183,13 +187,21 @@ contract MarketV1 is
     event JobMetadataUpdated(bytes32 indexed jobId, string metadata);
 
     modifier onlyExistingJob(bytes32 _jobId) {
-        require(jobs[_jobId].owner != address(0), "job not found");
+        _onlyExistingJob(_jobId);
         _;
     }
 
+    function _onlyExistingJob(bytes32 _jobId) internal view {
+        require(jobs[_jobId].owner != address(0), "job not found");
+    }
+
     modifier onlyJobOwner(bytes32 _jobId) {
-        require(jobs[_jobId].owner == _msgSender(), "only job owner");
+        _onlyJobOwner(_jobId);
         _;
+    }
+
+    function _onlyJobOwner(bytes32 _jobId) internal view {
+        require(jobs[_jobId].owner == _msgSender(), "only job owner");
     }
 
     function _updateToken(address _token) internal {
@@ -250,7 +262,7 @@ contract MarketV1 is
         bytes32 jobId = bytes32(_jobIndex);
 
         // create job with initial balance 0
-        jobs[jobId] = Job(_metadata, _owner, _provider, 0, 0, block.timestamp, 0);
+        jobs[jobId] = Job({metadata: _metadata, owner: _owner, provider: _provider, rate: 0, balance: 0, lastSettled: block.timestamp, maxRate: 0});
         emit JobOpened(jobId, _metadata, _owner, _provider, block.timestamp);
 
         // deposit initial balance
@@ -445,7 +457,7 @@ contract MarketV1 is
     mapping(bytes32 => uint256) public jobCreditBalance;
     IERC20 public creditToken;
 
-    uint256[50] private __gap_4;
+    uint256[50] private __gap_4; // forge-lint: disable-line(mixed-case-variable)
 
     /**
      * @notice  Deposits the specified amount into the job balance.

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {RiscZeroVerifier, RiscZeroVerifierDefault} from "../../src/attestation/RiscZeroVerifier.sol";
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
 import {IAttestationVerifier} from "../../src/attestation/IAttestationVerifier.sol";
 
