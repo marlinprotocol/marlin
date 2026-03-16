@@ -79,7 +79,7 @@ contract AttestationVerifierTestVerify is Test {
         bytes memory _userData = hex"12345678";
         uint64 _timestamp = 0x4e43046b;
         bytes memory _signature =
-            hex"d24e2af7f09287b27e9cc3184c34a43bb02838e188b777852088d4155465865c730c5a1be77b9d76cbeb601b44453dc52abad202000bafd379ba6cbd98b3cc4d1b";
+            hex"376232bcd66b63b143f20b84d7944965307dfed93d178ad8161ddf45668f1ea8662f51cbf6ebe75455093e139ddaa8054fd05b19ebbf03879b65fb3ba28afc751c";
         IAttestationVerifier.Attestation memory attestation =
             IAttestationVerifier.Attestation(imageId, _timestamp, _attestationPubkey, _userData);
         vm.mockCall(address(riscZeroVerifier), abi.encode(), abi.encode());
@@ -100,7 +100,7 @@ contract AttestationVerifierTestVerify is Test {
         bytes memory _userData = hex"12345678";
         uint64 _timestamp = 0x4e43046b;
         bytes memory _signature =
-            hex"d24e2af7f09287b27e9cc3184c34a43bb02838e188b777852088d4155465865c730c5a1be77b9d76cbeb601b44453dc52abad202000bafd379ba6cbd98b3cc4e1b";
+            hex"376232bcd66b63b143f20b84d7944965307dfed93d178ad8161ddf45668f1ea8662f51cbf6ebe75455093e139ddaa8054fd05b19ebbf03879b65fb3ba28afc761c";
         IAttestationVerifier.Attestation memory attestation =
             IAttestationVerifier.Attestation(imageId, _timestamp, _attestationPubkey, _userData);
         vm.mockCall(address(riscZeroVerifier), abi.encode(), abi.encode());
@@ -120,7 +120,7 @@ contract AttestationVerifierTestVerify is Test {
         bytes memory _userData = hex"12345678";
         uint64 _timestamp = 0x4e43046b;
         bytes memory _signature =
-            hex"d24e2af7f09287b27e9cc3184c34a43bb02838e188b777852088d4155465865c730c5a1be77b9d76cbeb601b44453dc52abad202000bafd379ba6cbd98b3cc4d1b";
+            hex"376232bcd66b63b143f20b84d7944965307dfed93d178ad8161ddf45668f1ea8662f51cbf6ebe75455093e139ddaa8054fd05b19ebbf03879b65fb3ba28afc751c";
         IAttestationVerifier.Attestation memory attestation =
             IAttestationVerifier.Attestation(imageId, _timestamp, _attestationPubkey, _userData);
         vm.expectRevert(VerifiedKeys.VerifiedKeysNotVerified.selector);
@@ -137,7 +137,7 @@ contract AttestationVerifierTestVerify is Test {
         bytes memory _userData = hex"12345678";
         uint64 _timestamp = 0x4e43046b;
         bytes memory _signature =
-            hex"d24e2af7f09287b27e9cc3184c34a43bb02838e188b777852088d4155465865c730c5a1be77b9d76cbeb601b44453dc52abad202000bafd379ba6cbd98b3cc4d1b";
+            hex"376232bcd66b63b143f20b84d7944965307dfed93d178ad8161ddf45668f1ea8662f51cbf6ebe75455093e139ddaa8054fd05b19ebbf03879b65fb3ba28afc751c";
         IAttestationVerifier.Attestation memory attestation =
             IAttestationVerifier.Attestation(imageId, _timestamp, _attestationPubkey, _userData);
         vm.mockCall(address(riscZeroVerifier), abi.encode(), abi.encode());

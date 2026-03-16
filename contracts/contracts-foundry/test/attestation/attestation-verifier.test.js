@@ -8,7 +8,7 @@ const walletClient = createWalletClient({
 });
 
 const DOMAIN = {
-  name: 'marlin.oyster.AttestationVerifier',
+  name: 'marlin.AttestationVerifier',
   version: '1',
 };
 
