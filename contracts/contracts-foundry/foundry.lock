@@ -14,6 +14,12 @@
       "rev": "7bf4727aacdbfaa0f36cbd664654d0c9e1dc52bf"
     }
   },
+  "lib/openzeppelin-foundry-upgrades": {
+    "tag": {
+      "name": "v0.4.0",
+      "rev": "cbce1e00305e943aa1661d43f41e5ac72c662b07"
+    }
+  },
   "lib/risc0-ethereum": {
     "rev": "3c1fd2a859e40ea009a580aac294191196968c60"
   }
