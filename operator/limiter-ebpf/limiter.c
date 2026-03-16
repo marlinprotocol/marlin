@@ -8,7 +8,6 @@
 #include <linux/ip.h>
 
 #define NUM_ENTRIES 65536
-#define START_CAPACITY 1000000ULL     // 1 MB
 #define MAX_CAPACITY 1000000000000ULL // 1 TB
 
 struct rate_config {
@@ -33,10 +32,11 @@ struct {
 
 // Map for keeping track of token buckets
 struct {
-  __uint(type, BPF_MAP_TYPE_LRU_HASH);
+  __uint(type, BPF_MAP_TYPE_HASH);
   __uint(max_entries, NUM_ENTRIES);
   __type(key, __u32); // Source IP
   __type(value, struct bucket_state);
+  __uint(pinning, LIBBPF_PIN_BY_NAME);
 } state_map SEC(".maps");
 
 SEC("xdp")
@@ -76,26 +76,23 @@ int xdp_rate_limit(struct xdp_md *ctx) {
   // Lookup or initialize bucket state
   struct bucket_state *state = bpf_map_lookup_elem(&state_map, &src_ip);
   if (!state) {
-    struct bucket_state new_state = {0};
-    new_state.last_time = bpf_ktime_get_ns() >> 10;
-    new_state.tokens = START_CAPACITY;
-
-    // Try to update. If it fails (race condition), lookup again.
-    bpf_map_update_elem(&state_map, &src_ip, &new_state, BPF_NOEXIST);
-    state = bpf_map_lookup_elem(&state_map, &src_ip);
-    if (!state) {
-      // Should not happen, but safe fallback
-      return XDP_ABORTED;
-    }
+    // This is possible while config is being removed, just drop
+    return XDP_DROP;
   }
-
-  bpf_spin_lock(&state->lock);
 
   __u64 now = bpf_ktime_get_ns() >> 10;
   __u64 pkt_len = (__u64)(data_end - data);
 
+  bpf_spin_lock(&state->lock);
+
   // Calculate time and clamp to prevent overflows
-  __u64 delta = now - state->last_time;
+  __u64 delta;
+  if (state->last_time == 0) {
+    // ~1s by default
+    delta = 1 << 20;
+  } else {
+    delta = now - state->last_time;
+  }
   if (delta > rate->fill_time) {
     delta = rate->fill_time;
   }

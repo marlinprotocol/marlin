@@ -16,9 +16,28 @@
     src = crane'.cleanCargoSource ./.;
   };
   deps = crane'.buildDepsOnly commonArgs;
-in {
+in rec {
   default = crane'.buildPackage (commonArgs
     // {
       cargoArtifacts = deps;
     });
+
+  service = {...}: {
+    # systemd service
+    systemd.services.limiter-server = {
+      description = "Run limiter server";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target" "network.target"];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = ''
+          ${default}/bin/limiter-server
+        '';
+        Restart = "always";
+      };
+    };
+
+    # firewall rule
+    networking.firewall.allowedTCPPorts = [3000];
+  };
 }
