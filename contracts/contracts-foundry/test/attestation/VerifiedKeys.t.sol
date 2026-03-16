@@ -84,6 +84,7 @@ contract VerifiedKeysTestApproveImage is Test {
     }
 
     function test_ApproveImage_Mismatch(bytes32 _imageId, bytes32 _family, bytes32 _otherFamily) public {
+        vm.assume(_otherFamily != _family);
         verifiedKeys.approveImage(_imageId, _otherFamily);
         vm.expectRevert(VerifiedKeys.VerifiedKeysFamilyMismatch.selector);
 
@@ -169,6 +170,7 @@ contract VerifiedKeysTestSetKeyVerified is Test {
     }
 
     function test_SetKeyVerified_Mismatch(bytes memory _pubkey, bytes32 _otherImageId) public {
+        vm.assume(_otherImageId != imageId);
         verifiedKeys.setKeyVerified(_pubkey, _otherImageId);
         vm.expectRevert(VerifiedKeys.VerifiedKeysImageMismatch.selector);
 
