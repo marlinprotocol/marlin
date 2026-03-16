@@ -10,24 +10,17 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {AccessControlEnumerableUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
-import {
-    UUPSUpgradeable,
-    ERC1967UpgradeUpgradeable
-} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /* Interfaces */
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ICredit} from "./interfaces/ICredit.sol";
+import {ICredit} from "../token/ICredit.sol";
 
 contract MarketV1 is
     Initializable, // initializer
     ContextUpgradeable, // _msgSender, _msgData
     ERC165Upgradeable, // supportsInterface
     AccessControlUpgradeable, // RBAC
-    AccessControlEnumerableUpgradeable, // RBAC enumeration
-    ERC1967UpgradeUpgradeable, // delegate slots, proxy admin, private upgrade
     UUPSUpgradeable // public upgrade
 {
     using SafeERC20 for IERC20;
@@ -36,9 +29,11 @@ contract MarketV1 is
     uint256[500] private __gap_0;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    // initializes the logic contract without any admins
+    // disable all initializers and reinitializers
     // safeguard against takeover of the logic contract
-    constructor() initializer {}
+    constructor() {
+        _disableInitializers();
+    }
 
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "only admin");
@@ -51,29 +46,10 @@ contract MarketV1 is
         public
         view
         virtual
-        override(ERC165Upgradeable, AccessControlUpgradeable, AccessControlEnumerableUpgradeable)
+        override(ERC165Upgradeable, AccessControlUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
-    }
-
-    function _grantRole(bytes32 role, address account)
-        internal
-        virtual
-        override(AccessControlUpgradeable, AccessControlEnumerableUpgradeable)
-    {
-        super._grantRole(role, account);
-    }
-
-    function _revokeRole(bytes32 role, address account)
-        internal
-        virtual
-        override(AccessControlUpgradeable, AccessControlEnumerableUpgradeable)
-    {
-        super._revokeRole(role, account);
-
-        // protect against accidentally removing all admins
-        require(getRoleMemberCount(DEFAULT_ADMIN_ROLE) != 0, "cannot remove all admins");
     }
 
     function _authorizeUpgrade(address /*account*/ ) internal view override onlyAdmin {}
@@ -91,11 +67,8 @@ contract MarketV1 is
         __Context_init_unchained();
         __ERC165_init_unchained();
         __AccessControl_init_unchained();
-        __AccessControlEnumerable_init_unchained();
-        __ERC1967Upgrade_init_unchained();
-        __UUPSUpgradeable_init_unchained();
 
-        _setupRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
         _updateToken(_token);
     }
