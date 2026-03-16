@@ -48,7 +48,7 @@ contract AttestationVerifier is AttestationAuther, IAttestationVerifier {
     bytes32 public constant DOMAIN_SEPARATOR = keccak256(
         abi.encode(
             keccak256("EIP712Domain(string name,string version)"),
-            keccak256("marlin.oyster.AttestationVerifier"),
+            keccak256("marlin.AttestationVerifier"),
             keccak256("1")
         )
     );
