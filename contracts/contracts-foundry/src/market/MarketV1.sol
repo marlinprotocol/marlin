@@ -56,14 +56,7 @@ contract MarketV1 is
         return super.supportsInterface(interfaceId);
     }
 
-    function _authorizeUpgrade(
-        address /*account*/
-    )
-        internal
-        view
-        override
-        onlyAdmin
-    {}
+    function _authorizeUpgrade(address) internal view override onlyAdmin {}
 
     //-------------------------------- Overrides end --------------------------------//
 
