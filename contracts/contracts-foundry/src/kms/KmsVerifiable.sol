@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {IKMSVerifiable} from "./IKMSVerifiable.sol";
+import {IKmsVerifiable} from "./IKmsVerifiable.sol";
 
 /// @title Sample KMS Verifiable Contract
 /// @notice Manages list of image IDs allowed to derive keys
-contract KmsVerifiable is Ownable, IKMSVerifiable {
+contract KmsVerifiable is Ownable, IKmsVerifiable {
     /// @notice Mapping of verified image IDs
     mapping(bytes32 => bool) public images;
 
@@ -40,7 +40,7 @@ contract KmsVerifiable is Ownable, IKMSVerifiable {
         }
     }
 
-    function oysterKMSVerify(bytes32 _imageId) external view override returns (bool) {
+    function marlinKmsVerify(bytes32 _imageId) external view override returns (bool) {
         return images[_imageId];
     }
 }

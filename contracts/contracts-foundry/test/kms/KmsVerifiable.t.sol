@@ -34,7 +34,7 @@ contract KmsVerifiableTest is Test {
     function test_verifyImage() public view {
         // Execute
         bytes32 imageId = imageIds[0];
-        bool result = kmsVerifiable.oysterKMSVerify(imageId);
+        bool result = kmsVerifiable.marlinKmsVerify(imageId);
         // Validate
         assertTrue(result);
     }
