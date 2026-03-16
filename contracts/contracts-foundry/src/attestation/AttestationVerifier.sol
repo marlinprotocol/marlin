@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import {ECDSA} from "../../lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
-import {AccessControl} from "../../lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {IRiscZeroVerifier} from "../../lib/risc0-ethereum/contracts/src/IRiscZeroVerifier.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
 
 import {AttestationAuther} from "./AttestationAuther.sol";
 import {IAttestationVerifier} from "./IAttestationVerifier.sol";

@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-import {AccessControl} from "../../lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {IRiscZeroVerifier} from "../../lib/risc0-ethereum/contracts/src/IRiscZeroVerifier.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
 
 import {RiscZeroVerifier, RiscZeroVerifierDefault} from "../attestation/RiscZeroVerifier.sol";
 import {VerifiedKeys, VerifiedKeysDefault} from "../attestation/VerifiedKeys.sol";

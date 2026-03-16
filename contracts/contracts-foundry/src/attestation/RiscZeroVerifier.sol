@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {IRiscZeroVerifier} from "../../lib/risc0-ethereum/contracts/src/IRiscZeroVerifier.sol";
+import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
 
 import {IAttestationVerifier} from "./IAttestationVerifier.sol";
 
