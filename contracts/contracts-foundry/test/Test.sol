@@ -4,6 +4,11 @@ pragma solidity ^0.8.13;
 import {Test as ForgeTest} from "forge-std/Test.sol";
 
 contract Test is ForgeTest {
+    modifier assume(bool x) {
+        vm.assume(x);
+        _;
+    }
+
     modifier assumeNonZeroBytes32(bytes32 x) {
         vm.assume(x != bytes32(0));
         _;

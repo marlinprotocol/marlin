@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../Test.sol";
 import {RiscZeroVerifier, RiscZeroVerifierDefault} from "../../src/attestation/RiscZeroVerifier.sol";
 
 import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
@@ -210,8 +210,7 @@ contract RiscZeroVerifierTestVerify is Test {
         bytes calldata _userData,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length < 256);
+    ) public assume(_pubkey.length < 256) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         bytes32 _journalDigest = sha256(
             abi.encodePacked(
@@ -234,8 +233,7 @@ contract RiscZeroVerifierTestVerify is Test {
         bytes calldata _userData,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length < 256);
+    ) public assume(_pubkey.length < 256) {
         _timestampMs = uint64(bound(_timestampMs, 0, 2000));
         vm.expectRevert(abi.encodeWithSelector(RiscZeroVerifier.RiscZeroVerifierTooOld.selector));
         vm.warp(4);
@@ -249,9 +247,8 @@ contract RiscZeroVerifierTestVerify is Test {
         bytes calldata _userData,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
+    ) public assume(_pubkey.length > 64) {
         // foundry does not generate data >256 length, concat to emulate it
-        vm.assume(_pubkey.length > 64);
         _pubkey = bytes.concat(_pubkey, _pubkey, _pubkey, _pubkey);
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         vm.expectRevert(abi.encodeWithSelector(RiscZeroVerifier.RiscZeroVerifierPubkeyTooLong.selector));
@@ -266,10 +263,8 @@ contract RiscZeroVerifierTestVerify is Test {
         bytes memory _userData,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length < 256);
+    ) public assume(_pubkey.length < 256) assume(_userData.length > 64) {
         // foundry does not generate data >65536 length, concat to emulate it
-        vm.assume(_userData.length > 64);
         _userData = bytes.concat(_userData, _userData, _userData, _userData); // 256
         _userData = bytes.concat(_userData, _userData, _userData, _userData); // 1024
         _userData = bytes.concat(_userData, _userData, _userData, _userData); // 4096
@@ -288,8 +283,7 @@ contract RiscZeroVerifierTestVerify is Test {
         bytes calldata _userData,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length < 256);
+    ) public assume(_pubkey.length < 256) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         vm.mockCallRevert(address(verifier), abi.encode(), "0x12345678");
         vm.expectRevert("0x12345678");

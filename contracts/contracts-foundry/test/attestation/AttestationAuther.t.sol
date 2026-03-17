@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
 
@@ -52,7 +52,7 @@ contract AttestationAutherTestConstruction is Test {
         uint256 _maxAgeMs,
         bytes32 _imageId,
         bytes32 _family
-    ) public {
+    ) public assumeNonZeroBytes32(_imageId) assumeNonZeroBytes32(_family) {
         vm.expectEmit();
         emit RiscZeroVerifier.RiscZeroVerifierUpdatedVerifier(_verifier, IRiscZeroVerifier(address(0)));
         vm.expectEmit();
@@ -111,8 +111,8 @@ contract AttestationAutherTestUpdateVerifier is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -129,8 +129,10 @@ contract AttestationAutherTestUpdateVerifier is Test {
         assertEq(address(auther.verifier()), address(newVerifier));
     }
 
-    function test_UpdateVerifier_Unauthorized(IRiscZeroVerifier newVerifier, address nonAdmin) public {
-        vm.assume(nonAdmin != admin);
+    function test_UpdateVerifier_Unauthorized(IRiscZeroVerifier newVerifier, address nonAdmin)
+        public
+        assumeNotEqualAddress(nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, auther.DEFAULT_ADMIN_ROLE()
@@ -162,8 +164,8 @@ contract AttestationAutherTestUpdateGuestId is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -180,8 +182,10 @@ contract AttestationAutherTestUpdateGuestId is Test {
         assertEq(auther.guestId(), newGuestId);
     }
 
-    function test_UpdateGuestId_Unauthorized(bytes32 newGuestId, address nonAdmin) public {
-        vm.assume(nonAdmin != admin);
+    function test_UpdateGuestId_Unauthorized(bytes32 newGuestId, address nonAdmin)
+        public
+        assumeNotEqualAddress(nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, auther.DEFAULT_ADMIN_ROLE()
@@ -213,8 +217,8 @@ contract AttestationAutherTestUpdateRootKey is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -231,8 +235,10 @@ contract AttestationAutherTestUpdateRootKey is Test {
         assertEq(auther.rootKey(), newRootKey);
     }
 
-    function test_UpdateRootKey_Unauthorized(bytes calldata newRootKey, address nonAdmin) public {
-        vm.assume(nonAdmin != admin);
+    function test_UpdateRootKey_Unauthorized(bytes calldata newRootKey, address nonAdmin)
+        public
+        assumeNotEqualAddress(nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, auther.DEFAULT_ADMIN_ROLE()
@@ -264,8 +270,8 @@ contract AttestationAutherTestUpdateMaxAge is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -282,8 +288,10 @@ contract AttestationAutherTestUpdateMaxAge is Test {
         assertEq(auther.maxAgeMs(), newMaxAge);
     }
 
-    function test_UpdateMaxAge_Unauthorized(uint256 newMaxAge, address nonAdmin) public {
-        vm.assume(nonAdmin != admin);
+    function test_UpdateMaxAge_Unauthorized(uint256 newMaxAge, address nonAdmin)
+        public
+        assumeNotEqualAddress(nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, auther.DEFAULT_ADMIN_ROLE()
@@ -315,15 +323,19 @@ contract AttestationAutherTestApproveImage is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
         );
     }
 
-    function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family) public {
+    function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+    {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
 
@@ -334,8 +346,12 @@ contract AttestationAutherTestApproveImage is Test {
         assertEq(auther.images(_imageId), _family);
     }
 
-    function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family, address _nonApprover) public {
-        vm.assume(_nonApprover != approver);
+    function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family, address _nonApprover)
+        public
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+        assumeNotEqualAddress(_nonApprover, approver)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonApprover, auther.APPROVER_ROLE()
@@ -367,8 +383,8 @@ contract AttestationAutherTestRevokeImage is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -386,8 +402,7 @@ contract AttestationAutherTestRevokeImage is Test {
         assertEq(auther.images(imageId), bytes32(0));
     }
 
-    function test_RevokeImage_Unauthorized(address _nonRevoker) public {
-        vm.assume(_nonRevoker != revoker);
+    function test_RevokeImage_Unauthorized(address _nonRevoker) public assumeNotEqualAddress(_nonRevoker, revoker) {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonRevoker, auther.REVOKER_ROLE()
@@ -419,8 +434,8 @@ contract AttestationAutherTestVerifyEnclaveRiscZero is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -432,8 +447,7 @@ contract AttestationAutherTestVerifyEnclaveRiscZero is Test {
         bytes calldata _pubkey,
         bytes calldata _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length == 64);
+    ) public assume(_pubkey.length == 64) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         bytes32 _journalDigest = sha256(
             abi.encodePacked(
@@ -461,8 +475,7 @@ contract AttestationAutherTestVerifyEnclaveRiscZero is Test {
         bytes calldata _pubkey,
         bytes calldata _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length == 64);
+    ) public assume(_pubkey.length == 64) {
         _timestampMs = uint64(bound(_timestampMs, 0, 2000));
         vm.expectRevert(abi.encodeWithSelector(RiscZeroVerifier.RiscZeroVerifierTooOld.selector));
         vm.warp(4);
@@ -475,8 +488,7 @@ contract AttestationAutherTestVerifyEnclaveRiscZero is Test {
         bytes calldata _pubkey,
         bytes calldata _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length != 64);
+    ) public assume(_pubkey.length != 64) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         bytes32 _journalDigest = sha256(
             abi.encodePacked(
@@ -499,8 +511,7 @@ contract AttestationAutherTestVerifyEnclaveRiscZero is Test {
         bytes calldata _pubkey,
         bytes calldata _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length == 64);
+    ) public assume(_pubkey.length == 64) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         bytes32 _journalDigest = sha256(
             abi.encodePacked(
@@ -537,8 +548,8 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
 
         auther = new TestAttestationAuther(
             admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId, family, true
@@ -550,8 +561,7 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         bytes memory _publicKey,
         bytes memory _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_publicKey.length == 64);
+    ) public assume(_publicKey.length == 64) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         IAttestationVerifier.Attestation memory attestation = IAttestationVerifier.Attestation({
             imageId: imageId, timestampMs: _timestampMs, publicKey: _publicKey, userData: _userData
@@ -571,8 +581,7 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         bytes memory _publicKey,
         bytes memory _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_publicKey.length == 64);
+    ) public assume(_publicKey.length == 64) {
         auther.setShouldVerify(false);
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         IAttestationVerifier.Attestation memory attestation = IAttestationVerifier.Attestation({
@@ -589,8 +598,7 @@ contract AttestationAutherTestVerifyEnclaveSignature is Test {
         bytes memory _publicKey,
         bytes memory _userData,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_publicKey.length == 64);
+    ) public assume(_publicKey.length == 64) {
         _timestampMs = uint64(bound(_timestampMs, 0, 2000));
         IAttestationVerifier.Attestation memory attestation = IAttestationVerifier.Attestation({
             imageId: imageId, timestampMs: _timestampMs, publicKey: _publicKey, userData: _userData

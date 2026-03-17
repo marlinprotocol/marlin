@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../Test.sol";
 import {KmsRoot} from "../../src/kms/KmsRoot.sol";
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -77,7 +77,7 @@ contract KmsRootTestUpdateVerifier is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = vm.randomUint();
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
@@ -91,8 +91,10 @@ contract KmsRootTestUpdateVerifier is Test {
         assertEq(address(kmsRoot.verifier()), address(_verifier));
     }
 
-    function test_UpdateVerifier_FromNonAdmin(IRiscZeroVerifier _verifier, address _nonAdmin) public {
-        vm.assume(_nonAdmin != admin);
+    function test_UpdateVerifier_FromNonAdmin(IRiscZeroVerifier _verifier, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonAdmin, kmsRoot.DEFAULT_ADMIN_ROLE()
@@ -123,7 +125,7 @@ contract KmsRootTestUpdateGuestId is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = vm.randomUint();
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
@@ -137,8 +139,10 @@ contract KmsRootTestUpdateGuestId is Test {
         assertEq(kmsRoot.guestId(), _guestId);
     }
 
-    function test_UpdateGuestId_FromNonAdmin(bytes32 _guestId, address _nonAdmin) public {
-        vm.assume(_nonAdmin != admin);
+    function test_UpdateGuestId_FromNonAdmin(bytes32 _guestId, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonAdmin, kmsRoot.DEFAULT_ADMIN_ROLE()
@@ -183,8 +187,10 @@ contract KmsRootTestUpdateRootKey is Test {
         assertEq(kmsRoot.rootKey(), _rootKey);
     }
 
-    function test_UpdateRootKey_FromNonAdmin(bytes calldata _rootKey, address _nonAdmin) public {
-        vm.assume(_nonAdmin != admin);
+    function test_UpdateRootKey_FromNonAdmin(bytes calldata _rootKey, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonAdmin, kmsRoot.DEFAULT_ADMIN_ROLE()
@@ -215,7 +221,7 @@ contract KmsRootTestUpdateMaxAge is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = vm.randomUint();
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
@@ -229,8 +235,10 @@ contract KmsRootTestUpdateMaxAge is Test {
         assertEq(kmsRoot.maxAgeMs(), _maxAgeMs);
     }
 
-    function test_UpdateMaxAge_FromNonAdmin(uint256 _maxAgeMs, address _nonAdmin) public {
-        vm.assume(_nonAdmin != admin);
+    function test_UpdateMaxAge_FromNonAdmin(uint256 _maxAgeMs, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonAdmin, kmsRoot.DEFAULT_ADMIN_ROLE()
@@ -261,11 +269,15 @@ contract KmsRootTestApproveImage is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = vm.randomUint();
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
-    function test_ApproveImage_FromApprover(bytes32 _imageId, bytes32 _family) public {
+    function test_ApproveImage_FromApprover(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+    {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
 
@@ -275,8 +287,12 @@ contract KmsRootTestApproveImage is Test {
         assertEq(kmsRoot.images(_imageId), _family);
     }
 
-    function test_ApproveImage_FromNonApprover(bytes32 _imageId, bytes32 _family, address _nonApprover) public {
-        vm.assume(_nonApprover != approver);
+    function test_ApproveImage_FromNonApprover(bytes32 _imageId, bytes32 _family, address _nonApprover)
+        public
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+        assumeNotEqualAddress(_nonApprover, approver)
+    {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonApprover, kmsRoot.APPROVER_ROLE()
@@ -307,11 +323,15 @@ contract KmsRootTestRevokeImage is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = vm.randomUint();
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
-    function test_RevokeImage_FromRevoker(bytes32 _imageId, bytes32 _family) public {
+    function test_RevokeImage_FromRevoker(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+    {
         vm.prank(approver);
         kmsRoot.approveImage(_imageId, _family);
 
@@ -324,11 +344,15 @@ contract KmsRootTestRevokeImage is Test {
         assertEq(kmsRoot.images(_imageId), bytes32(0));
     }
 
-    function test_RevokeImage_FromNonRevoker(bytes32 _imageId, bytes32 _family, address _nonRevoker) public {
+    function test_RevokeImage_FromNonRevoker(bytes32 _imageId, bytes32 _family, address _nonRevoker)
+        public
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+        assumeNotEqualAddress(_nonRevoker, revoker)
+    {
         vm.prank(approver);
         kmsRoot.approveImage(_imageId, _family);
 
-        vm.assume(_nonRevoker != revoker);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, _nonRevoker, kmsRoot.REVOKER_ROLE()
@@ -359,14 +383,15 @@ contract KmsRootTestVerify is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
     function test_Verify_Valid(bytes calldata _seal, bytes calldata _pubkey, bytes32 _imageId, uint64 _timestampMs)
         public
+        assumeNonZeroBytes32(_imageId)
+        assume(_pubkey.length == 64)
     {
-        vm.assume(_pubkey.length == 64);
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         bytes32 _journalDigest =
             sha256(abi.encodePacked(_timestampMs, _imageId, rootKey, uint8(_pubkey.length), _pubkey, uint16(0)));
@@ -387,8 +412,9 @@ contract KmsRootTestVerify is Test {
 
     function test_Verify_TooOld(bytes calldata _seal, bytes calldata _pubkey, bytes32 _imageId, uint64 _timestampMs)
         public
+        assumeNonZeroBytes32(_imageId)
+        assume(_pubkey.length == 64)
     {
-        vm.assume(_pubkey.length == 64);
         _timestampMs = uint64(bound(_timestampMs, 0, 2000));
         vm.expectRevert(abi.encodeWithSelector(RiscZeroVerifier.RiscZeroVerifierTooOld.selector));
         vm.warp(4);
@@ -401,9 +427,7 @@ contract KmsRootTestVerify is Test {
         bytes calldata _pubkey,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length != 64);
-        vm.assume(_pubkey.length < 256);
+    ) public assumeNonZeroBytes32(_imageId) assume(_pubkey.length != 64) assume(_pubkey.length < 256) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         bytes32 _journalDigest =
             sha256(abi.encodePacked(_timestampMs, _imageId, rootKey, uint8(_pubkey.length), _pubkey, uint16(0)));
@@ -423,8 +447,7 @@ contract KmsRootTestVerify is Test {
         bytes calldata _pubkey,
         bytes32 _imageId,
         uint64 _timestampMs
-    ) public {
-        vm.assume(_pubkey.length == 64);
+    ) public assumeNonZeroBytes32(_imageId) assume(_pubkey.length == 64) {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         vm.mockCallRevert(address(verifier), abi.encode(), "0x12345678");
         vm.expectRevert("0x12345678");
@@ -453,12 +476,14 @@ contract KmsRootTestIsKeyVerified is Test {
         guestId = bytes32(vm.randomUint());
         rootKey = vm.randomBytes(96);
         maxAgeMs = 2000;
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         kmsRoot = new KmsRoot(admin, approver, revoker, verifier, guestId, rootKey, maxAgeMs, imageId);
     }
 
-    function test_IsKeyVerified_Verified(bytes calldata _seal, bytes calldata _pubkey, uint64 _timestampMs) public {
-        vm.assume(_pubkey.length == 64);
+    function test_IsKeyVerified_Verified(bytes calldata _seal, bytes calldata _pubkey, uint64 _timestampMs)
+        public
+        assume(_pubkey.length == 64)
+    {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         address _addr = address(uint160(uint256(keccak256(_pubkey))));
         vm.mockCall(address(verifier), abi.encode(), abi.encode());
@@ -476,8 +501,10 @@ contract KmsRootTestIsKeyVerified is Test {
         assertFalse(res);
     }
 
-    function test_IsKeyVerified_Revoked(bytes calldata _seal, bytes calldata _pubkey, uint64 _timestampMs) public {
-        vm.assume(_pubkey.length == 64);
+    function test_IsKeyVerified_Revoked(bytes calldata _seal, bytes calldata _pubkey, uint64 _timestampMs)
+        public
+        assume(_pubkey.length == 64)
+    {
         _timestampMs = uint64(bound(_timestampMs, 2001, type(uint64).max));
         address _addr = address(uint160(uint256(keccak256(_pubkey))));
         vm.mockCall(address(verifier), abi.encode(), abi.encode());
