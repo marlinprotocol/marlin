@@ -107,8 +107,8 @@ abstract contract VerifiedKeys {
 
     /// @notice Approves a new image with authorization check
     /// @dev Calls internal _approveImage after authorization
-    /// @param _imageId Image id to approve
-    /// @param _family Family to associate with the image
+    /// @param _imageId Image id to approve, must be nonzero
+    /// @param _family Family to associate with the image, must be nonzero
     /// @return bool True if approval was successful, false if already approved
     function approveImage(bytes32 _imageId, bytes32 _family) external returns (bool) {
         _vkAuthorizeApprove();
@@ -126,7 +126,7 @@ abstract contract VerifiedKeys {
 
     /// @notice Internal function to verify a public key
     /// @param _enclavePubkey Public key bytes to verify
-    /// @param _imageId Image id to associate with the key
+    /// @param _imageId Image id to associate with the key, must be nonzero
     /// @return bool True if verification was successful, false if key is already verified
     function _setKeyVerified(bytes memory _enclavePubkey, bytes32 _imageId) internal returns (bool) {
         bytes32 _key = _vkTransformPubkey(_enclavePubkey);
