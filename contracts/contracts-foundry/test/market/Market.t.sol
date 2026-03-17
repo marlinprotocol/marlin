@@ -6,6 +6,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Market} from "../../src/market/Market.sol";
 import {ICredit} from "../../src/token/ICredit.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 
 contract ERC20Mock is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
@@ -25,6 +26,12 @@ contract CreditMock is ERC20Mock, ICredit {
     function redeemAndBurn(address to, uint256 amount) external {
         _burn(msg.sender, amount);
         usdc.transfer(to, amount);
+    }
+}
+
+contract MarketV2 is Market {
+    function version() external pure returns (uint256) {
+        return 2;
     }
 }
 
@@ -51,6 +58,25 @@ abstract contract MarketTestBase is Test {
     uint64 initialJobIndex;
     uint256 jobOpenedTimestamp;
     uint256 initialTimestamp;
+
+    event MarketProviderAdded(address indexed provider, string cp);
+    event MarketProviderRemoved(address indexed provider);
+    event MarketProviderUpdated(address indexed provider, string oldCp, string newCp);
+    event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
+    event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
+    event MarketNoticePeriodUpdated(uint256 noticePeriod);
+    event MarketJobOpened(
+        uint64 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
+    );
+    event MarketJobSettled(uint64 indexed jobId, uint256 lastSettled);
+    event MarketJobClosed(uint64 indexed jobId, uint256 timestamp);
+    event MarketJobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
+    event MarketJobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
+    event MarketJobSettlementWithdrawn(
+        uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount
+    );
+    event MarketJobRateRevised(uint64 indexed jobId, uint256 newRate);
+    event MarketJobMetadataUpdated(uint64 indexed jobId, string metadata);
 
     function setUp() public virtual {
         token = new ERC20Mock("Pond", "POND");
@@ -97,6 +123,8 @@ abstract contract MarketTestBase is Test {
 contract MarketTestProviderAdd is MarketTestBase {
     function test_ProviderRegisters() public {
         vm.prank(user);
+        vm.expectEmit(true, true, true, true);
+        emit MarketProviderAdded(user, "https://example.com/");
         market.providerAdd("https://example.com/");
         (string memory cp) = market.providers(user);
         assertEq(cp, "https://example.com/");
@@ -122,7 +150,10 @@ contract MarketTestProviderRemove is MarketTestBase {
     function test_ProviderUnregisters() public {
         vm.prank(user);
         market.providerAdd("https://example.com/");
+
         vm.prank(user);
+        vm.expectEmit(true, true, true, true);
+        emit MarketProviderRemoved(user);
         market.providerRemove();
 
         (string memory cp) = market.providers(user);
@@ -151,7 +182,10 @@ contract MarketTestProviderUpdateWithCp is MarketTestBase {
     function test_ProviderUpdateWithCp() public {
         vm.prank(user);
         market.providerAdd("https://example.com/");
+
         vm.prank(user);
+        vm.expectEmit(true, true, true, true);
+        emit MarketProviderUpdated(user, "https://example.com/", "https://example.com/new");
         market.providerUpdateWithCp("https://example.com/new");
 
         (string memory cp) = market.providers(user);
@@ -180,6 +214,10 @@ contract MarketTestJobOpen is MarketTestBase {
 
         vm.startPrank(user);
         token.approve(address(market), initialBalance);
+
+        vm.expectEmit(true, false, false, true);
+        emit MarketJobOpened(initialJobIndex, "some metadata", user, provider, block.timestamp);
+
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialBalance);
         vm.stopPrank();
 
@@ -328,11 +366,32 @@ contract MarketTestJobSettle is MarketTestBase {
         vm.warp(block.timestamp + TWO_MINUTES);
 
         vm.prank(user);
+        vm.expectEmit(true, false, false, true);
+        emit MarketJobSettled(initialJobIndex, block.timestamp);
         market.jobSettle(initialJobIndex);
 
         (,,,, uint256 balance, uint256 lastSettled,) = market.jobs(initialJobIndex);
         assertEq(lastSettled, openTimestamp + TWO_MINUTES);
         assertEq(balance, initialBalance - calcAmountToPay(JOB_RATE_1, TWO_MINUTES));
+    }
+
+    function test_JobSettle_InsufficientBalance() public {
+        uint256 initialDeposit = calcNoticePeriodCost(JOB_RATE_1) + usdc(1); // very small balance
+
+        vm.startPrank(user);
+        token.approve(address(market), initialDeposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
+        vm.stopPrank();
+
+        // Wait long enough so that usage exceeds balance
+        vm.warp(block.timestamp + TWO_MINUTES * 10);
+
+        vm.prank(user);
+        market.jobSettle(initialJobIndex);
+
+        (,,,, uint256 balance, uint256 lastSettled,) = market.jobs(initialJobIndex);
+        assertEq(balance, 0); // Balance should be completely drained
+        assertEq(lastSettled, block.timestamp); // Should still settle what it could
     }
 }
 
@@ -346,6 +405,10 @@ contract MarketTestJobDeposit is MarketTestBase {
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
         uint256 balanceBefore = token.balanceOf(address(market));
+
+        vm.expectEmit(true, true, true, true);
+        emit MarketJobDeposited(initialJobIndex, address(token), user, additionalDeposit);
+
         market.jobDeposit(initialJobIndex, additionalDeposit);
         vm.stopPrank();
 
@@ -364,11 +427,47 @@ contract MarketTestJobWithdraw is MarketTestBase {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
+        vm.expectEmit(true, true, true, true);
+        emit MarketJobWithdrawn(initialJobIndex, address(token), user, withdrawAmount);
+
         market.jobWithdraw(initialJobIndex, withdrawAmount);
         vm.stopPrank();
 
         (,,,, uint256 balance,,) = market.jobs(initialJobIndex);
         assertEq(balance, initialDeposit - calcNoticePeriodCost(JOB_RATE_1) - withdrawAmount);
+    }
+
+    function test_JobWithdraw_Credit_Fallback() public {
+        // Test withdrawing more than the USDC balance, forcing fallback to credit token
+        uint256 usdcDeposit = usdc(10) + calcNoticePeriodCost(JOB_RATE_1);
+        uint256 creditDeposit = usdc(40);
+
+        vm.startPrank(user);
+        token.approve(address(market), usdcDeposit + creditDeposit);
+        creditToken.approve(address(market), creditDeposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, usdcDeposit + creditDeposit);
+
+        // At this point, jobBalance = 50, jobTokenBalance = 10, jobCreditBalance = 40
+        // Withdraw 20, which is > 10 (USDC portion). Should withdraw 10 USDC and 10 Credit
+
+        market.jobWithdraw(initialJobIndex, usdc(20));
+        vm.stopPrank();
+
+        (,,,, uint256 balance,,) = market.jobs(initialJobIndex);
+        assertEq(balance, usdc(30)); // 50 - 20
+        assertEq(market.jobCreditBalance(initialJobIndex), usdc(30)); // 40 - 10
+    }
+
+    function test_JobWithdraw_ExceedsBalance() public {
+        uint256 initialDeposit = usdc(50);
+
+        vm.startPrank(user);
+        token.approve(address(market), initialDeposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
+
+        vm.expectRevert(Market.MarketWithdrawalAmountExceedsJobBalance.selector);
+        market.jobWithdraw(initialJobIndex, usdc(100)); // Trying to withdraw more than exists
+        vm.stopPrank();
     }
 }
 
@@ -382,6 +481,8 @@ contract MarketTestJobReviseRate is MarketTestBase {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
+        vm.expectEmit(true, false, false, true);
+        emit MarketJobRateRevised(initialJobIndex, higherRate);
         market.jobReviseRate(initialJobIndex, higherRate);
         vm.stopPrank();
 
@@ -389,6 +490,22 @@ contract MarketTestJobReviseRate is MarketTestBase {
         assertEq(rate, higherRate);
         assertEq(maxRate, higherRate);
         assertEq(balance, initialBalance - calcNoticePeriodCost(higherRate - JOB_RATE_1));
+    }
+
+    function test_JobReviseRate_InsufficientFundsToSettle() public {
+        uint256 initialDeposit = calcNoticePeriodCost(JOB_RATE_1) + usdc(1);
+        uint256 higherRate = 2 * 10 ** 16;
+
+        vm.startPrank(user);
+        token.approve(address(market), initialDeposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
+
+        // Warp time so that balance is exhausted
+        vm.warp(block.timestamp + TWO_MINUTES * 10);
+
+        vm.expectRevert(Market.MarketInsufficientFundsToSettleBeforeRevisingRate.selector);
+        market.jobReviseRate(initialJobIndex, higherRate);
+        vm.stopPrank();
     }
 }
 
@@ -399,6 +516,9 @@ contract MarketTestJobClose is MarketTestBase {
         vm.startPrank(user);
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
+
+        vm.expectEmit(true, false, false, true);
+        emit MarketJobClosed(initialJobIndex, block.timestamp);
 
         market.jobClose(initialJobIndex);
         vm.stopPrank();
@@ -421,6 +541,8 @@ contract MarketTestJobMetadataUpdate is MarketTestBase {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
+        vm.expectEmit(true, false, false, true);
+        emit MarketJobMetadataUpdated(initialJobIndex, "new metadata");
         market.jobMetadataUpdate(initialJobIndex, "new metadata");
         vm.stopPrank();
 
@@ -449,5 +571,230 @@ contract MarketTestEmergencyWithdraw is MarketTestBase {
 
         assertEq(market.jobCreditBalance(initialJobIndex), 0);
         assertGt(creditToken.balanceOf(admin2), 0);
+    }
+}
+
+contract MarketTestAdminOperations is MarketTestBase {
+    function test_UpdateToken() public {
+        ERC20Mock newToken = new ERC20Mock("New", "NEW");
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, false, false);
+        emit MarketTokenUpdated(address(token), address(newToken));
+        market.updateToken(address(newToken));
+
+        assertEq(address(market.realToken()), address(newToken));
+    }
+
+    function test_UpdateToken_NonAdmin() public {
+        ERC20Mock newToken = new ERC20Mock("New", "NEW");
+
+        vm.prank(user);
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.updateToken(address(newToken));
+    }
+
+    function test_UpdateCreditToken() public {
+        ERC20Mock newToken = new ERC20Mock("New", "NEW");
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, false, false);
+        emit MarketCreditTokenUpdated(address(creditToken), address(newToken));
+        market.updateCreditToken(address(newToken));
+
+        assertEq(address(market.creditToken()), address(newToken));
+    }
+
+    function test_UpdateCreditToken_NonAdmin() public {
+        ERC20Mock newToken = new ERC20Mock("New", "NEW");
+
+        vm.prank(user);
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.updateCreditToken(address(newToken));
+    }
+
+    function test_WithdrawCreditTokenNotSet() public {
+        // Set creditToken to address(0) to trigger line 572
+        vm.prank(admin);
+        market.updateCreditToken(address(0));
+
+        // Open job with usdc, which works fine
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+        vm.stopPrank();
+
+        // This doesn't trigger 572 because creditAmount = 0
+        // We can't realistically force jobCreditBalance > 0 AND creditToken == 0 in a single transaction if it's disabled.
+        // Wait! We can deposit credit, THEN update credit token to 0, THEN withdraw!
+
+        vm.prank(admin);
+        market.updateCreditToken(address(creditToken));
+
+        uint256 creditDeposit = usdc(50);
+        vm.startPrank(user);
+        creditToken.approve(address(market), creditDeposit);
+        market.jobOpen("meta", provider, JOB_RATE_1, creditDeposit);
+        vm.stopPrank();
+
+        uint64 job2Id = initialJobIndex + 1;
+
+        vm.prank(admin);
+        market.updateCreditToken(address(0));
+
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketCreditTokenNotSet.selector);
+        market.jobWithdraw(job2Id, usdc(10));
+        vm.stopPrank();
+    }
+}
+
+contract MarketTestUpgrade is MarketTestBase {
+    function test_SupportsInterface() public view {
+        assertTrue(market.supportsInterface(type(ERC165Upgradeable).interfaceId));
+    }
+
+    function test_Upgrade_Admin() public {
+        MarketV2 v2 = new MarketV2();
+
+        vm.prank(admin);
+        market.upgradeToAndCall(address(v2), "");
+
+        assertEq(MarketV2(address(market)).version(), 2);
+    }
+
+    function test_Upgrade_NonAdmin() public {
+        MarketV2 v2 = new MarketV2();
+
+        vm.prank(user);
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.upgradeToAndCall(address(v2), "");
+    }
+}
+
+contract MarketTestAdditionalBranches is MarketTestBase {
+    function test_JobDeposit_RevertsInvalidAmount() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+
+        vm.expectRevert(Market.MarketInvalidAmount.selector);
+        market.jobDeposit(initialJobIndex, 0);
+        vm.stopPrank();
+    }
+
+    function test_JobDeposit_RevertsJobNotFound() public {
+        vm.prank(user);
+        vm.expectRevert(Market.MarketJobNotFound.selector);
+        market.jobDeposit(999, usdc(10));
+    }
+
+    function test_JobWithdraw_RevertsInvalidAmount() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+
+        vm.expectRevert(Market.MarketInvalidAmount.selector);
+        market.jobWithdraw(initialJobIndex, 0);
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_RevertsOnlyJobOwner() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+        vm.stopPrank();
+
+        vm.prank(user2);
+        vm.expectRevert(Market.MarketOnlyJobOwner.selector);
+        market.jobWithdraw(initialJobIndex, usdc(10));
+    }
+
+    function test_JobReviseRate_RevertsInvalidRate() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+
+        vm.expectRevert(Market.MarketInvalidRate.selector);
+        market.jobReviseRate(initialJobIndex, 0);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_RevertsRateNotChanged() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+
+        vm.expectRevert(Market.MarketRateNotChanged.selector);
+        market.jobReviseRate(initialJobIndex, JOB_RATE_1);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_RevertsOnlyJobOwner() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+        vm.stopPrank();
+
+        vm.prank(user2);
+        vm.expectRevert(Market.MarketOnlyJobOwner.selector);
+        market.jobReviseRate(initialJobIndex, 2 * 10 ** 16);
+    }
+
+    function test_JobMetadataUpdate_RevertsNotChanged() public {
+        uint256 initialDeposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), initialDeposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
+
+        vm.expectRevert(Market.MarketMetadataNotChanged.selector);
+        market.jobMetadataUpdate(initialJobIndex, "some metadata");
+        vm.stopPrank();
+    }
+
+    function test_JobMetadataUpdate_RevertsOnlyJobOwner() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+        vm.stopPrank();
+
+        vm.prank(user2);
+        vm.expectRevert(Market.MarketOnlyJobOwner.selector);
+        market.jobMetadataUpdate(initialJobIndex, "new metadata");
+    }
+
+    function test_EmergencyWithdraw_RevertsOnlyEmergencyWithdrawRole() public {
+        uint64[] memory jobs = new uint64[](1);
+        jobs[0] = initialJobIndex;
+
+        vm.prank(admin);
+        vm.expectRevert(Market.MarketOnlyEmergencyWithdrawRole.selector);
+        market.emergencyWithdrawCredit(user, jobs);
+    }
+
+    function test_JobClose_RevertsOnlyJobOwner() public {
+        uint256 deposit = usdc(50);
+        vm.startPrank(user);
+        token.approve(address(market), deposit);
+        market.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
+        vm.stopPrank();
+
+        vm.prank(user2);
+        vm.expectRevert(Market.MarketOnlyJobOwner.selector);
+        market.jobClose(initialJobIndex);
+    }
+
+    function test_JobSettle_RevertsJobNotFound() public {
+        vm.prank(user);
+        vm.expectRevert(Market.MarketJobNotFound.selector);
+        market.jobSettle(999);
     }
 }
