@@ -68,15 +68,15 @@ abstract contract VerifiedKeys {
     event VerifiedKeysVerified(bytes32 indexed key, bytes32 indexed imageId, bytes pubkey);
 
     /// @notice Initializes contract with an initial approved image
-    /// @param _imageId Image id to approve
-    /// @param _family Family of the initial image
+    /// @param _imageId Image id to approve, must be nonzero
+    /// @param _family Family of the initial image, must be nonzero
     constructor(bytes32 _imageId, bytes32 _family) {
         _approveImage(_imageId, _family);
     }
 
     /// @notice Internal function to approve a new image
-    /// @param _imageId Image id to approve
-    /// @param _family Family to associate with the image
+    /// @param _imageId Image id to approve, must be nonzero
+    /// @param _family Family to associate with the image, must be nonzero
     /// @return bool True if approval was successful, false if already approved
     function _approveImage(bytes32 _imageId, bytes32 _family) internal returns (bool) {
         bytes32 _currentFamily = _vkGetImageFamily(_imageId);
