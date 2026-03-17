@@ -68,7 +68,11 @@ contract VerifiedKeysTestApproveImage is Test {
         verifiedKeys = new TestVerifiedKeys(imageId, family, true);
     }
 
-    function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family) public assumeNonZero(_imageId) assumeNonZero(_family) {
+    function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZero(_imageId)
+        assumeNonZero(_family)
+    {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
 
@@ -78,7 +82,11 @@ contract VerifiedKeysTestApproveImage is Test {
         assertEq(verifiedKeys.images(_imageId), _family);
     }
 
-    function test_ApproveImage_Existing(bytes32 _imageId, bytes32 _family) public  assumeNonZero(_imageId) assumeNonZero(_family) {
+    function test_ApproveImage_Existing(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZero(_imageId)
+        assumeNonZero(_family)
+    {
         verifiedKeys.approveImage(_imageId, _family);
 
         bool result = verifiedKeys.approveImage(_imageId, _family);
@@ -100,7 +108,11 @@ contract VerifiedKeysTestApproveImage is Test {
         verifiedKeys.approveImage(_imageId, _family);
     }
 
-    function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family) public assumeNonZero(_imageId) assumeNonZero(_family) {
+    function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZero(_imageId)
+        assumeNonZero(_family)
+    {
         verifiedKeys.setAuthorized(false);
         vm.expectRevert(TestVerifiedKeys.NotAuthorized.selector);
 
@@ -129,7 +141,11 @@ contract VerifiedKeysTestRevokeImage is Test {
         assertEq(verifiedKeys.images(imageId), bytes32(0));
     }
 
-    function test_RevokeImage_NonExistent(bytes32 _imageId) public assumeNonZero(_imageId) assumeNotEqual(_imageId, imageId) {
+    function test_RevokeImage_NonExistent(bytes32 _imageId)
+        public
+        assumeNonZero(_imageId)
+        assumeNotEqual(_imageId, imageId)
+    {
         bool result = verifiedKeys.revokeImage(_imageId);
 
         assertFalse(result);
