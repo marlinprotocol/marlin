@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {Test as ForgeTest} from "forge-std/Test.sol";
+
+contract Test is ForgeTest {
+    modifier assumeNonZero(bytes32 x) {
+        vm.assume(x != bytes32(0));
+        _;
+    }
+
+    modifier assumeNotEqual(bytes32 _a, bytes32 _b) {
+        vm.assume(_a != _b);
+        _;
+    }
+
+    function randomUintNonZero() public returns (uint256) {
+        return vm.randomUint(1, type(uint256).max);
+    }
+
+    function randomBytes32NonZero() public returns (bytes32) {
+        return bytes32(randomUintNonZero());
+    }
+}
