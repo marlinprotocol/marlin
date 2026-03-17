@@ -45,8 +45,8 @@ contract TestVerifiedKeys is VerifiedKeysDefault {
 contract VerifiedKeysTestConstruction is Test {
     function test_Construction(bytes32 _imageId, bytes32 _family)
         public
-        assumeNonZero(_imageId)
-        assumeNonZero(_family)
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
     {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
@@ -70,8 +70,8 @@ contract VerifiedKeysTestApproveImage is Test {
 
     function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family)
         public
-        assumeNonZero(_imageId)
-        assumeNonZero(_family)
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
     {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
@@ -84,8 +84,8 @@ contract VerifiedKeysTestApproveImage is Test {
 
     function test_ApproveImage_Existing(bytes32 _imageId, bytes32 _family)
         public
-        assumeNonZero(_imageId)
-        assumeNonZero(_family)
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
     {
         verifiedKeys.approveImage(_imageId, _family);
 
@@ -97,10 +97,10 @@ contract VerifiedKeysTestApproveImage is Test {
 
     function test_ApproveImage_Mismatch(bytes32 _imageId, bytes32 _family, bytes32 _otherFamily)
         public
-        assumeNonZero(_imageId)
-        assumeNonZero(_family)
-        assumeNonZero(_otherFamily)
-        assumeNotEqual(_family, _otherFamily)
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
+        assumeNonZeroBytes32(_otherFamily)
+        assumeNotEqualBytes32(_family, _otherFamily)
     {
         verifiedKeys.approveImage(_imageId, _otherFamily);
         vm.expectRevert(VerifiedKeys.VerifiedKeysFamilyMismatch.selector);
@@ -110,8 +110,8 @@ contract VerifiedKeysTestApproveImage is Test {
 
     function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family)
         public
-        assumeNonZero(_imageId)
-        assumeNonZero(_family)
+        assumeNonZeroBytes32(_imageId)
+        assumeNonZeroBytes32(_family)
     {
         verifiedKeys.setAuthorized(false);
         vm.expectRevert(TestVerifiedKeys.NotAuthorized.selector);
@@ -143,8 +143,8 @@ contract VerifiedKeysTestRevokeImage is Test {
 
     function test_RevokeImage_NonExistent(bytes32 _imageId)
         public
-        assumeNonZero(_imageId)
-        assumeNotEqual(_imageId, imageId)
+        assumeNonZeroBytes32(_imageId)
+        assumeNotEqualBytes32(_imageId, imageId)
     {
         bool result = verifiedKeys.revokeImage(_imageId);
 
@@ -195,8 +195,8 @@ contract VerifiedKeysTestSetKeyVerified is Test {
 
     function test_SetKeyVerified_Mismatch(bytes memory _pubkey, bytes32 _otherImageId)
         public
-        assumeNonZero(_otherImageId)
-        assumeNotEqual(_otherImageId, imageId)
+        assumeNonZeroBytes32(_otherImageId)
+        assumeNotEqualBytes32(_otherImageId, imageId)
     {
         verifiedKeys.setKeyVerified(_pubkey, _otherImageId);
         vm.expectRevert(VerifiedKeys.VerifiedKeysImageMismatch.selector);
