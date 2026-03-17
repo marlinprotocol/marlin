@@ -62,7 +62,7 @@ contract MarketV1Test is Test {
 
         address proxy = Upgrades.deployUUPSProxy(
             "MarketV1.sol",
-            abi.encodeCall(MarketV1.initialize, (admin, address(token), FIVE_MINUTES, address(creditToken)))
+            abi.encodeCall(MarketV1.initialize, (admin, address(token), FIVE_MINUTES, address(creditToken), 1234))
         );
         marketv1 = MarketV1(proxy);
 
