@@ -353,84 +353,70 @@ contract Market is
         emit JobMetadataUpdated(_jobId, _metadata);
     }
 
-    /**
-     * @notice  Opens a new job.
-     *          To ensure the provider is paid for the shutdown window, if the deposit amount is exactly equal to
-     *          the noticePeriodCost, the provider is incentivized to shut down the job immediately after opening.
-     *          Therefore, it should be noted that `(deposit amount) - noticePeriodCost` is the actual amount to be
-     *          used for running the job.
-     * @dev     `noticePeriodCost` is paid upfront.
-     *          min(_balance, creditAllowance, creditBalance) amount of Credit tokens will be transferred from the caller to the job.
-     * @param   _metadata  The metadata of the job.
-     * @param   _provider  The provider of the job.
-     * @param   _rate      The rate of the job.
-     * @param   _balance   Amount of tokens to deposit into the job.
-     */
+    /// @notice  Opens a new job.
+    ///          To ensure the provider is paid for the shutdown window, if the deposit amount is exactly equal to
+    ///          the noticePeriodCost, the provider is incentivized to shut down the job immediately after opening.
+    ///          Therefore, it should be noted that `(deposit amount) - noticePeriodCost` is the actual amount to be
+    ///          used for running the job.
+    /// @dev     `noticePeriodCost` is paid upfront.
+    ///          min(_balance, creditAllowance, creditBalance) amount of Credit tokens will be transferred from the caller to the job.
+    /// @param   _metadata  The metadata of the job.
+    /// @param   _provider  The provider of the job.
+    /// @param   _rate      The rate of the job.
+    /// @param   _balance   Amount of tokens to deposit into the job.
     function jobOpen(string calldata _metadata, address _provider, uint256 _rate, uint256 _balance) external {
         _jobOpen(_metadata, _msgSender(), _provider, _rate, _balance);
     }
 
-    /**
-     * @notice  Settles the job and sends the amount settled to the job's provider.
-     *          If the job has Credit balance, the credit balance will be deducted first.
-     * @dev     Reverts if block.timestamp is before `lastSettled` of given jobId.
-     *          If settled with Credit tokens the Credit tokens will be burned and redeemed to USDC when transfering
-     *          to the job's provider.
-     * @param   _jobId  The job to settle.
-     */
+    /// @notice  Settles the job and sends the amount settled to the job's provider.
+    ///          If the job has Credit balance, the credit balance will be deducted first.
+    /// @dev     Reverts if block.timestamp is before `lastSettled` of given jobId.
+    ///          If settled with Credit tokens the Credit tokens will be burned and redeemed to USDC when transfering
+    ///          to the job's provider.
+    /// @param   _jobId  The job to settle.
     function jobSettle(uint64 _jobId) external onlyExistingJob(_jobId) {
         _jobSettle(_jobId, jobs[_jobId].rate);
     }
 
-    /**
-     * @notice  Closes the job and sends the remaining balance to the job's owner.
-     *          The shutdown delay cost is deducted from the job's balance before refunding the remaining balance.
-     * @dev     Settles the job before closing it.
-     * @param   _jobId  The job to close.
-     */
+    /// @notice  Closes the job and sends the remaining balance to the job's owner.
+    ///          The shutdown delay cost is deducted from the job's balance before refunding the remaining balance.
+    /// @dev     Settles the job before closing it.
+    /// @param   _jobId  The job to close.
     function jobClose(uint64 _jobId) external onlyJobOwner(_jobId) {
         _jobClose(_jobId);
     }
 
-    /**
-     * @notice  Deposits the specified amount into the job balance.
-     *          min(_amount, creditAllowance, creditBalance) amount of Credit tokens will be transferred from the caller to the job.
-     * @param   _jobId  The job to deposit to.
-     * @param   _amount  The amount to deposit.
-     */
+    /// @notice  Deposits the specified amount into the job balance.
+    ///          min(_amount, creditAllowance, creditBalance) amount of Credit tokens will be transferred from the caller to the job.
+    /// @param   _jobId  The job to deposit to.
+    /// @param   _amount  The amount to deposit.
     function jobDeposit(uint64 _jobId, uint256 _amount) external onlyExistingJob(_jobId) {
         _jobDeposit(_jobId, _amount);
     }
 
-    /**
-     * @notice  Withdraws the specified amount from the job balance.
-     *          If the amount required to be withdrawn is greater than the job's balance, the remaining balance will be
-     *          transferred from the job to the caller as Credit tokens.
-     * @dev     Reverts if block.timestamp is before `lastSettled` of given jobId.
-     * @param   _jobId  The job to withdraw from.
-     * @param   _amount  The amount to withdraw.
-     */
+    /// @notice  Withdraws the specified amount from the job balance.
+    ///          If the amount required to be withdrawn is greater than the job's balance, the remaining balance will be
+    ///          transferred from the job to the caller as Credit tokens.
+    /// @dev     Reverts if block.timestamp is before `lastSettled` of given jobId.
+    /// @param   _jobId  The job to withdraw from.
+    /// @param   _amount  The amount to withdraw.
     function jobWithdraw(uint64 _jobId, uint256 _amount) external onlyJobOwner(_jobId) {
         _jobWithdraw(_jobId, _amount);
     }
 
-    /**
-     * @notice  Revises the rate of the job.
-     *          Deducts the shutdown delay cost from the job's balance before updating the rate.
-     * @dev     Reverts if the rate has not changed.
-     * @param   _jobId  The job to revise the rate of.
-     * @param   _newRate  The new rate of the job.
-     */
+    /// @notice  Revises the rate of the job.
+    ///          Deducts the shutdown delay cost from the job's balance before updating the rate.
+    /// @dev     Reverts if the rate has not changed.
+    /// @param   _jobId  The job to revise the rate of.
+    /// @param   _newRate  The new rate of the job.
     function jobReviseRate(uint64 _jobId, uint256 _newRate) external onlyJobOwner(_jobId) {
         _jobReviseRate(_jobId, _newRate);
     }
 
-    /**
-     * @notice  Updates the metadata of the job.
-     * @dev     Reverts if the metadata has not changed.
-     * @param   _jobId  The job to update the metadata of.
-     * @param   _metadata  The new metadata of the job.
-     */
+    /// @notice  Updates the metadata of the job.
+    /// @dev     Reverts if the metadata has not changed.
+    /// @param   _jobId  The job to update the metadata of.
+    /// @param   _metadata  The new metadata of the job.
     function jobMetadataUpdate(uint64 _jobId, string calldata _metadata) external onlyJobOwner(_jobId) {
         _jobMetadataUpdate(_jobId, _metadata);
     }
@@ -456,12 +442,10 @@ contract Market is
 
     uint256[50] private __gap_4; // forge-lint: disable-line(mixed-case-variable)
 
-    /**
-     * @notice  Deposits the specified amount into the job balance.
-     * @param   _jobId  The job to deposit to.
-     * @param   _from  The address to deposit from.
-     * @param   _amount  The amount to deposit.
-     */
+    /// @notice  Deposits the specified amount into the job balance.
+    /// @param   _jobId  The job to deposit to.
+    /// @param   _from  The address to deposit from.
+    /// @param   _amount  The amount to deposit.
     function _deposit(uint64 _jobId, address _from, uint256 _amount) internal {
         uint256 tokenAmount = _amount;
         uint256 creditAmount = 0;
@@ -511,13 +495,11 @@ contract Market is
         }
     }
 
-    /**
-     * @notice  Calculates how much of each token type to use
-     * @param   _totalAmount Total amount to process
-     * @param   _creditBalance Available credit token amount
-     * @return   creditAmount Amount to handle with credit tokens
-     * @return  tokenAmount Amount to handle with payment tokens
-     */
+    /// @notice  Calculates how much of each token type to use
+    /// @param   _totalAmount Total amount to process
+    /// @param   _creditBalance Available credit token amount
+    /// @return   creditAmount Amount to handle with credit tokens
+    /// @return  tokenAmount Amount to handle with payment tokens
     function _calculateTokenSplit(uint256 _totalAmount, uint256 _creditBalance)
         internal
         pure
@@ -533,12 +515,10 @@ contract Market is
         return (creditAmount, tokenAmount);
     }
 
-    /**
-     * @notice  Withdraws the specified amount from the job balance.
-     * @param   _jobId  The job to withdraw from.
-     * @param   _to  The address to withdraw to.
-     * @param   _amount  The amount to withdraw.
-     */
+    /// @notice  Withdraws the specified amount from the job balance.
+    /// @param   _jobId  The job to withdraw from.
+    /// @param   _to  The address to withdraw to.
+    /// @param   _amount  The amount to withdraw.
     function _withdraw(uint64 _jobId, address _to, uint256 _amount) internal {
         uint256 jobBalance = jobs[_jobId].balance;
         require(jobBalance >= _amount, "withdrawal amount exceeds job balance");
