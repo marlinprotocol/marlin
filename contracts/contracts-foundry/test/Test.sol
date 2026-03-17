@@ -4,12 +4,17 @@ pragma solidity ^0.8.13;
 import {Test as ForgeTest} from "forge-std/Test.sol";
 
 contract Test is ForgeTest {
-    modifier assumeNonZero(bytes32 x) {
+    modifier assumeNonZeroBytes32(bytes32 x) {
         vm.assume(x != bytes32(0));
         _;
     }
 
-    modifier assumeNotEqual(bytes32 _a, bytes32 _b) {
+    modifier assumeNotEqualBytes32(bytes32 _a, bytes32 _b) {
+        vm.assume(_a != _b);
+        _;
+    }
+
+    modifier assumeNotEqualAddress(address _a, address _b) {
         vm.assume(_a != _b);
         _;
     }
