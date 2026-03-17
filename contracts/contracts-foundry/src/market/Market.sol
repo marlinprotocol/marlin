@@ -36,13 +36,15 @@ contract Market is
         _disableInitializers();
     }
 
+    error MarketOnlyAdmin();
+
     modifier onlyAdmin() {
         _onlyAdmin();
         _;
     }
 
     function _onlyAdmin() internal view {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "only admin");
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), MarketOnlyAdmin());
     }
 
     /*---- Overrides start ----*/
@@ -89,6 +91,10 @@ contract Market is
 
     /*---- Providers start ----*/
 
+    error MarketProviderAlreadyExists();
+    error MarketProviderInvalid();
+    error MarketProviderNotFound();
+
     // provider address -> control plane endpoint url
     mapping(address => string) public providers;
 
@@ -99,8 +105,8 @@ contract Market is
     event ProviderUpdatedWithCp(address indexed provider, string oldCp, string newCp);
 
     function _providerAdd(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider]).length == 0, "already exists");
-        require(bytes(_cp).length != 0, "invalid");
+        require(bytes(providers[_provider]).length == 0, MarketProviderAlreadyExists());
+        require(bytes(_cp).length != 0, MarketProviderInvalid());
 
         providers[_provider] = _cp;
 
@@ -108,7 +114,7 @@ contract Market is
     }
 
     function _providerRemove(address _provider) internal {
-        require(bytes(providers[_provider]).length != 0, "not found");
+        require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
 
         delete providers[_provider];
 
@@ -116,8 +122,8 @@ contract Market is
     }
 
     function _providerUpdateWithCp(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider]).length != 0, "not found");
-        require(bytes(_cp).length != 0, "invalid");
+        require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
+        require(bytes(_cp).length != 0, MarketProviderInvalid());
 
         emit ProviderUpdatedWithCp(_provider, providers[_provider], _cp);
 
@@ -139,6 +145,19 @@ contract Market is
     /*---- Providers end ----*/
 
     /*---- Jobs start ----*/
+
+    error MarketJobNotFound();
+    error MarketOnlyJobOwner();
+    error MarketOnlyEmergencyWithdrawRole();
+    error MarketInsufficientFundsToSettle();
+    error MarketInvalidRate();
+    error MarketInvalidAmount();
+    error MarketInsufficientFundsToDeposit();
+    error MarketInsufficientFundsToWithdraw();
+    error MarketRateNotChanged();
+    error MarketInsufficientFundsToSettleBeforeRevisingRate();
+    error MarketInsufficientFundsToReviseRate();
+    error MarketMetadataNotChanged();
 
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE");
     uint256 public constant EXTRA_DECIMALS = 12;
@@ -179,7 +198,7 @@ contract Market is
     }
 
     function _onlyExistingJob(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner != address(0), "job not found");
+        require(jobs[_jobId].owner != address(0), MarketJobNotFound());
     }
 
     modifier onlyJobOwner(uint64 _jobId) {
@@ -188,7 +207,7 @@ contract Market is
     }
 
     function _onlyJobOwner(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner == _msgSender(), "only job owner");
+        require(jobs[_jobId].owner == _msgSender(), MarketOnlyJobOwner());
     }
 
     function _updateToken(address _token) internal {
@@ -221,7 +240,7 @@ contract Market is
     }
 
     function _emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) internal {
-        require(hasRole(EMERGENCY_WITHDRAW_ROLE, _to), "only to emergency withdraw role");
+        require(hasRole(EMERGENCY_WITHDRAW_ROLE, _to), MarketOnlyEmergencyWithdrawRole());
 
         for (uint256 i = 0; i < _jobIds.length; i++) {
             uint64 jobId = _jobIds[i];
@@ -272,8 +291,8 @@ contract Market is
         if (block.timestamp <= lastSettled) {
             return true;
         }
-        require(jobs[_jobId].balance > 0, "insufficient funds to settle");
-        require(jobs[_jobId].rate > 0, "invalid rate");
+        require(jobs[_jobId].balance > 0, MarketInsufficientFundsToSettle());
+        require(jobs[_jobId].rate > 0, MarketInvalidRate());
 
         uint256 usageDuration = block.timestamp - lastSettled;
         uint256 amountUsed = _calcAmountUsed(_rate, usageDuration);
@@ -300,27 +319,27 @@ contract Market is
     }
 
     function _jobDeposit(uint64 _jobId, uint256 _amount) internal {
-        require(_amount > 0, "invalid amount");
-        require(_jobSettle(_jobId, jobs[_jobId].rate), "insufficient funds to deposit");
+        require(_amount > 0, MarketInvalidAmount());
+        require(_jobSettle(_jobId, jobs[_jobId].rate), MarketInsufficientFundsToDeposit());
 
         _deposit(_jobId, _msgSender(), _amount);
     }
 
     function _jobWithdraw(uint64 _jobId, uint256 _amount) internal {
-        require(_amount > 0, "invalid amount");
-        require(_jobSettle(_jobId, jobs[_jobId].rate), "insufficient funds to withdraw");
+        require(_amount > 0, MarketInvalidAmount());
+        require(_jobSettle(_jobId, jobs[_jobId].rate), MarketInsufficientFundsToWithdraw());
 
         // withdraw
         _withdraw(_jobId, _msgSender(), _amount);
     }
 
     function _jobReviseRate(uint64 _jobId, uint256 _newRate) internal {
-        require(_newRate > 0, "invalid rate");
-        require(jobs[_jobId].rate != _newRate, "rate has not changed");
+        require(_newRate > 0, MarketInvalidRate());
+        require(jobs[_jobId].rate != _newRate, MarketRateNotChanged());
 
         uint256 lastSettled = jobs[_jobId].lastSettled;
         if (block.timestamp > lastSettled) {
-            require(_jobSettle(_jobId, jobs[_jobId].rate), "insufficient funds to settle before revising rate");
+            require(_jobSettle(_jobId, jobs[_jobId].rate), MarketInsufficientFundsToSettleBeforeRevisingRate());
         }
 
         // update rate and lastSettled
@@ -335,7 +354,7 @@ contract Market is
         if (higherRate > prevHighestRate) {
             jobs[_jobId].maxRate = higherRate;
             uint256 noticePeriodExtraCost = _calcAmountUsed((higherRate - prevHighestRate), noticePeriod);
-            require(jobs[_jobId].balance > noticePeriodExtraCost, "insufficient funds to revise rate");
+            require(jobs[_jobId].balance > noticePeriodExtraCost, MarketInsufficientFundsToReviseRate());
             _settle(_jobId, noticePeriodExtraCost);
         }
     }
@@ -344,7 +363,7 @@ contract Market is
         string memory oldMetadata = jobs[_jobId].metadata;
         require(
             keccak256(abi.encodePacked(oldMetadata)) != keccak256(abi.encodePacked(_metadata)),
-            "metadata has not changed"
+            MarketMetadataNotChanged()
         );
         jobs[_jobId].metadata = _metadata;
         emit JobMetadataUpdated(_jobId, _metadata);
@@ -434,6 +453,10 @@ contract Market is
 
     /*---- Payments start ----*/
 
+    error MarketWithdrawalAmountExceedsJobBalance();
+    error MarketCreditBalanceExceedsJobBalance();
+    error MarketCreditTokenNotSet();
+
     IERC20 public realToken;
     ICredit public creditToken;
     mapping(uint64 => uint256) public jobCreditBalance;
@@ -519,13 +542,13 @@ contract Market is
     /// @param   _amount  The amount to withdraw.
     function _withdraw(uint64 _jobId, address _to, uint256 _amount) internal {
         uint256 jobBalance = jobs[_jobId].balance;
-        require(jobBalance >= _amount, "withdrawal amount exceeds job balance");
+        require(jobBalance >= _amount, MarketWithdrawalAmountExceedsJobBalance());
 
         uint256 withdrawAmount = _amount;
 
         // shouldn't be possible
         uint256 jobCreditBalance_ = jobCreditBalance[_jobId];
-        require(jobBalance >= jobCreditBalance_, "credit balance exceeds job balance");
+        require(jobBalance >= jobCreditBalance_, MarketCreditBalanceExceedsJobBalance());
         uint256 jobTokenBalance = jobBalance - jobCreditBalance_;
         jobs[_jobId].balance -= withdrawAmount;
 
@@ -544,7 +567,7 @@ contract Market is
         }
 
         if (withdrawAmount > 0) {
-            require(address(creditToken) != address(0), "credit token not set");
+            require(address(creditToken) != address(0), MarketCreditTokenNotSet());
             jobCreditBalance[_jobId] -= withdrawAmount;
             creditToken.safeTransfer(_to, withdrawAmount);
             emit JobWithdrawn(_jobId, address(creditToken), _to, withdrawAmount);
