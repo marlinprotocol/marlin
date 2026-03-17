@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../Test.sol";
 import {VerifiedKeys, VerifiedKeysDefault} from "../../src/attestation/VerifiedKeys.sol";
 
 contract TestVerifiedKeys is VerifiedKeysDefault {
@@ -43,7 +43,11 @@ contract TestVerifiedKeys is VerifiedKeysDefault {
 }
 
 contract VerifiedKeysTestConstruction is Test {
-    function test_Construction(bytes32 _imageId, bytes32 _family) public {
+    function test_Construction(bytes32 _imageId, bytes32 _family)
+        public
+        assumeNonZero(_imageId)
+        assumeNonZero(_family)
+    {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
 
@@ -59,12 +63,12 @@ contract VerifiedKeysTestApproveImage is Test {
     TestVerifiedKeys verifiedKeys;
 
     function setUp() public {
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
         verifiedKeys = new TestVerifiedKeys(imageId, family, true);
     }
 
-    function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family) public {
+    function test_ApproveImage_Authorized(bytes32 _imageId, bytes32 _family) public assumeNonZero(_imageId) assumeNonZero(_family) {
         vm.expectEmit();
         emit VerifiedKeys.VerifiedKeysApproved(_imageId, _family);
 
@@ -74,7 +78,7 @@ contract VerifiedKeysTestApproveImage is Test {
         assertEq(verifiedKeys.images(_imageId), _family);
     }
 
-    function test_ApproveImage_Existing(bytes32 _imageId, bytes32 _family) public {
+    function test_ApproveImage_Existing(bytes32 _imageId, bytes32 _family) public  assumeNonZero(_imageId) assumeNonZero(_family) {
         verifiedKeys.approveImage(_imageId, _family);
 
         bool result = verifiedKeys.approveImage(_imageId, _family);
@@ -83,15 +87,20 @@ contract VerifiedKeysTestApproveImage is Test {
         assertEq(verifiedKeys.images(_imageId), _family);
     }
 
-    function test_ApproveImage_Mismatch(bytes32 _imageId, bytes32 _family, bytes32 _otherFamily) public {
-        vm.assume(_otherFamily != _family);
+    function test_ApproveImage_Mismatch(bytes32 _imageId, bytes32 _family, bytes32 _otherFamily)
+        public
+        assumeNonZero(_imageId)
+        assumeNonZero(_family)
+        assumeNonZero(_otherFamily)
+        assumeNotEqual(_family, _otherFamily)
+    {
         verifiedKeys.approveImage(_imageId, _otherFamily);
         vm.expectRevert(VerifiedKeys.VerifiedKeysFamilyMismatch.selector);
 
         verifiedKeys.approveImage(_imageId, _family);
     }
 
-    function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family) public {
+    function test_ApproveImage_Unauthorized(bytes32 _imageId, bytes32 _family) public assumeNonZero(_imageId) assumeNonZero(_family) {
         verifiedKeys.setAuthorized(false);
         vm.expectRevert(TestVerifiedKeys.NotAuthorized.selector);
 
@@ -105,8 +114,8 @@ contract VerifiedKeysTestRevokeImage is Test {
     TestVerifiedKeys verifiedKeys;
 
     function setUp() public {
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
         verifiedKeys = new TestVerifiedKeys(imageId, family, true);
     }
 
@@ -120,8 +129,7 @@ contract VerifiedKeysTestRevokeImage is Test {
         assertEq(verifiedKeys.images(imageId), bytes32(0));
     }
 
-    function test_RevokeImage_NonExistent(bytes32 _imageId) public {
-        vm.assume(_imageId != imageId);
+    function test_RevokeImage_NonExistent(bytes32 _imageId) public assumeNonZero(_imageId) assumeNotEqual(_imageId, imageId) {
         bool result = verifiedKeys.revokeImage(_imageId);
 
         assertFalse(result);
@@ -142,8 +150,8 @@ contract VerifiedKeysTestSetKeyVerified is Test {
     TestVerifiedKeys verifiedKeys;
 
     function setUp() public {
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
         verifiedKeys = new TestVerifiedKeys(imageId, family, true);
     }
 
@@ -169,8 +177,11 @@ contract VerifiedKeysTestSetKeyVerified is Test {
         assertEq(verifiedKeys.keys(_transformedKey), imageId);
     }
 
-    function test_SetKeyVerified_Mismatch(bytes memory _pubkey, bytes32 _otherImageId) public {
-        vm.assume(_otherImageId != imageId);
+    function test_SetKeyVerified_Mismatch(bytes memory _pubkey, bytes32 _otherImageId)
+        public
+        assumeNonZero(_otherImageId)
+        assumeNotEqual(_otherImageId, imageId)
+    {
         verifiedKeys.setKeyVerified(_pubkey, _otherImageId);
         vm.expectRevert(VerifiedKeys.VerifiedKeysImageMismatch.selector);
 
@@ -184,7 +195,7 @@ contract VerifiedKeysTestEnsureKeyVerifiedDefaultFamily is Test {
     TestVerifiedKeys verifiedKeys;
 
     function setUp() public {
-        imageId = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
         family = keccak256("DEFAULT_FAMILY");
         verifiedKeys = new TestVerifiedKeys(imageId, family, true);
     }
@@ -219,8 +230,8 @@ contract VerifiedKeysTestEnsureKeyVerifiedCustomFamily is Test {
     TestVerifiedKeys verifiedKeys;
 
     function setUp() public {
-        imageId = bytes32(vm.randomUint());
-        family = bytes32(vm.randomUint());
+        imageId = randomBytes32NonZero();
+        family = randomBytes32NonZero();
         verifiedKeys = new TestVerifiedKeys(imageId, family, true);
     }
 
