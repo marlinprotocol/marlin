@@ -48,7 +48,7 @@ contract MarketV1Test is Test {
     uint256 constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
     uint256 constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
 
-    bytes32 INITIAL_JOB_INDEX;
+    uint64 INITIAL_JOB_INDEX;
     uint256 JOB_OPENED_TIMESTAMP;
     uint256 INITIAL_TIMESTAMP;
 
@@ -198,7 +198,7 @@ contract MarketV1Test is Test {
 
     function test_JobOpen_increments_job_index_correctly() public {
         uint256 initialBalance = usdc(10);
-        bytes32 initialJobIndex = marketv1.jobIndex();
+        uint64 initialJobIndex = marketv1.jobIndex();
 
         vm.startPrank(user);
         token.approve(address(marketv1), initialBalance * 3);
@@ -208,12 +208,12 @@ contract MarketV1Test is Test {
         assertEq(metadata, "some metadata");
 
         marketv1.jobOpen("some metadata2", provider, JOB_RATE_1, initialBalance);
-        bytes32 secondJobId = bytes32(uint256(initialJobIndex) + 1);
+        uint64 secondJobId = initialJobIndex + 1;
         (metadata,,,,,,) = marketv1.jobs(secondJobId);
         assertEq(metadata, "some metadata2");
 
         marketv1.jobOpen("some metadata3", provider, JOB_RATE_1, initialBalance);
-        bytes32 thirdJobId = bytes32(uint256(initialJobIndex) + 2);
+        uint64 thirdJobId = initialJobIndex + 2;
         (metadata,,,,,,) = marketv1.jobs(thirdJobId);
         assertEq(metadata, "some metadata3");
         vm.stopPrank();
@@ -419,7 +419,7 @@ contract MarketV1Test is Test {
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, deposit);
         vm.stopPrank();
 
-        bytes32[] memory jobs = new bytes32[](1);
+        uint64[] memory jobs = new uint64[](1);
         jobs[0] = INITIAL_JOB_INDEX;
 
         vm.prank(admin);
