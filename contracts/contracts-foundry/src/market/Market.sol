@@ -100,9 +100,9 @@ contract Market is
 
     uint256[49] private __gap_providers; // forge-lint: disable-line(mixed-case-variable)
 
-    event ProviderAdded(address indexed provider, string cp);
-    event ProviderRemoved(address indexed provider);
-    event ProviderUpdatedWithCp(address indexed provider, string oldCp, string newCp);
+    event MarketProviderAdded(address indexed provider, string cp);
+    event MarketProviderRemoved(address indexed provider);
+    event MarketProviderUpdatedWithCp(address indexed provider, string oldCp, string newCp);
 
     function _providerAdd(address _provider, string memory _cp) internal {
         require(bytes(providers[_provider]).length == 0, MarketProviderAlreadyExists());
@@ -110,7 +110,7 @@ contract Market is
 
         providers[_provider] = _cp;
 
-        emit ProviderAdded(_provider, _cp);
+        emit MarketProviderAdded(_provider, _cp);
     }
 
     function _providerRemove(address _provider) internal {
@@ -118,14 +118,14 @@ contract Market is
 
         delete providers[_provider];
 
-        emit ProviderRemoved(_provider);
+        emit MarketProviderRemoved(_provider);
     }
 
     function _providerUpdateWithCp(address _provider, string memory _cp) internal {
         require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
         require(bytes(_cp).length != 0, MarketProviderInvalid());
 
-        emit ProviderUpdatedWithCp(_provider, providers[_provider], _cp);
+        emit MarketProviderUpdatedWithCp(_provider, providers[_provider], _cp);
 
         providers[_provider] = _cp;
     }
@@ -177,20 +177,20 @@ contract Market is
 
     uint256[46] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
-    event TokenUpdated(address indexed oldToken, address indexed newToken);
-    event CreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
-    event NoticePeriodUpdated(uint256 noticePeriod);
+    event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
+    event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
+    event MarketNoticePeriodUpdated(uint256 noticePeriod);
 
-    event JobOpened(
+    event MarketJobOpened(
         uint64 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
     );
-    event JobSettled(uint64 indexed jobId, uint256 lastSettled);
-    event JobClosed(uint64 indexed jobId, uint256 timestamp);
-    event JobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
-    event JobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
-    event JobSettlementWithdrawn(uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount);
-    event JobRateRevised(uint64 indexed jobId, uint256 newRate);
-    event JobMetadataUpdated(uint64 indexed jobId, string metadata);
+    event MarketJobSettled(uint64 indexed jobId, uint256 lastSettled);
+    event MarketJobClosed(uint64 indexed jobId, uint256 timestamp);
+    event MarketJobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
+    event MarketJobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
+    event MarketJobSettlementWithdrawn(uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount);
+    event MarketJobRateRevised(uint64 indexed jobId, uint256 newRate);
+    event MarketJobMetadataUpdated(uint64 indexed jobId, string metadata);
 
     modifier onlyExistingJob(uint64 _jobId) {
         _onlyExistingJob(_jobId);
@@ -213,18 +213,18 @@ contract Market is
     function _updateToken(address _token) internal {
         address oldToken = address(realToken);
         realToken = IERC20(_token);
-        emit TokenUpdated(oldToken, _token);
+        emit MarketTokenUpdated(oldToken, _token);
     }
 
     function _updateNoticePeriod(uint256 _noticePeriod) internal {
         noticePeriod = _noticePeriod;
-        emit NoticePeriodUpdated(_noticePeriod);
+        emit MarketNoticePeriodUpdated(_noticePeriod);
     }
 
     function _updateCreditToken(address _creditToken) internal {
         address oldCreditToken = address(creditToken);
         creditToken = ICredit(_creditToken);
-        emit CreditTokenUpdated(oldCreditToken, _creditToken);
+        emit MarketCreditTokenUpdated(oldCreditToken, _creditToken);
     }
 
     function updateToken(address _token) external onlyAdmin {
@@ -251,7 +251,7 @@ contract Market is
                 // set job credit balance to 0
                 jobCreditBalance[jobId] = 0;
                 creditToken.safeTransfer(_to, creditBalance);
-                emit JobWithdrawn(jobId, address(creditToken), _to, creditBalance);
+                emit MarketJobWithdrawn(jobId, address(creditToken), _to, creditBalance);
             }
         }
     }
@@ -276,7 +276,7 @@ contract Market is
             lastSettled: block.timestamp,
             maxRate: 0
         });
-        emit JobOpened(jobId, _metadata, _owner, _provider, block.timestamp);
+        emit MarketJobOpened(jobId, _metadata, _owner, _provider, block.timestamp);
 
         // deposit initial balance
         _deposit(jobId, _msgSender(), _balance);
@@ -299,7 +299,7 @@ contract Market is
         uint256 settleAmount = _min(amountUsed, jobs[_jobId].balance);
         _settle(_jobId, settleAmount);
         jobs[_jobId].lastSettled = block.timestamp;
-        emit JobSettled(_jobId, block.timestamp);
+        emit MarketJobSettled(_jobId, block.timestamp);
 
         isBalanceEnough = amountUsed <= settleAmount;
     }
@@ -315,7 +315,7 @@ contract Market is
         }
 
         delete jobs[_jobId];
-        emit JobClosed(_jobId, block.timestamp);
+        emit MarketJobClosed(_jobId, block.timestamp);
     }
 
     function _jobDeposit(uint64 _jobId, uint256 _amount) internal {
@@ -345,7 +345,7 @@ contract Market is
         // update rate and lastSettled
         uint256 oldRate = jobs[_jobId].rate;
         jobs[_jobId].rate = _newRate;
-        emit JobRateRevised(_jobId, _newRate);
+        emit MarketJobRateRevised(_jobId, _newRate);
 
         // deduct shutdown delay cost
         // higher rate is used to calculate shutdown delay cost
@@ -366,7 +366,7 @@ contract Market is
             MarketMetadataNotChanged()
         );
         jobs[_jobId].metadata = _metadata;
-        emit JobMetadataUpdated(_jobId, _metadata);
+        emit MarketJobMetadataUpdated(_jobId, _metadata);
     }
 
     /// @notice  Opens a new job.
@@ -479,13 +479,13 @@ contract Market is
                 (creditAmount, tokenAmount) = _calculateTokenSplit(_amount, creditBalance);
                 creditToken.safeTransferFrom(_from, address(this), creditAmount);
                 jobCreditBalance[_jobId] += creditAmount;
-                emit JobDeposited(_jobId, address(creditToken), _from, creditAmount);
+                emit MarketJobDeposited(_jobId, address(creditToken), _from, creditAmount);
             }
         }
 
         if (tokenAmount > 0) {
             realToken.safeTransferFrom(_from, address(this), tokenAmount);
-            emit JobDeposited(_jobId, address(realToken), _from, tokenAmount);
+            emit MarketJobDeposited(_jobId, address(realToken), _from, tokenAmount);
         }
 
         jobs[_jobId].balance += _amount;
@@ -506,13 +506,13 @@ contract Market is
                 (creditAmount, tokenAmount) = _calculateTokenSplit(_amount, creditBalance);
                 jobCreditBalance[_jobId] -= creditAmount;
                 ICredit(address(creditToken)).redeemAndBurn(provider, creditAmount);
-                emit JobSettlementWithdrawn(_jobId, address(creditToken), provider, creditAmount);
+                emit MarketJobSettlementWithdrawn(_jobId, address(creditToken), provider, creditAmount);
             }
         }
 
         if (tokenAmount > 0) {
             realToken.safeTransfer(provider, tokenAmount);
-            emit JobSettlementWithdrawn(_jobId, address(realToken), provider, tokenAmount);
+            emit MarketJobSettlementWithdrawn(_jobId, address(realToken), provider, tokenAmount);
         }
     }
 
@@ -563,14 +563,14 @@ contract Market is
 
         if (tokenAmountToTransfer > 0) {
             realToken.safeTransfer(_to, tokenAmountToTransfer);
-            emit JobWithdrawn(_jobId, address(realToken), _to, tokenAmountToTransfer);
+            emit MarketJobWithdrawn(_jobId, address(realToken), _to, tokenAmountToTransfer);
         }
 
         if (withdrawAmount > 0) {
             require(address(creditToken) != address(0), MarketCreditTokenNotSet());
             jobCreditBalance[_jobId] -= withdrawAmount;
             creditToken.safeTransfer(_to, withdrawAmount);
-            emit JobWithdrawn(_jobId, address(creditToken), _to, withdrawAmount);
+            emit MarketJobWithdrawn(_jobId, address(creditToken), _to, withdrawAmount);
         }
     }
 
