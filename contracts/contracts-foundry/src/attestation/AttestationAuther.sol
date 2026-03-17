@@ -35,8 +35,8 @@ contract AttestationAuther is AccessControl, RiscZeroVerifierDefault, VerifiedKe
     /// @param _guestId Identifier for the zkVM guest program
     /// @param _rootKey Initial root key for verification
     /// @param _maxAgeMs Maximum age (in milliseconds) for valid attestations
-    /// @param _imageId Expected image ID for enclave verification
-    /// @param _family Image family
+    /// @param _imageId Expected image ID for enclave verification, must be nonzero
+    /// @param _family Image family, must be nonzero
     /// @dev Sets up role-based access control and initializes parent contracts
     constructor(
         address _admin,

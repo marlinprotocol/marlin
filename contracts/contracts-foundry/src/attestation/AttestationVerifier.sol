@@ -19,7 +19,7 @@ contract AttestationVerifier is AttestationAuther, IAttestationVerifier {
     /// @param _guestId Identifier for the zkVM guest program
     /// @param _rootKey Initial attestation root key for verification
     /// @param _maxAgeMs Maximum age (in milliseconds) for valid attestations
-    /// @param _imageId Image ID for attestation verifier enclaves
+    /// @param _imageId Image ID for attestation verifier enclaves, must be nonzero
     constructor(
         address _admin,
         address _approver,

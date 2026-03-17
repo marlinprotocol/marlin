@@ -28,7 +28,7 @@ contract KmsRoot is AccessControl, RiscZeroVerifierDefault, VerifiedKeysDefault 
     /// @param _guestId Guest ID of the RISC Zero program
     /// @param _rootKey Initial root key
     /// @param _maxAgeMs Maximum age allowed for attestation timestamps
-    /// @param _imageId Image ID for verification
+    /// @param _imageId Image ID for verification, must be nonzero
     constructor(
         address _admin,
         address _approver,
