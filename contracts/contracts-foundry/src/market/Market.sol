@@ -24,6 +24,7 @@ contract Market is
     UUPSUpgradeable // public upgrade
 {
     using SafeERC20 for IERC20;
+    using SafeERC20 for ICredit;
 
     // in case we add more contracts in the inheritance chain
     uint256[500] private __gap_0; // forge-lint: disable-line(mixed-case-variable)
@@ -62,14 +63,14 @@ contract Market is
 
     /*---- Initializer start ----*/
 
-    uint256[50] private __gap_1; // forge-lint: disable-line(mixed-case-variable)
+    uint256[50] private __gap_initializer; // forge-lint: disable-line(mixed-case-variable)
 
     function initialize(
         address _admin,
-        address _token,
+        uint64 _initialJobIndex,
         uint256 _noticePeriod,
-        address _creditToken,
-        uint64 _initialJobIndex
+        address _token,
+        address _creditToken
     ) public initializer {
         __Context_init_unchained();
         __ERC165_init_unchained();
@@ -77,11 +78,11 @@ contract Market is
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
-        _updateToken(_token);
-        _updateNoticePeriod(_noticePeriod);
-        _updateCreditToken(_creditToken);
-
         jobIndex = _initialJobIndex;
+        _updateNoticePeriod(_noticePeriod);
+
+        _updateToken(_token);
+        _updateCreditToken(_creditToken);
     }
 
     /*---- Initializer end ----*/
@@ -91,11 +92,11 @@ contract Market is
     // provider address -> control plane endpoint url
     mapping(address => string) public providers;
 
-    uint256[49] private __gap_2; // forge-lint: disable-line(mixed-case-variable)
+    uint256[49] private __gap_providers; // forge-lint: disable-line(mixed-case-variable)
 
     event ProviderAdded(address indexed provider, string cp);
     event ProviderRemoved(address indexed provider);
-    event ProviderUpdatedWithCp(address indexed provider, string newCp);
+    event ProviderUpdatedWithCp(address indexed provider, string oldCp, string newCp);
 
     function _providerAdd(address _provider, string memory _cp) internal {
         require(bytes(providers[_provider]).length == 0, "already exists");
@@ -118,9 +119,9 @@ contract Market is
         require(bytes(providers[_provider]).length != 0, "not found");
         require(bytes(_cp).length != 0, "invalid");
 
-        providers[_provider] = _cp;
+        emit ProviderUpdatedWithCp(_provider, providers[_provider], _cp);
 
-        emit ProviderUpdatedWithCp(_provider, _cp);
+        providers[_provider] = _cp;
     }
 
     function providerAdd(string memory _cp) external {
@@ -139,7 +140,8 @@ contract Market is
 
     /*---- Jobs start ----*/
 
-    bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE"); // 0x66f144ecd65ad16d38ecdba8687842af4bc05fde66fe3d999569a3006349785f
+    bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE");
+    uint256 public constant EXTRA_DECIMALS = 12;
 
     struct Job {
         string metadata;
@@ -150,16 +152,11 @@ contract Market is
         uint256 lastSettled; // payment has been settled up to this timestamp
         uint256 maxRate; // max rate for the job
     }
-
     mapping(uint64 => Job) public jobs;
     uint64 public jobIndex;
+    uint256 noticePeriod;
 
-    IERC20 public token;
-    uint256 public constant EXTRA_DECIMALS = 12;
-
-    uint256 public noticePeriod;
-
-    uint256[46] private __gap_3; // forge-lint: disable-line(mixed-case-variable)
+    uint256[46] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
     event TokenUpdated(address indexed oldToken, address indexed newToken);
     event CreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
@@ -195,8 +192,8 @@ contract Market is
     }
 
     function _updateToken(address _token) internal {
-        address oldToken = address(token);
-        token = IERC20(_token);
+        address oldToken = address(realToken);
+        realToken = IERC20(_token);
         emit TokenUpdated(oldToken, _token);
     }
 
@@ -207,7 +204,7 @@ contract Market is
 
     function _updateCreditToken(address _creditToken) internal {
         address oldCreditToken = address(creditToken);
-        creditToken = IERC20(_creditToken);
+        creditToken = ICredit(_creditToken);
         emit CreditTokenUpdated(oldCreditToken, _creditToken);
     }
 
@@ -437,10 +434,11 @@ contract Market is
 
     /*---- Payments start ----*/
 
+    IERC20 public realToken;
+    ICredit public creditToken;
     mapping(uint64 => uint256) public jobCreditBalance;
-    IERC20 public creditToken;
 
-    uint256[50] private __gap_4; // forge-lint: disable-line(mixed-case-variable)
+    uint256[50] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
 
     /// @notice  Deposits the specified amount into the job balance.
     /// @param   _jobId  The job to deposit to.
@@ -463,8 +461,8 @@ contract Market is
         }
 
         if (tokenAmount > 0) {
-            token.safeTransferFrom(_from, address(this), tokenAmount);
-            emit JobDeposited(_jobId, address(token), _from, tokenAmount);
+            realToken.safeTransferFrom(_from, address(this), tokenAmount);
+            emit JobDeposited(_jobId, address(realToken), _from, tokenAmount);
         }
 
         jobs[_jobId].balance += _amount;
@@ -490,8 +488,8 @@ contract Market is
         }
 
         if (tokenAmount > 0) {
-            token.safeTransfer(provider, tokenAmount);
-            emit JobSettlementWithdrawn(_jobId, address(token), provider, tokenAmount);
+            realToken.safeTransfer(provider, tokenAmount);
+            emit JobSettlementWithdrawn(_jobId, address(realToken), provider, tokenAmount);
         }
     }
 
@@ -541,8 +539,8 @@ contract Market is
         }
 
         if (tokenAmountToTransfer > 0) {
-            token.safeTransfer(_to, tokenAmountToTransfer);
-            emit JobWithdrawn(_jobId, address(token), _to, tokenAmountToTransfer);
+            realToken.safeTransfer(_to, tokenAmountToTransfer);
+            emit JobWithdrawn(_jobId, address(realToken), _to, tokenAmountToTransfer);
         }
 
         if (withdrawAmount > 0) {
