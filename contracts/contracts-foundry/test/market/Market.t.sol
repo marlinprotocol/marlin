@@ -102,7 +102,7 @@ contract MarketTest is Test {
 
     function test_ProviderRegistersRevertsEmptyCp() public {
         vm.prank(user);
-        vm.expectRevert("invalid");
+        vm.expectRevert(Market.MarketProviderInvalid.selector);
         market.providerAdd("");
     }
 
@@ -111,7 +111,7 @@ contract MarketTest is Test {
         market.providerAdd("https://example.com/");
 
         vm.prank(user);
-        vm.expectRevert("already exists");
+        vm.expectRevert(Market.MarketProviderAlreadyExists.selector);
         market.providerAdd("https://example.com/");
     }
 
@@ -127,7 +127,7 @@ contract MarketTest is Test {
 
     function test_ProviderUnregistersRevertsNeverRegistered() public {
         vm.prank(user);
-        vm.expectRevert("not found");
+        vm.expectRevert(Market.MarketProviderNotFound.selector);
         market.providerRemove();
     }
 
@@ -138,7 +138,7 @@ contract MarketTest is Test {
         market.providerRemove();
 
         vm.prank(user);
-        vm.expectRevert("not found");
+        vm.expectRevert(Market.MarketProviderNotFound.selector);
         market.providerRemove();
     }
 
@@ -156,13 +156,13 @@ contract MarketTest is Test {
         vm.prank(user);
         market.providerAdd("https://example.com/");
         vm.prank(user);
-        vm.expectRevert("invalid");
+        vm.expectRevert(Market.MarketProviderInvalid.selector);
         market.providerUpdateWithCp("");
     }
 
     function test_ProviderUpdateWithCpRevertsNeverRegistered() public {
         vm.prank(user);
-        vm.expectRevert("not found");
+        vm.expectRevert(Market.MarketProviderNotFound.selector);
         market.providerUpdateWithCp("https://example.com/new");
     }
 
