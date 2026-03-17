@@ -60,12 +60,13 @@ contract MarketV1Test is Test {
         creditToken = new CreditMock(token);
         token.mint(address(creditToken), 1000000 * 10 ** 6);
 
-        address proxy =
-            Upgrades.deployUUPSProxy("MarketV1.sol", abi.encodeCall(MarketV1.initialize, (admin, address(token))));
+        address proxy = Upgrades.deployUUPSProxy(
+            "MarketV1.sol",
+            abi.encodeCall(MarketV1.initialize, (admin, address(token), FIVE_MINUTES, address(creditToken)))
+        );
         marketv1 = MarketV1(proxy);
 
         vm.startPrank(admin);
-        marketv1.reinitialize(FIVE_MINUTES, address(creditToken));
         marketv1.updateNoticePeriod(FIVE_MINUTES);
         vm.stopPrank();
 
