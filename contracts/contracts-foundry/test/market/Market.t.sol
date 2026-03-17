@@ -28,7 +28,7 @@ contract CreditMock is ERC20Mock, ICredit {
     }
 }
 
-contract MarketTest is Test {
+abstract contract MarketTestBase is Test {
     Market market;
     ERC20Mock token;
     CreditMock creditToken;
@@ -48,11 +48,11 @@ contract MarketTest is Test {
     uint256 constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
     uint256 constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
 
-    uint64 INITIAL_JOB_INDEX;
-    uint256 JOB_OPENED_TIMESTAMP;
-    uint256 INITIAL_TIMESTAMP;
+    uint64 initialJobIndex;
+    uint256 jobOpenedTimestamp;
+    uint256 initialTimestamp;
 
-    function setUp() public {
+    function setUp() public virtual {
         token = new ERC20Mock("Pond", "POND");
         token.mint(user, SIGNER1_INITIAL_FUND);
         token.mint(user2, SIGNER2_INITIAL_FUND);
@@ -71,13 +71,13 @@ contract MarketTest is Test {
         vm.stopPrank();
 
         vm.warp(1000000);
-        INITIAL_TIMESTAMP = block.timestamp;
+        initialTimestamp = block.timestamp;
 
         creditToken.mint(admin, 1000 * 10 ** 6);
         vm.prank(admin);
         creditToken.transfer(user, 1000 * 10 ** 6);
 
-        INITIAL_JOB_INDEX = market.jobIndex();
+        initialJobIndex = market.jobIndex();
     }
 
     function calcNoticePeriodCost(uint256 rate) internal pure returns (uint256) {
@@ -92,7 +92,9 @@ contract MarketTest is Test {
     function usdc(uint256 amount) internal pure returns (uint256) {
         return amount * 10 ** 6;
     }
+}
 
+contract MarketTestProviderAdd is MarketTestBase {
     function test_ProviderRegisters() public {
         vm.prank(user);
         market.providerAdd("https://example.com/");
@@ -114,7 +116,9 @@ contract MarketTest is Test {
         vm.expectRevert(Market.MarketProviderAlreadyExists.selector);
         market.providerAdd("https://example.com/");
     }
+}
 
+contract MarketTestProviderRemove is MarketTestBase {
     function test_ProviderUnregisters() public {
         vm.prank(user);
         market.providerAdd("https://example.com/");
@@ -141,7 +145,9 @@ contract MarketTest is Test {
         vm.expectRevert(Market.MarketProviderNotFound.selector);
         market.providerRemove();
     }
+}
 
+contract MarketTestProviderUpdateWithCp is MarketTestBase {
     function test_ProviderUpdateWithCp() public {
         vm.prank(user);
         market.providerAdd("https://example.com/");
@@ -165,7 +171,9 @@ contract MarketTest is Test {
         vm.expectRevert(Market.MarketProviderNotFound.selector);
         market.providerUpdateWithCp("https://example.com/new");
     }
+}
 
+contract MarketTestJobOpen is MarketTestBase {
     function test_JobOpen_with_USDC_only() public {
         uint256 initialBalance = usdc(50);
         uint256 noticePeriodCost = calcNoticePeriodCost(JOB_RATE_1);
@@ -183,7 +191,7 @@ contract MarketTest is Test {
             uint256 balance,
             uint256 lastSettled,
             uint256 maxRate
-        ) = market.jobs(INITIAL_JOB_INDEX);
+        ) = market.jobs(initialJobIndex);
         assertEq(metadata, "some metadata");
         assertEq(owner_, user);
         assertEq(provider_, provider);
@@ -198,22 +206,22 @@ contract MarketTest is Test {
 
     function test_JobOpen_increments_job_index_correctly() public {
         uint256 initialBalance = usdc(10);
-        uint64 initialJobIndex = market.jobIndex();
+        uint64 startingJobIndex = market.jobIndex();
 
         vm.startPrank(user);
         token.approve(address(market), initialBalance * 3);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialBalance);
 
-        (string memory metadata,,,,,,) = market.jobs(initialJobIndex);
+        (string memory metadata,,,,,,) = market.jobs(startingJobIndex);
         assertEq(metadata, "some metadata");
 
         market.jobOpen("some metadata2", provider, JOB_RATE_1, initialBalance);
-        uint64 secondJobId = initialJobIndex + 1;
+        uint64 secondJobId = startingJobIndex + 1;
         (metadata,,,,,,) = market.jobs(secondJobId);
         assertEq(metadata, "some metadata2");
 
         market.jobOpen("some metadata3", provider, JOB_RATE_1, initialBalance);
-        uint64 thirdJobId = initialJobIndex + 2;
+        uint64 thirdJobId = startingJobIndex + 2;
         (metadata,,,,,,) = market.jobs(thirdJobId);
         assertEq(metadata, "some metadata3");
         vm.stopPrank();
@@ -235,7 +243,7 @@ contract MarketTest is Test {
             uint256 rate,
             uint256 balance,
             uint256 lastSettled,
-        ) = market.jobs(INITIAL_JOB_INDEX);
+        ) = market.jobs(initialJobIndex);
         assertEq(metadata, "some metadata");
         assertEq(owner_, user);
         assertEq(provider_, provider);
@@ -243,7 +251,7 @@ contract MarketTest is Test {
         assertEq(balance, initialBalance - noticePeriodCost);
         assertEq(lastSettled, block.timestamp);
 
-        assertEq(market.jobCreditBalance(INITIAL_JOB_INDEX), initialBalance - noticePeriodCost);
+        assertEq(market.jobCreditBalance(initialJobIndex), initialBalance - noticePeriodCost);
     }
 
     function test_JobOpen_with_USDC_and_Credit() public {
@@ -258,13 +266,13 @@ contract MarketTest is Test {
         vm.stopPrank();
 
         (string memory metadata, address owner_, address provider_, uint256 rate, uint256 balance,,) =
-            market.jobs(INITIAL_JOB_INDEX);
+            market.jobs(initialJobIndex);
         assertEq(metadata, "some metadata");
         assertEq(owner_, user);
         assertEq(provider_, provider);
         assertEq(rate, JOB_RATE_1);
         assertEq(balance, totalBalance - noticePeriodCost);
-        assertEq(market.jobCreditBalance(INITIAL_JOB_INDEX), creditBalance - noticePeriodCost);
+        assertEq(market.jobCreditBalance(initialJobIndex), creditBalance - noticePeriodCost);
     }
 
     function test_JobOpen_reverts_without_enough_approved() public {
@@ -288,7 +296,9 @@ contract MarketTest is Test {
         market.jobOpen("some metadata", provider, JOB_RATE_1, usdc(5000));
         vm.stopPrank();
     }
+}
 
+contract MarketTestJobSettle is MarketTestBase {
     function test_JobSettle_immediately() public {
         uint256 initialDeposit = usdc(50);
         uint256 initialBalance = initialDeposit - calcNoticePeriodCost(JOB_RATE_1);
@@ -297,10 +307,10 @@ contract MarketTest is Test {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
-        market.jobSettle(INITIAL_JOB_INDEX);
+        market.jobSettle(initialJobIndex);
         vm.stopPrank();
 
-        (,,,, uint256 balance, uint256 lastSettled,) = market.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance, uint256 lastSettled,) = market.jobs(initialJobIndex);
         assertEq(balance, initialBalance);
         assertEq(lastSettled, block.timestamp);
     }
@@ -318,13 +328,15 @@ contract MarketTest is Test {
         vm.warp(block.timestamp + TWO_MINUTES);
 
         vm.prank(user);
-        market.jobSettle(INITIAL_JOB_INDEX);
+        market.jobSettle(initialJobIndex);
 
-        (,,,, uint256 balance, uint256 lastSettled,) = market.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance, uint256 lastSettled,) = market.jobs(initialJobIndex);
         assertEq(lastSettled, openTimestamp + TWO_MINUTES);
         assertEq(balance, initialBalance - calcAmountToPay(JOB_RATE_1, TWO_MINUTES));
     }
+}
 
+contract MarketTestJobDeposit is MarketTestBase {
     function test_JobDeposit_USDC() public {
         uint256 initialDeposit = usdc(50);
         uint256 additionalDeposit = usdc(25);
@@ -334,14 +346,16 @@ contract MarketTest is Test {
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
         uint256 balanceBefore = token.balanceOf(address(market));
-        market.jobDeposit(INITIAL_JOB_INDEX, additionalDeposit);
+        market.jobDeposit(initialJobIndex, additionalDeposit);
         vm.stopPrank();
 
-        (,,,, uint256 balance,,) = market.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance,,) = market.jobs(initialJobIndex);
         assertEq(balance, initialDeposit - calcNoticePeriodCost(JOB_RATE_1) + additionalDeposit);
         assertEq(token.balanceOf(address(market)), balanceBefore + additionalDeposit);
     }
+}
 
+contract MarketTestJobWithdraw is MarketTestBase {
     function test_JobWithdraw_USDC() public {
         uint256 initialDeposit = usdc(50);
         uint256 withdrawAmount = usdc(10);
@@ -350,13 +364,15 @@ contract MarketTest is Test {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
-        market.jobWithdraw(INITIAL_JOB_INDEX, withdrawAmount);
+        market.jobWithdraw(initialJobIndex, withdrawAmount);
         vm.stopPrank();
 
-        (,,,, uint256 balance,,) = market.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance,,) = market.jobs(initialJobIndex);
         assertEq(balance, initialDeposit - calcNoticePeriodCost(JOB_RATE_1) - withdrawAmount);
     }
+}
 
+contract MarketTestJobReviseRate is MarketTestBase {
     function test_JobReviseRate_higher() public {
         uint256 initialDeposit = usdc(50);
         uint256 initialBalance = initialDeposit - calcNoticePeriodCost(JOB_RATE_1);
@@ -366,15 +382,17 @@ contract MarketTest is Test {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
-        market.jobReviseRate(INITIAL_JOB_INDEX, higherRate);
+        market.jobReviseRate(initialJobIndex, higherRate);
         vm.stopPrank();
 
-        (,,, uint256 rate, uint256 balance,, uint256 maxRate) = market.jobs(INITIAL_JOB_INDEX);
+        (,,, uint256 rate, uint256 balance,, uint256 maxRate) = market.jobs(initialJobIndex);
         assertEq(rate, higherRate);
         assertEq(maxRate, higherRate);
         assertEq(balance, initialBalance - calcNoticePeriodCost(higherRate - JOB_RATE_1));
     }
+}
 
+contract MarketTestJobClose is MarketTestBase {
     function test_JobClose() public {
         uint256 initialDeposit = usdc(50);
 
@@ -382,10 +400,10 @@ contract MarketTest is Test {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
-        market.jobClose(INITIAL_JOB_INDEX);
+        market.jobClose(initialJobIndex);
         vm.stopPrank();
 
-        (string memory metadata, address owner_,, uint256 rate, uint256 balance,,) = market.jobs(INITIAL_JOB_INDEX);
+        (string memory metadata, address owner_,, uint256 rate, uint256 balance,,) = market.jobs(initialJobIndex);
         assertEq(metadata, "");
         assertEq(owner_, address(0));
         assertEq(rate, 0);
@@ -393,7 +411,9 @@ contract MarketTest is Test {
 
         assertEq(token.balanceOf(user), SIGNER1_INITIAL_FUND - calcNoticePeriodCost(JOB_RATE_1));
     }
+}
 
+contract MarketTestJobMetadataUpdate is MarketTestBase {
     function test_JobMetadataUpdate() public {
         uint256 initialDeposit = usdc(50);
 
@@ -401,13 +421,15 @@ contract MarketTest is Test {
         token.approve(address(market), initialDeposit);
         market.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
 
-        market.jobMetadataUpdate(INITIAL_JOB_INDEX, "new metadata");
+        market.jobMetadataUpdate(initialJobIndex, "new metadata");
         vm.stopPrank();
 
-        (string memory metadata,,,,,,) = market.jobs(INITIAL_JOB_INDEX);
+        (string memory metadata,,,,,,) = market.jobs(initialJobIndex);
         assertEq(metadata, "new metadata");
     }
+}
 
+contract MarketTestEmergencyWithdraw is MarketTestBase {
     function test_EmergencyWithdraw() public {
         bytes32 role = market.EMERGENCY_WITHDRAW_ROLE();
         vm.prank(admin);
@@ -420,12 +442,12 @@ contract MarketTest is Test {
         vm.stopPrank();
 
         uint64[] memory jobs = new uint64[](1);
-        jobs[0] = INITIAL_JOB_INDEX;
+        jobs[0] = initialJobIndex;
 
         vm.prank(admin);
         market.emergencyWithdrawCredit(admin2, jobs);
 
-        assertEq(market.jobCreditBalance(INITIAL_JOB_INDEX), 0);
+        assertEq(market.jobCreditBalance(initialJobIndex), 0);
         assertGt(creditToken.balanceOf(admin2), 0);
     }
 }
