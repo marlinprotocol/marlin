@@ -9,6 +9,7 @@ import {ICredit} from "../../src/token/ICredit.sol";
 
 contract ERC20Mock is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+
     function mint(address account, uint256 amount) public {
         _mint(account, amount);
     }
@@ -16,9 +17,11 @@ contract ERC20Mock is ERC20 {
 
 contract CreditMock is ERC20Mock, ICredit {
     ERC20Mock public usdc;
+
     constructor(ERC20Mock _usdc) ERC20Mock("Credit", "CREDIT") {
         usdc = _usdc;
     }
+
     function redeemAndBurn(address to, uint256 amount) external {
         _burn(msg.sender, amount);
         usdc.transfer(to, amount);
@@ -41,9 +44,9 @@ contract MarketV1Test is Test {
     uint256 constant FIVE_MINUTES = 60 * 5;
     uint256 constant NOTICE_PERIOD = FIVE_MINUTES;
 
-    uint256 constant SIGNER1_INITIAL_FUND = 1000 * 10**6;
-    uint256 constant SIGNER2_INITIAL_FUND = 1000 * 10**6;
-    uint256 constant JOB_RATE_1 = 1 * 10**16; // 0.01 USDC/s
+    uint256 constant SIGNER1_INITIAL_FUND = 1000 * 10 ** 6;
+    uint256 constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
+    uint256 constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
 
     bytes32 INITIAL_JOB_INDEX;
     uint256 JOB_OPENED_TIMESTAMP;
@@ -55,12 +58,10 @@ contract MarketV1Test is Test {
         token.mint(user2, SIGNER2_INITIAL_FUND);
 
         creditToken = new CreditMock(token);
-        token.mint(address(creditToken), 1000000 * 10**6);
+        token.mint(address(creditToken), 1000000 * 10 ** 6);
 
-        address proxy = Upgrades.deployUUPSProxy(
-            "MarketV1.sol",
-            abi.encodeCall(MarketV1.initialize, (admin, address(token)))
-        );
+        address proxy =
+            Upgrades.deployUUPSProxy("MarketV1.sol", abi.encodeCall(MarketV1.initialize, (admin, address(token))));
         marketv1 = MarketV1(proxy);
 
         vm.startPrank(admin);
@@ -71,9 +72,9 @@ contract MarketV1Test is Test {
         vm.warp(1000000);
         INITIAL_TIMESTAMP = block.timestamp;
 
-        creditToken.mint(admin, 1000 * 10**6);
+        creditToken.mint(admin, 1000 * 10 ** 6);
         vm.prank(admin);
-        creditToken.transfer(user, 1000 * 10**6);
+        creditToken.transfer(user, 1000 * 10 ** 6);
 
         INITIAL_JOB_INDEX = marketv1.jobIndex();
     }
@@ -81,14 +82,14 @@ contract MarketV1Test is Test {
     function calcNoticePeriodCost(uint256 rate) internal pure returns (uint256) {
         return calcAmountToPay(rate, NOTICE_PERIOD);
     }
-    
+
     function calcAmountToPay(uint256 rate, uint256 duration) internal pure returns (uint256) {
-        uint256 decimals = 10**12;
+        uint256 decimals = 10 ** 12;
         return (rate * duration + decimals - 1) / decimals;
     }
 
     function usdc(uint256 amount) internal pure returns (uint256) {
-        return amount * 10**6;
+        return amount * 10 ** 6;
     }
 
     function test_ProviderRegisters() public {
@@ -173,7 +174,15 @@ contract MarketV1Test is Test {
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, initialBalance);
         vm.stopPrank();
 
-        (string memory metadata, address owner_, address provider_, uint256 rate, uint256 balance, uint256 lastSettled, uint256 maxRate) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (
+            string memory metadata,
+            address owner_,
+            address provider_,
+            uint256 rate,
+            uint256 balance,
+            uint256 lastSettled,
+            uint256 maxRate
+        ) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(metadata, "some metadata");
         assertEq(owner_, user);
         assertEq(provider_, provider);
@@ -193,18 +202,18 @@ contract MarketV1Test is Test {
         vm.startPrank(user);
         token.approve(address(marketv1), initialBalance * 3);
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, initialBalance);
-        
-        (string memory metadata, , , , , , ) = marketv1.jobs(initialJobIndex);
+
+        (string memory metadata,,,,,,) = marketv1.jobs(initialJobIndex);
         assertEq(metadata, "some metadata");
 
         marketv1.jobOpen("some metadata2", provider, JOB_RATE_1, initialBalance);
         bytes32 secondJobId = bytes32(uint256(initialJobIndex) + 1);
-        (metadata, , , , , , ) = marketv1.jobs(secondJobId);
+        (metadata,,,,,,) = marketv1.jobs(secondJobId);
         assertEq(metadata, "some metadata2");
 
         marketv1.jobOpen("some metadata3", provider, JOB_RATE_1, initialBalance);
         bytes32 thirdJobId = bytes32(uint256(initialJobIndex) + 2);
-        (metadata, , , , , , ) = marketv1.jobs(thirdJobId);
+        (metadata,,,,,,) = marketv1.jobs(thirdJobId);
         assertEq(metadata, "some metadata3");
         vm.stopPrank();
     }
@@ -218,7 +227,14 @@ contract MarketV1Test is Test {
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, initialBalance);
         vm.stopPrank();
 
-        (string memory metadata, address owner_, address provider_, uint256 rate, uint256 balance, uint256 lastSettled, ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (
+            string memory metadata,
+            address owner_,
+            address provider_,
+            uint256 rate,
+            uint256 balance,
+            uint256 lastSettled,
+        ) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(metadata, "some metadata");
         assertEq(owner_, user);
         assertEq(provider_, provider);
@@ -240,7 +256,8 @@ contract MarketV1Test is Test {
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, totalBalance);
         vm.stopPrank();
 
-        (string memory metadata, address owner_, address provider_, uint256 rate, uint256 balance, , ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (string memory metadata, address owner_, address provider_, uint256 rate, uint256 balance,,) =
+            marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(metadata, "some metadata");
         assertEq(owner_, user);
         assertEq(provider_, provider);
@@ -251,14 +268,22 @@ contract MarketV1Test is Test {
 
     function test_JobOpen_reverts_without_enough_approved() public {
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSignature("ERC20InsufficientAllowance(address,uint256,uint256)", address(marketv1), 0, usdc(150)));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ERC20InsufficientAllowance(address,uint256,uint256)", address(marketv1), 0, usdc(150)
+            )
+        );
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, usdc(150));
     }
 
     function test_JobOpen_reverts_without_enough_balance() public {
         vm.startPrank(user);
         token.approve(address(marketv1), usdc(5000));
-        vm.expectRevert(abi.encodeWithSignature("ERC20InsufficientBalance(address,uint256,uint256)", user, token.balanceOf(user), usdc(5000)));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ERC20InsufficientBalance(address,uint256,uint256)", user, token.balanceOf(user), usdc(5000)
+            )
+        );
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, usdc(5000));
         vm.stopPrank();
     }
@@ -270,11 +295,11 @@ contract MarketV1Test is Test {
         vm.startPrank(user);
         token.approve(address(marketv1), initialDeposit);
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
-        
+
         marketv1.jobSettle(INITIAL_JOB_INDEX);
         vm.stopPrank();
 
-        ( , , , , uint256 balance, uint256 lastSettled, ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance, uint256 lastSettled,) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(balance, initialBalance);
         assertEq(lastSettled, block.timestamp);
     }
@@ -294,7 +319,7 @@ contract MarketV1Test is Test {
         vm.prank(user);
         marketv1.jobSettle(INITIAL_JOB_INDEX);
 
-        ( , , , , uint256 balance, uint256 lastSettled, ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance, uint256 lastSettled,) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(lastSettled, openTimestamp + TWO_MINUTES);
         assertEq(balance, initialBalance - calcAmountToPay(JOB_RATE_1, TWO_MINUTES));
     }
@@ -306,12 +331,12 @@ contract MarketV1Test is Test {
         vm.startPrank(user);
         token.approve(address(marketv1), initialDeposit + additionalDeposit);
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
-        
+
         uint256 balanceBefore = token.balanceOf(address(marketv1));
         marketv1.jobDeposit(INITIAL_JOB_INDEX, additionalDeposit);
         vm.stopPrank();
 
-        ( , , , , uint256 balance, , ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance,,) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(balance, initialDeposit - calcNoticePeriodCost(JOB_RATE_1) + additionalDeposit);
         assertEq(token.balanceOf(address(marketv1)), balanceBefore + additionalDeposit);
     }
@@ -323,18 +348,18 @@ contract MarketV1Test is Test {
         vm.startPrank(user);
         token.approve(address(marketv1), initialDeposit);
         marketv1.jobOpen("some metadata", provider, JOB_RATE_1, initialDeposit);
-        
+
         marketv1.jobWithdraw(INITIAL_JOB_INDEX, withdrawAmount);
         vm.stopPrank();
 
-        ( , , , , uint256 balance, , ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (,,,, uint256 balance,,) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(balance, initialDeposit - calcNoticePeriodCost(JOB_RATE_1) - withdrawAmount);
     }
 
     function test_JobReviseRate_higher() public {
         uint256 initialDeposit = usdc(50);
         uint256 initialBalance = initialDeposit - calcNoticePeriodCost(JOB_RATE_1);
-        uint256 higherRate = 2 * 10**16;
+        uint256 higherRate = 2 * 10 ** 16;
 
         vm.startPrank(user);
         token.approve(address(marketv1), initialDeposit);
@@ -343,7 +368,7 @@ contract MarketV1Test is Test {
         marketv1.jobReviseRate(INITIAL_JOB_INDEX, higherRate);
         vm.stopPrank();
 
-        ( , , , uint256 rate, uint256 balance, , uint256 maxRate) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (,,, uint256 rate, uint256 balance,, uint256 maxRate) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(rate, higherRate);
         assertEq(maxRate, higherRate);
         assertEq(balance, initialBalance - calcNoticePeriodCost(higherRate - JOB_RATE_1));
@@ -359,7 +384,7 @@ contract MarketV1Test is Test {
         marketv1.jobClose(INITIAL_JOB_INDEX);
         vm.stopPrank();
 
-        (string memory metadata, address owner_, , uint256 rate, uint256 balance, , ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (string memory metadata, address owner_,, uint256 rate, uint256 balance,,) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(metadata, "");
         assertEq(owner_, address(0));
         assertEq(rate, 0);
@@ -378,7 +403,7 @@ contract MarketV1Test is Test {
         marketv1.jobMetadataUpdate(INITIAL_JOB_INDEX, "new metadata");
         vm.stopPrank();
 
-        (string memory metadata, , , , , , ) = marketv1.jobs(INITIAL_JOB_INDEX);
+        (string memory metadata,,,,,,) = marketv1.jobs(INITIAL_JOB_INDEX);
         assertEq(metadata, "new metadata");
     }
 
