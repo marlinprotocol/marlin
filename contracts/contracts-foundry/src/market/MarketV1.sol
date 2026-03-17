@@ -64,7 +64,10 @@ contract MarketV1 is
 
     uint256[50] private __gap_1; // forge-lint: disable-line(mixed-case-variable)
 
-    function initialize(address _admin, address _token) public initializer {
+    function initialize(address _admin, address _token, uint256 _noticePeriod, address _creditToken)
+        public
+        initializer
+    {
         __Context_init_unchained();
         __ERC165_init_unchained();
         __AccessControl_init_unchained();
@@ -72,9 +75,7 @@ contract MarketV1 is
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
         _updateToken(_token);
-    }
 
-    function reinitialize(uint256 _noticePeriod, address _creditToken) public onlyAdmin reinitializer(2) {
         // set the first 8 bytes of the job as a prefix with the chainId
         jobIndex = (bytes32(block.chainid) << 192) | jobIndex;
 
