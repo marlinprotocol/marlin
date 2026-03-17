@@ -87,11 +87,8 @@ contract MarketV1 is
 
     //-------------------------------- Providers start --------------------------------//
 
-    struct Provider {
-        string cp; // url of control plane
-    }
-
-    mapping(address => Provider) public providers;
+    // provider address -> control plane endpoint url
+    mapping(address => string) public providers;
 
     uint256[49] private __gap_2; // forge-lint: disable-line(mixed-case-variable)
 
@@ -100,16 +97,16 @@ contract MarketV1 is
     event ProviderUpdatedWithCp(address indexed provider, string newCp);
 
     function _providerAdd(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider].cp).length == 0, "already exists");
+        require(bytes(providers[_provider]).length == 0, "already exists");
         require(bytes(_cp).length != 0, "invalid");
 
-        providers[_provider] = Provider({cp: _cp});
+        providers[_provider] = _cp;
 
         emit ProviderAdded(_provider, _cp);
     }
 
     function _providerRemove(address _provider) internal {
-        require(bytes(providers[_provider].cp).length != 0, "not found");
+        require(bytes(providers[_provider]).length != 0, "not found");
 
         delete providers[_provider];
 
@@ -117,10 +114,10 @@ contract MarketV1 is
     }
 
     function _providerUpdateWithCp(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider].cp).length != 0, "not found");
+        require(bytes(providers[_provider]).length != 0, "not found");
         require(bytes(_cp).length != 0, "invalid");
 
-        providers[_provider].cp = _cp;
+        providers[_provider] = _cp;
 
         emit ProviderUpdatedWithCp(_provider, _cp);
     }
