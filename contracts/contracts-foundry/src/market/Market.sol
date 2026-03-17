@@ -91,22 +91,22 @@ contract Market is
 
     /*---- Providers start ----*/
 
-    error MarketProviderAlreadyExists();
-    error MarketProviderInvalid();
-    error MarketProviderNotFound();
-
     // provider address -> control plane endpoint url
     mapping(address => string) public providers;
 
     uint256[49] private __gap_providers; // forge-lint: disable-line(mixed-case-variable)
 
+    error MarketProviderAlreadyExists();
+    error MarketProviderNotFound();
+    error MarketProviderInvalidCp();
+
     event MarketProviderAdded(address indexed provider, string cp);
     event MarketProviderRemoved(address indexed provider);
-    event MarketProviderUpdatedWithCp(address indexed provider, string oldCp, string newCp);
+    event MarketProviderUpdated(address indexed provider, string oldCp, string newCp);
 
     function _providerAdd(address _provider, string memory _cp) internal {
         require(bytes(providers[_provider]).length == 0, MarketProviderAlreadyExists());
-        require(bytes(_cp).length != 0, MarketProviderInvalid());
+        require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
         providers[_provider] = _cp;
 
@@ -123,9 +123,9 @@ contract Market is
 
     function _providerUpdateWithCp(address _provider, string memory _cp) internal {
         require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
-        require(bytes(_cp).length != 0, MarketProviderInvalid());
+        require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
-        emit MarketProviderUpdatedWithCp(_provider, providers[_provider], _cp);
+        emit MarketProviderUpdated(_provider, providers[_provider], _cp);
 
         providers[_provider] = _cp;
     }
@@ -146,19 +146,6 @@ contract Market is
 
     /*---- Jobs start ----*/
 
-    error MarketJobNotFound();
-    error MarketOnlyJobOwner();
-    error MarketOnlyEmergencyWithdrawRole();
-    error MarketInsufficientFundsToSettle();
-    error MarketInvalidRate();
-    error MarketInvalidAmount();
-    error MarketInsufficientFundsToDeposit();
-    error MarketInsufficientFundsToWithdraw();
-    error MarketRateNotChanged();
-    error MarketInsufficientFundsToSettleBeforeRevisingRate();
-    error MarketInsufficientFundsToReviseRate();
-    error MarketMetadataNotChanged();
-
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE");
     uint256 public constant EXTRA_DECIMALS = 12;
 
@@ -175,12 +162,22 @@ contract Market is
     uint64 public jobIndex;
     uint256 noticePeriod;
 
-    uint256[46] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
+    uint256[47] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
-    event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
-    event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
+    error MarketJobNotFound();
+    error MarketOnlyJobOwner();
+    error MarketOnlyEmergencyWithdrawRole();
+    error MarketInsufficientFundsToSettle();
+    error MarketInvalidRate();
+    error MarketInvalidAmount();
+    error MarketInsufficientFundsToDeposit();
+    error MarketInsufficientFundsToWithdraw();
+    error MarketRateNotChanged();
+    error MarketInsufficientFundsToSettleBeforeRevisingRate();
+    error MarketInsufficientFundsToReviseRate();
+    error MarketMetadataNotChanged();
+
     event MarketNoticePeriodUpdated(uint256 noticePeriod);
-
     event MarketJobOpened(
         uint64 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
     );
@@ -188,7 +185,9 @@ contract Market is
     event MarketJobClosed(uint64 indexed jobId, uint256 timestamp);
     event MarketJobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
     event MarketJobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
-    event MarketJobSettlementWithdrawn(uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount);
+    event MarketJobSettlementWithdrawn(
+        uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount
+    );
     event MarketJobRateRevised(uint64 indexed jobId, uint256 newRate);
     event MarketJobMetadataUpdated(uint64 indexed jobId, string metadata);
 
@@ -210,33 +209,13 @@ contract Market is
         require(jobs[_jobId].owner == _msgSender(), MarketOnlyJobOwner());
     }
 
-    function _updateToken(address _token) internal {
-        address oldToken = address(realToken);
-        realToken = IERC20(_token);
-        emit MarketTokenUpdated(oldToken, _token);
-    }
-
     function _updateNoticePeriod(uint256 _noticePeriod) internal {
         noticePeriod = _noticePeriod;
         emit MarketNoticePeriodUpdated(_noticePeriod);
     }
 
-    function _updateCreditToken(address _creditToken) internal {
-        address oldCreditToken = address(creditToken);
-        creditToken = ICredit(_creditToken);
-        emit MarketCreditTokenUpdated(oldCreditToken, _creditToken);
-    }
-
-    function updateToken(address _token) external onlyAdmin {
-        _updateToken(_token);
-    }
-
     function updateNoticePeriod(uint256 _noticePeriod) external onlyAdmin {
         _updateNoticePeriod(_noticePeriod);
-    }
-
-    function updateCreditToken(address _creditToken) external onlyAdmin {
-        _updateCreditToken(_creditToken);
     }
 
     function _emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) internal {
@@ -453,15 +432,38 @@ contract Market is
 
     /*---- Payments start ----*/
 
-    error MarketWithdrawalAmountExceedsJobBalance();
-    error MarketCreditBalanceExceedsJobBalance();
-    error MarketCreditTokenNotSet();
-
     IERC20 public realToken;
     ICredit public creditToken;
     mapping(uint64 => uint256) public jobCreditBalance;
 
-    uint256[50] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
+    uint256[47] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
+
+    error MarketWithdrawalAmountExceedsJobBalance();
+    error MarketCreditBalanceExceedsJobBalance();
+    error MarketCreditTokenNotSet();
+
+    event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
+    event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
+
+    function _updateToken(address _token) internal {
+        address oldToken = address(realToken);
+        realToken = IERC20(_token);
+        emit MarketTokenUpdated(oldToken, _token);
+    }
+
+    function _updateCreditToken(address _creditToken) internal {
+        address oldCreditToken = address(creditToken);
+        creditToken = ICredit(_creditToken);
+        emit MarketCreditTokenUpdated(oldCreditToken, _creditToken);
+    }
+
+    function updateToken(address _token) external onlyAdmin {
+        _updateToken(_token);
+    }
+
+    function updateCreditToken(address _creditToken) external onlyAdmin {
+        _updateCreditToken(_creditToken);
+    }
 
     /// @notice  Deposits the specified amount into the job balance.
     /// @param   _jobId  The job to deposit to.

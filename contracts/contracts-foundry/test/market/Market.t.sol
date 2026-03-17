@@ -102,7 +102,7 @@ contract MarketTest is Test {
 
     function test_ProviderRegistersRevertsEmptyCp() public {
         vm.prank(user);
-        vm.expectRevert(Market.MarketProviderInvalid.selector);
+        vm.expectRevert(Market.MarketProviderInvalidCp.selector);
         market.providerAdd("");
     }
 
@@ -156,7 +156,7 @@ contract MarketTest is Test {
         vm.prank(user);
         market.providerAdd("https://example.com/");
         vm.prank(user);
-        vm.expectRevert(Market.MarketProviderInvalid.selector);
+        vm.expectRevert(Market.MarketProviderInvalidCp.selector);
         market.providerUpdateWithCp("");
     }
 
