@@ -16,7 +16,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICredit} from "../token/ICredit.sol";
 
-contract MarketV1 is
+contract Market is
     Initializable, // initializer
     ContextUpgradeable, // _msgSender, _msgData
     ERC165Upgradeable, // supportsInterface
@@ -44,7 +44,7 @@ contract MarketV1 is
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "only admin");
     }
 
-    //-------------------------------- Overrides start --------------------------------//
+    /*---- Overrides start ----*/
 
     function supportsInterface(bytes4 interfaceId)
         public
@@ -58,9 +58,9 @@ contract MarketV1 is
 
     function _authorizeUpgrade(address) internal view override onlyAdmin {}
 
-    //-------------------------------- Overrides end --------------------------------//
+    /*---- Overrides end ----*/
 
-    //-------------------------------- Initializer start --------------------------------//
+    /*---- Initializer start ----*/
 
     uint256[50] private __gap_1; // forge-lint: disable-line(mixed-case-variable)
 
@@ -78,16 +78,15 @@ contract MarketV1 is
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
         _updateToken(_token);
-
-        jobIndex = _initialJobIndex;
-
         _updateNoticePeriod(_noticePeriod);
         _updateCreditToken(_creditToken);
+
+        jobIndex = _initialJobIndex;
     }
 
-    //--------------------------------- Initializer end --------------------------------//
+    /*---- Initializer end ----*/
 
-    //-------------------------------- Providers start --------------------------------//
+    /*---- Providers start ----*/
 
     // provider address -> control plane endpoint url
     mapping(address => string) public providers;
@@ -136,9 +135,9 @@ contract MarketV1 is
         return _providerUpdateWithCp(_msgSender(), _cp);
     }
 
-    //-------------------------------- Providers end --------------------------------//
+    /*---- Providers end ----*/
 
-    //-------------------------------- Jobs start --------------------------------//
+    /*---- Jobs start ----*/
 
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE"); // 0x66f144ecd65ad16d38ecdba8687842af4bc05fde66fe3d999569a3006349785f
 
@@ -173,9 +172,7 @@ contract MarketV1 is
     event JobClosed(uint64 indexed jobId, uint256 timestamp);
     event JobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
     event JobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
-    event JobSettlementWithdrawn(
-        uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount
-    );
+    event JobSettlementWithdrawn(uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount);
     event JobRateRevised(uint64 indexed jobId, uint256 newRate);
     event JobMetadataUpdated(uint64 indexed jobId, string metadata);
 
@@ -450,9 +447,9 @@ contract MarketV1 is
         return _a < _b ? _a : _b;
     }
 
-    //-------------------------------- Jobs end --------------------------------//
+    /*---- Jobs end ----*/
 
-    //-------------------------------- Payment Module start --------------------------------//
+    /*---- Payments start ----*/
 
     mapping(uint64 => uint256) public jobCreditBalance;
     IERC20 public creditToken;
@@ -575,6 +572,6 @@ contract MarketV1 is
             emit JobWithdrawn(_jobId, address(creditToken), _to, withdrawAmount);
         }
     }
-}
 
-//--------------------------------- Payment Module end ---------------------------------//
+    /*---- Payments end ----*/
+}
