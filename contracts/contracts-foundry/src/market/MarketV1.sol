@@ -76,8 +76,8 @@ contract MarketV1 is
 
         _updateToken(_token);
 
-        // set the first 8 bytes of the job as a prefix with the chainId
-        jobIndex = (bytes32(block.chainid) << 192) | jobIndex;
+        // set the chainId as a prefix
+        jobIndex = (uint64(block.chainid) << 32) | jobIndex;
 
         _updateNoticePeriod(_noticePeriod);
         _updateCreditToken(_creditToken);
@@ -150,8 +150,8 @@ contract MarketV1 is
         uint256 maxRate; // max rate for the job
     }
 
-    mapping(bytes32 => Job) public jobs;
-    bytes32 public jobIndex;
+    mapping(uint64 => Job) public jobs;
+    uint64 public jobIndex;
 
     IERC20 public token;
     uint256 public constant EXTRA_DECIMALS = 12;
@@ -165,33 +165,33 @@ contract MarketV1 is
     event NoticePeriodUpdated(uint256 noticePeriod);
 
     event JobOpened(
-        bytes32 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
+        uint64 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
     );
-    event JobSettled(bytes32 indexed jobId, uint256 lastSettled);
-    event JobClosed(bytes32 indexed jobId, uint256 timestamp);
-    event JobDeposited(bytes32 indexed jobId, address indexed token, address indexed from, uint256 amount);
-    event JobWithdrawn(bytes32 indexed jobId, address indexed token, address indexed to, uint256 amount);
+    event JobSettled(uint64 indexed jobId, uint256 lastSettled);
+    event JobClosed(uint64 indexed jobId, uint256 timestamp);
+    event JobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
+    event JobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
     event JobSettlementWithdrawn(
-        bytes32 indexed jobId, address indexed token, address indexed provider, uint256 amount
+        uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount
     );
-    event JobRateRevised(bytes32 indexed jobId, uint256 newRate);
-    event JobMetadataUpdated(bytes32 indexed jobId, string metadata);
+    event JobRateRevised(uint64 indexed jobId, uint256 newRate);
+    event JobMetadataUpdated(uint64 indexed jobId, string metadata);
 
-    modifier onlyExistingJob(bytes32 _jobId) {
+    modifier onlyExistingJob(uint64 _jobId) {
         _onlyExistingJob(_jobId);
         _;
     }
 
-    function _onlyExistingJob(bytes32 _jobId) internal view {
+    function _onlyExistingJob(uint64 _jobId) internal view {
         require(jobs[_jobId].owner != address(0), "job not found");
     }
 
-    modifier onlyJobOwner(bytes32 _jobId) {
+    modifier onlyJobOwner(uint64 _jobId) {
         _onlyJobOwner(_jobId);
         _;
     }
 
-    function _onlyJobOwner(bytes32 _jobId) internal view {
+    function _onlyJobOwner(uint64 _jobId) internal view {
         require(jobs[_jobId].owner == _msgSender(), "only job owner");
     }
 
@@ -224,11 +224,11 @@ contract MarketV1 is
         _updateCreditToken(_creditToken);
     }
 
-    function _emergencyWithdrawCredit(address _to, bytes32[] calldata _jobIds) internal {
+    function _emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) internal {
         require(hasRole(EMERGENCY_WITHDRAW_ROLE, _to), "only to emergency withdraw role");
 
         for (uint256 i = 0; i < _jobIds.length; i++) {
-            bytes32 jobId = _jobIds[i];
+            uint64 jobId = _jobIds[i];
             _jobSettle(jobId, jobs[jobId].rate);
             uint256 creditBalance = jobCreditBalance[jobId];
             if (creditBalance > 0) {
@@ -241,16 +241,15 @@ contract MarketV1 is
         }
     }
 
-    function emergencyWithdrawCredit(address _to, bytes32[] calldata _jobIds) external onlyAdmin {
+    function emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) external onlyAdmin {
         _emergencyWithdrawCredit(_to, _jobIds);
     }
 
     function _jobOpen(string calldata _metadata, address _owner, address _provider, uint256 _rate, uint256 _balance)
         internal
     {
-        uint256 _jobIndex = uint256(jobIndex);
-        jobIndex = bytes32(_jobIndex + 1);
-        bytes32 jobId = bytes32(_jobIndex);
+        uint64 jobId = jobIndex;
+        jobIndex = jobId + 1;
 
         // create job with initial balance 0
         jobs[jobId] = Job({
@@ -271,7 +270,7 @@ contract MarketV1 is
         _jobReviseRate(jobId, _rate);
     }
 
-    function _jobSettle(bytes32 _jobId, uint256 _rate) internal returns (bool isBalanceEnough) {
+    function _jobSettle(uint64 _jobId, uint256 _rate) internal returns (bool isBalanceEnough) {
         uint256 lastSettled = jobs[_jobId].lastSettled;
 
         if (block.timestamp <= lastSettled) {
@@ -290,7 +289,7 @@ contract MarketV1 is
         isBalanceEnough = amountUsed <= settleAmount;
     }
 
-    function _jobClose(bytes32 _jobId) internal {
+    function _jobClose(uint64 _jobId) internal {
         // deduct shutdown delay cost
         _jobSettle(_jobId, jobs[_jobId].rate);
 
@@ -304,14 +303,14 @@ contract MarketV1 is
         emit JobClosed(_jobId, block.timestamp);
     }
 
-    function _jobDeposit(bytes32 _jobId, uint256 _amount) internal {
+    function _jobDeposit(uint64 _jobId, uint256 _amount) internal {
         require(_amount > 0, "invalid amount");
         require(_jobSettle(_jobId, jobs[_jobId].rate), "insufficient funds to deposit");
 
         _deposit(_jobId, _msgSender(), _amount);
     }
 
-    function _jobWithdraw(bytes32 _jobId, uint256 _amount) internal {
+    function _jobWithdraw(uint64 _jobId, uint256 _amount) internal {
         require(_amount > 0, "invalid amount");
         require(_jobSettle(_jobId, jobs[_jobId].rate), "insufficient funds to withdraw");
 
@@ -319,7 +318,7 @@ contract MarketV1 is
         _withdraw(_jobId, _msgSender(), _amount);
     }
 
-    function _jobReviseRate(bytes32 _jobId, uint256 _newRate) internal {
+    function _jobReviseRate(uint64 _jobId, uint256 _newRate) internal {
         require(_newRate > 0, "invalid rate");
         require(jobs[_jobId].rate != _newRate, "rate has not changed");
 
@@ -345,7 +344,7 @@ contract MarketV1 is
         }
     }
 
-    function _jobMetadataUpdate(bytes32 _jobId, string calldata _metadata) internal {
+    function _jobMetadataUpdate(uint64 _jobId, string calldata _metadata) internal {
         string memory oldMetadata = jobs[_jobId].metadata;
         require(
             keccak256(abi.encodePacked(oldMetadata)) != keccak256(abi.encodePacked(_metadata)),
@@ -380,7 +379,7 @@ contract MarketV1 is
      *          to the job's provider.
      * @param   _jobId  The job to settle.
      */
-    function jobSettle(bytes32 _jobId) external onlyExistingJob(_jobId) {
+    function jobSettle(uint64 _jobId) external onlyExistingJob(_jobId) {
         _jobSettle(_jobId, jobs[_jobId].rate);
     }
 
@@ -390,7 +389,7 @@ contract MarketV1 is
      * @dev     Settles the job before closing it.
      * @param   _jobId  The job to close.
      */
-    function jobClose(bytes32 _jobId) external onlyJobOwner(_jobId) {
+    function jobClose(uint64 _jobId) external onlyJobOwner(_jobId) {
         _jobClose(_jobId);
     }
 
@@ -400,7 +399,7 @@ contract MarketV1 is
      * @param   _jobId  The job to deposit to.
      * @param   _amount  The amount to deposit.
      */
-    function jobDeposit(bytes32 _jobId, uint256 _amount) external onlyExistingJob(_jobId) {
+    function jobDeposit(uint64 _jobId, uint256 _amount) external onlyExistingJob(_jobId) {
         _jobDeposit(_jobId, _amount);
     }
 
@@ -412,7 +411,7 @@ contract MarketV1 is
      * @param   _jobId  The job to withdraw from.
      * @param   _amount  The amount to withdraw.
      */
-    function jobWithdraw(bytes32 _jobId, uint256 _amount) external onlyJobOwner(_jobId) {
+    function jobWithdraw(uint64 _jobId, uint256 _amount) external onlyJobOwner(_jobId) {
         _jobWithdraw(_jobId, _amount);
     }
 
@@ -423,7 +422,7 @@ contract MarketV1 is
      * @param   _jobId  The job to revise the rate of.
      * @param   _newRate  The new rate of the job.
      */
-    function jobReviseRate(bytes32 _jobId, uint256 _newRate) external onlyJobOwner(_jobId) {
+    function jobReviseRate(uint64 _jobId, uint256 _newRate) external onlyJobOwner(_jobId) {
         _jobReviseRate(_jobId, _newRate);
     }
 
@@ -433,7 +432,7 @@ contract MarketV1 is
      * @param   _jobId  The job to update the metadata of.
      * @param   _metadata  The new metadata of the job.
      */
-    function jobMetadataUpdate(bytes32 _jobId, string calldata _metadata) external onlyJobOwner(_jobId) {
+    function jobMetadataUpdate(uint64 _jobId, string calldata _metadata) external onlyJobOwner(_jobId) {
         _jobMetadataUpdate(_jobId, _metadata);
     }
 
@@ -453,7 +452,7 @@ contract MarketV1 is
 
     //-------------------------------- Payment Module start --------------------------------//
 
-    mapping(bytes32 => uint256) public jobCreditBalance;
+    mapping(uint64 => uint256) public jobCreditBalance;
     IERC20 public creditToken;
 
     uint256[50] private __gap_4; // forge-lint: disable-line(mixed-case-variable)
@@ -464,7 +463,7 @@ contract MarketV1 is
      * @param   _from  The address to deposit from.
      * @param   _amount  The amount to deposit.
      */
-    function _deposit(bytes32 _jobId, address _from, uint256 _amount) internal {
+    function _deposit(uint64 _jobId, address _from, uint256 _amount) internal {
         uint256 tokenAmount = _amount;
         uint256 creditAmount = 0;
 
@@ -488,7 +487,7 @@ contract MarketV1 is
         jobs[_jobId].balance += _amount;
     }
 
-    function _settle(bytes32 _jobId, uint256 _amount) internal {
+    function _settle(uint64 _jobId, uint256 _amount) internal {
         address provider = jobs[_jobId].provider;
 
         jobs[_jobId].balance -= _amount;
@@ -541,7 +540,7 @@ contract MarketV1 is
      * @param   _to  The address to withdraw to.
      * @param   _amount  The amount to withdraw.
      */
-    function _withdraw(bytes32 _jobId, address _to, uint256 _amount) internal {
+    function _withdraw(uint64 _jobId, address _to, uint256 _amount) internal {
         uint256 jobBalance = jobs[_jobId].balance;
         require(jobBalance >= _amount, "withdrawal amount exceeds job balance");
 
