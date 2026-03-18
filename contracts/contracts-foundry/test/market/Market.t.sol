@@ -6,6 +6,7 @@ import {Erc165Test} from "../Erc165Test.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {RbacAdminTest, RbacRoleTest} from "../RbacTest.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Market} from "../../src/market/Market.sol";
@@ -90,6 +91,110 @@ contract MarketRbacEmergencyWithdrawRoleTest is RbacRoleTest {
             )
         );
         return (IAccessControl(uut), uut.EMERGENCY_WITHDRAW_ROLE());
+    }
+}
+
+contract MarketDeployTest is Test {
+    function deployHelper(address _admin, address _usdc, address _credit, uint64 _jobId) public returns (Market) {
+        return Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(Market.initialize, (_admin, _jobId, Constants.NOTICE_PERIOD, _usdc, _credit)),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function upgradeHelper(address _proxy) public {
+        vm.startPrank(msg.sender);
+        Upgrades.upgradeProxy(_proxy, "Market.sol", "", upgradeOptions());
+        vm.stopPrank();
+    }
+
+    function test_Deploy_InitializationDisabled() public {
+        Market _market = new Market();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        _market.initialize(vm.randomAddress(), 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress());
+    }
+
+    function test_Deploy_WithProxy(address _admin, address _usdc, address _credit, uint64 _jobId)
+        public
+        assumeNotEqualAddress(address(this), _admin)
+    {
+        vm.expectEmit();
+        emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
+        vm.expectEmit();
+        emit Market.MarketNoticePeriodUpdated(Constants.NOTICE_PERIOD);
+        vm.expectEmit();
+        emit Market.MarketTokenUpdated(address(0), _usdc);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenUpdated(address(0), _credit);
+        Market _market = this.deployHelper(_admin, _usdc, _credit, _jobId);
+
+        assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
+        assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
+        assertEq(_market.jobIndex(), _jobId);
+        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.creditToken()), _credit);
+    }
+
+    function test_Deploy_AdminCanUpgrade(address _admin, address _usdc, address _credit, uint64 _jobId)
+        public
+        assumeNotEqualAddress(address(this), _admin)
+    {
+        vm.expectEmit();
+        emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
+        vm.expectEmit();
+        emit Market.MarketNoticePeriodUpdated(Constants.NOTICE_PERIOD);
+        vm.expectEmit();
+        emit Market.MarketTokenUpdated(address(0), _usdc);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenUpdated(address(0), _credit);
+        Market _market = this.deployHelper(_admin, _usdc, _credit, _jobId);
+
+        assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
+        assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
+        assertEq(_market.jobIndex(), _jobId);
+        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.creditToken()), _credit);
+
+        vm.startPrank(_admin);
+        this.upgradeHelper(address(_market));
+        vm.stopPrank();
+
+        assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
+        assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
+        assertEq(_market.jobIndex(), _jobId);
+        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.creditToken()), _credit);
+    }
+
+    function test_Deploy_NonAdminCannotUpgrade(address _admin, address _usdc, address _credit, uint64 _jobId)
+        public
+        assumeNotEqualAddress(address(this), _admin)
+    {
+        vm.expectEmit();
+        emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
+        vm.expectEmit();
+        emit Market.MarketNoticePeriodUpdated(Constants.NOTICE_PERIOD);
+        vm.expectEmit();
+        emit Market.MarketTokenUpdated(address(0), _usdc);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenUpdated(address(0), _credit);
+        Market _market = this.deployHelper(_admin, _usdc, _credit, _jobId);
+
+        assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
+        assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
+        assertEq(_market.jobIndex(), _jobId);
+        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.creditToken()), _credit);
+
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        this.upgradeHelper(address(_market));
     }
 }
 
