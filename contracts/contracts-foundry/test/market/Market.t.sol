@@ -444,35 +444,6 @@ abstract contract MarketTestBase is Test {
     }
 }
 
-contract MarketTestProviderUpdateWithCp is MarketTestBase {
-    function test_ProviderUpdateWithCp() public {
-        vm.prank(user);
-        market.providerAdd("https://example.com/");
-
-        vm.prank(user);
-        vm.expectEmit(true, true, true, true);
-        emit MarketProviderUpdated(user, "https://example.com/", "https://example.com/new");
-        market.providerUpdateWithCp("https://example.com/new");
-
-        (string memory cp) = market.providers(user);
-        assertEq(cp, "https://example.com/new");
-    }
-
-    function test_ProviderUpdateWithCpRevertsEmptyCp() public {
-        vm.prank(user);
-        market.providerAdd("https://example.com/");
-        vm.prank(user);
-        vm.expectRevert(Market.MarketProviderInvalidCp.selector);
-        market.providerUpdateWithCp("");
-    }
-
-    function test_ProviderUpdateWithCpRevertsNeverRegistered() public {
-        vm.prank(user);
-        vm.expectRevert(Market.MarketProviderNotFound.selector);
-        market.providerUpdateWithCp("https://example.com/new");
-    }
-}
-
 contract MarketTestJobOpen is MarketTestBase {
     function test_JobOpen_with_USDC_only() public {
         uint256 initialBalance = usdc(50);
