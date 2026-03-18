@@ -16,19 +16,28 @@ abstract contract RbacAdminTest is Test {
         uut = _rbacAdminDeployContract(admin);
     }
 
-    function test_AdminRole_AdminCanGrantAdminRole(address _otherAdmin) public assumeNotEqualAddress(_otherAdmin, admin) {
+    function test_AdminRole_AdminCanGrantAdminRole(address _otherAdmin)
+        public
+        assumeNotEqualAddress(_otherAdmin, admin)
+    {
         vm.prank(admin);
         uut.grantRole(DEFAULT_ADMIN_ROLE, _otherAdmin);
         assertTrue(uut.hasRole(DEFAULT_ADMIN_ROLE, _otherAdmin));
     }
 
-    function test_AdminRole_NonAdminCannotGrantAdminRole(address _nonAdmin) public assumeNotEqualAddress(_nonAdmin, admin) {
+    function test_AdminRole_NonAdminCannotGrantAdminRole(address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
         vm.prank(_nonAdmin);
         vm.expectRevert();
         uut.grantRole(DEFAULT_ADMIN_ROLE, _nonAdmin);
     }
 
-    function test_AdminRole_AdminCanRevokeAdminRole(address _otherAdmin) public assumeNotEqualAddress(_otherAdmin, admin) {
+    function test_AdminRole_AdminCanRevokeAdminRole(address _otherAdmin)
+        public
+        assumeNotEqualAddress(_otherAdmin, admin)
+    {
         vm.prank(admin);
         uut.grantRole(DEFAULT_ADMIN_ROLE, _otherAdmin);
         assertTrue(uut.hasRole(DEFAULT_ADMIN_ROLE, _otherAdmin));
@@ -38,7 +47,11 @@ abstract contract RbacAdminTest is Test {
         assertFalse(uut.hasRole(DEFAULT_ADMIN_ROLE, _otherAdmin));
     }
 
-    function test_AdminRole_NonAdminCannotRevokeAdminRole(address _otherAdmin, address _nonAdmin) public assumeNotEqualAddress(_otherAdmin, admin) assumeNotEqualAddress(_nonAdmin, admin) {
+    function test_AdminRole_NonAdminCannotRevokeAdminRole(address _otherAdmin, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_otherAdmin, admin)
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
         vm.prank(admin);
         uut.grantRole(DEFAULT_ADMIN_ROLE, _otherAdmin);
         assertTrue(uut.hasRole(DEFAULT_ADMIN_ROLE, _otherAdmin));
@@ -54,7 +67,10 @@ abstract contract RbacAdminTest is Test {
         assertFalse(uut.hasRole(DEFAULT_ADMIN_ROLE, admin));
     }
 
-    function test_AdminRole_AdminCannotRenounceAdminRoleOfOtherAdmins(address _otherAdmin) public assumeNotEqualAddress(_otherAdmin, admin) {
+    function test_AdminRole_AdminCannotRenounceAdminRoleOfOtherAdmins(address _otherAdmin)
+        public
+        assumeNotEqualAddress(_otherAdmin, admin)
+    {
         vm.prank(admin);
         uut.grantRole(DEFAULT_ADMIN_ROLE, _otherAdmin);
         assertTrue(uut.hasRole(DEFAULT_ADMIN_ROLE, _otherAdmin));
@@ -62,5 +78,66 @@ abstract contract RbacAdminTest is Test {
         vm.prank(admin);
         vm.expectRevert();
         uut.renounceRole(DEFAULT_ADMIN_ROLE, _otherAdmin);
+    }
+}
+
+abstract contract RbacRoleTest is Test {
+    IAccessControl public uut;
+    address public admin;
+    bytes32 public role;
+
+    function _rbacRoleDeployContract(address _admin) internal virtual returns (IAccessControl, bytes32);
+
+    function setUp() public virtual {
+        admin = vm.randomAddress();
+        (uut, role) = _rbacRoleDeployContract(admin);
+    }
+
+    function test_Role_AdminCanGrantRole(address _user) public {
+        vm.prank(admin);
+        uut.grantRole(role, _user);
+        assertTrue(uut.hasRole(role, _user));
+    }
+
+    function test_Role_NonAdminCannotGrantRole(address _user, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
+        vm.prank(_nonAdmin);
+        vm.expectRevert();
+        uut.grantRole(role, _user);
+    }
+
+    function test_Role_AdminCanRevokeRole(address _user) public {
+        vm.prank(admin);
+        uut.grantRole(role, _user);
+        assertTrue(uut.hasRole(role, _user));
+
+        vm.prank(admin);
+        uut.revokeRole(role, _user);
+        assertFalse(uut.hasRole(role, _user));
+    }
+
+    function test_Role_NonAdminCannotRevokeRole(address _user, address _nonAdmin)
+        public
+        assumeNotEqualAddress(_nonAdmin, admin)
+    {
+        vm.prank(admin);
+        uut.grantRole(role, _user);
+        assertTrue(uut.hasRole(role, _user));
+
+        vm.prank(_nonAdmin);
+        vm.expectRevert();
+        uut.revokeRole(role, _user);
+    }
+
+    function test_Role_RoleSignerCanRenounceOwnRole(address _user) public {
+        vm.prank(admin);
+        uut.grantRole(role, _user);
+        assertTrue(uut.hasRole(role, _user));
+
+        vm.prank(_user);
+        uut.renounceRole(role, _user);
+        assertFalse(uut.hasRole(role, _user));
     }
 }
