@@ -300,6 +300,58 @@ contract MarketTestProviderRemove is Test {
     }
 }
 
+contract MarketTestProviderUpdate is Test {
+    Market market;
+
+    function setUp() public {
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (
+                        vm.randomAddress(),
+                        uint64(vm.randomUint()),
+                        Constants.NOTICE_PERIOD,
+                        vm.randomAddress(),
+                        vm.randomAddress()
+                    )
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function test_ProviderUpdate_Valid(address _provider, string memory _cp, string memory _newCp) public assumeNonEmptyString(_cp) assumeNonEmptyString(_newCp) {
+        vm.prank(_provider);
+        market.providerAdd(_cp);
+        assertEq(market.providers(_provider), _cp);
+        
+        vm.expectEmit();
+        emit Market.MarketProviderUpdated(_provider, _cp, _newCp);
+        vm.prank(_provider);
+        market.providerUpdateWithCp(_newCp);
+
+        assertEq(market.providers(_provider), _newCp);
+    }
+
+    function test_ProviderUpdate_EmptyCp(address _provider, string memory _cp) public assumeNonEmptyString(_cp) {
+        vm.prank(_provider);
+        market.providerAdd(_cp);
+        assertEq(market.providers(_provider), _cp);
+        
+        vm.expectRevert(Market.MarketProviderInvalidCp.selector);
+        vm.prank(_provider);
+        market.providerUpdateWithCp("");
+    }
+
+    function test_ProviderUpdate_Unregistered(address _provider, string memory _newCp) public assumeNonEmptyString(_newCp) {
+        vm.prank(_provider);
+        vm.expectRevert(Market.MarketProviderNotFound.selector);
+        market.providerUpdateWithCp(_newCp);
+    }
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
