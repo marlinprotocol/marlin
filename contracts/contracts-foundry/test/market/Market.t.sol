@@ -5,6 +5,7 @@ import {Test} from "../Test.sol";
 import {Erc165Test} from "../Erc165Test.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {RbacAdminTest} from "../RbacTest.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Market} from "../../src/market/Market.sol";
@@ -59,6 +60,19 @@ contract MarketErc165Test is Erc165Test {
     function _erc165GetInterfaces() internal virtual override returns (bytes4[] memory) {
         bytes4[] memory interfaces = new bytes4[](1);
         interfaces[0] = type(IAccessControl).interfaceId;
+    }
+}
+
+contract MarketRbacAdminTest is RbacAdminTest {
+    function _rbacAdminDeployContract(address _admin) internal virtual override returns (IAccessControl) {
+        return IAccessControl(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (_admin, 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                )
+            )
+        );
     }
 }
 
