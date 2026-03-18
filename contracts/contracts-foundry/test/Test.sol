@@ -15,6 +15,11 @@ contract Test is ForgeTest {
         _;
     }
 
+    modifier assumeNonEmptyString(string memory x) {
+        vm.assume(bytes(x).length != 0);
+        _;
+    }
+
     modifier assumeNotEqualBytes32(bytes32 _a, bytes32 _b) {
         vm.assume(_a != _b);
         _;

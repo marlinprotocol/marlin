@@ -198,6 +198,53 @@ contract MarketDeployTest is Test {
     }
 }
 
+contract MarketTestProviderAdd is Test {
+    Market market;
+
+    function setUp() public {
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (
+                        vm.randomAddress(),
+                        uint64(vm.randomUint()),
+                        Constants.NOTICE_PERIOD,
+                        vm.randomAddress(),
+                        vm.randomAddress()
+                    )
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function test_ProviderAdd_Valid(address _provider, string memory _cp) public assumeNonEmptyString(_cp) {
+        vm.expectEmit();
+        emit Market.MarketProviderAdded(_provider, _cp);
+        vm.prank(_provider);
+        market.providerAdd(_cp);
+
+        assertEq(market.providers(_provider), _cp);
+    }
+
+    function test_ProviderAdd_EmptyCp(address _provider) public {
+        vm.prank(_provider);
+        vm.expectRevert(Market.MarketProviderInvalidCp.selector);
+        market.providerAdd("");
+    }
+
+    function test_ProviderAdd_AlreadyRegistered(address _provider, string memory _cp) public assumeNonEmptyString(_cp) {
+        vm.prank(_provider);
+        market.providerAdd(_cp);
+
+        vm.prank(_provider);
+        vm.expectRevert(Market.MarketProviderAlreadyExists.selector);
+        market.providerAdd(_cp);
+    }
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
