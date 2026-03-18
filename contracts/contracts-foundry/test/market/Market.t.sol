@@ -5,7 +5,7 @@ import {Test} from "../Test.sol";
 import {Erc165Test} from "../Erc165Test.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-import {RbacAdminTest} from "../RbacTest.sol";
+import {RbacAdminTest, RbacRoleTest} from "../RbacTest.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Market} from "../../src/market/Market.sol";
@@ -73,6 +73,20 @@ contract MarketRbacAdminTest is RbacAdminTest {
                 )
             )
         );
+    }
+}
+
+contract MarketRbacEmergencyWithdrawRoleTest is RbacRoleTest {
+    function _rbacRoleDeployContract(address _admin) internal virtual override returns (IAccessControl, bytes32) {
+        Market uut = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (_admin, 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                )
+            )
+        );
+        return (IAccessControl(uut), uut.EMERGENCY_WITHDRAW_ROLE());
     }
 }
 
