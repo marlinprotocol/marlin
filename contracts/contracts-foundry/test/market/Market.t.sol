@@ -271,7 +271,7 @@ contract MarketTestProviderRemove is Test {
         vm.prank(_provider);
         market.providerAdd(_cp);
         assertEq(market.providers(_provider), _cp);
-        
+
         vm.expectEmit();
         emit Market.MarketProviderRemoved(_provider);
         vm.prank(_provider);
@@ -322,11 +322,15 @@ contract MarketTestProviderUpdate is Test {
         );
     }
 
-    function test_ProviderUpdate_Valid(address _provider, string memory _cp, string memory _newCp) public assumeNonEmptyString(_cp) assumeNonEmptyString(_newCp) {
+    function test_ProviderUpdate_Valid(address _provider, string memory _cp, string memory _newCp)
+        public
+        assumeNonEmptyString(_cp)
+        assumeNonEmptyString(_newCp)
+    {
         vm.prank(_provider);
         market.providerAdd(_cp);
         assertEq(market.providers(_provider), _cp);
-        
+
         vm.expectEmit();
         emit Market.MarketProviderUpdated(_provider, _cp, _newCp);
         vm.prank(_provider);
@@ -339,13 +343,16 @@ contract MarketTestProviderUpdate is Test {
         vm.prank(_provider);
         market.providerAdd(_cp);
         assertEq(market.providers(_provider), _cp);
-        
+
         vm.expectRevert(Market.MarketProviderInvalidCp.selector);
         vm.prank(_provider);
         market.providerUpdateWithCp("");
     }
 
-    function test_ProviderUpdate_Unregistered(address _provider, string memory _newCp) public assumeNonEmptyString(_newCp) {
+    function test_ProviderUpdate_Unregistered(address _provider, string memory _newCp)
+        public
+        assumeNonEmptyString(_newCp)
+    {
         vm.prank(_provider);
         vm.expectRevert(Market.MarketProviderNotFound.selector);
         market.providerUpdateWithCp(_newCp);
