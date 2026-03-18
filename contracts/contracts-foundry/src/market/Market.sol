@@ -160,7 +160,7 @@ contract Market is
     }
     mapping(uint64 => Job) public jobs;
     uint64 public jobIndex;
-    uint256 noticePeriod;
+    uint256 public noticePeriod;
 
     uint256[47] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
