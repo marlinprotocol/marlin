@@ -25,15 +25,15 @@ contract Test is ForgeTest {
         _;
     }
 
-    function randomUintNonZero() public returns (uint256) {
+    function randomUintNonZero() internal returns (uint256) {
         return vm.randomUint(1, type(uint256).max);
     }
 
-    function randomBytes32NonZero() public returns (bytes32) {
+    function randomBytes32NonZero() internal returns (bytes32) {
         return bytes32(randomUintNonZero());
     }
 
-    function upgradeOptions() public returns (Options memory) {
+    function upgradeOptions() internal returns (Options memory) {
         Options memory options;
         options.unsafeSkipAllChecks = true;
         return options;
