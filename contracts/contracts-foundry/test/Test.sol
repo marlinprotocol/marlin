@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test as ForgeTest} from "forge-std/Test.sol";
+import {Options} from "openzeppelin-foundry-upgrades/Options.sol";
 
 contract Test is ForgeTest {
     modifier assume(bool x) {
@@ -30,5 +31,11 @@ contract Test is ForgeTest {
 
     function randomBytes32NonZero() public returns (bytes32) {
         return bytes32(randomUintNonZero());
+    }
+
+    function upgradeOptions() public returns (Options memory) {
+        Options memory options;
+        options.unsafeSkipAllChecks = true;
+        return options;
     }
 }

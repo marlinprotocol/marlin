@@ -52,7 +52,8 @@ contract MarketErc165Test is Erc165Test {
                 abi.encodeCall(
                     Market.initialize,
                     (vm.randomAddress(), 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
-                )
+                ),
+                upgradeOptions()
             )
         );
     }
@@ -70,7 +71,8 @@ contract MarketRbacAdminTest is RbacAdminTest {
                 "Market.sol",
                 abi.encodeCall(
                     Market.initialize, (_admin, 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
-                )
+                ),
+                upgradeOptions()
             )
         );
     }
@@ -83,7 +85,8 @@ contract MarketRbacEmergencyWithdrawRoleTest is RbacRoleTest {
                 "Market.sol",
                 abi.encodeCall(
                     Market.initialize, (_admin, 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
-                )
+                ),
+                upgradeOptions()
             )
         );
         return (IAccessControl(uut), uut.EMERGENCY_WITHDRAW_ROLE());
@@ -149,7 +152,8 @@ abstract contract MarketTestBase is Test {
 
         address proxy = Upgrades.deployUUPSProxy(
             "Market.sol",
-            abi.encodeCall(Market.initialize, (admin, 1234, FIVE_MINUTES, address(token), address(creditToken)))
+            abi.encodeCall(Market.initialize, (admin, 1234, FIVE_MINUTES, address(token), address(creditToken))),
+            upgradeOptions()
         );
         market = Market(proxy);
 
