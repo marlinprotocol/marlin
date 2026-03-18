@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../Test.sol";
+import {Erc165Test} from "../Erc165Test.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Market} from "../../src/market/Market.sol";
@@ -38,6 +41,25 @@ library Constants {
     uint256 public constant SIGNER1_INITIAL_FUND = 1000 * 10 ** 6;
     uint256 public constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
     uint256 public constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
+}
+
+contract MarketErc165Test is Erc165Test {
+    function _erc165DeployContract() internal virtual override returns (IERC165) {
+        return IERC165(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (vm.randomAddress(), 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                )
+            )
+        );
+    }
+
+    function _erc165GetInterfaces() internal virtual override returns (bytes4[] memory) {
+        bytes4[] memory interfaces = new bytes4[](1);
+        interfaces[0] = type(IAccessControl).interfaceId;
+    }
 }
 
 contract MarketV2 is Market {
