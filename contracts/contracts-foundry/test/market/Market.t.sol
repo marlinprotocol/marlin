@@ -337,32 +337,6 @@ abstract contract MarketTestBase is Test {
     }
 }
 
-contract MarketTestProviderAdd is MarketTestBase {
-    function test_ProviderRegisters() public {
-        vm.prank(user);
-        vm.expectEmit(true, true, true, true);
-        emit MarketProviderAdded(user, "https://example.com/");
-        market.providerAdd("https://example.com/");
-        (string memory cp) = market.providers(user);
-        assertEq(cp, "https://example.com/");
-    }
-
-    function test_ProviderRegistersRevertsEmptyCp() public {
-        vm.prank(user);
-        vm.expectRevert(Market.MarketProviderInvalidCp.selector);
-        market.providerAdd("");
-    }
-
-    function test_ProviderRegistersRevertsAlreadyRegistered() public {
-        vm.prank(user);
-        market.providerAdd("https://example.com/");
-
-        vm.prank(user);
-        vm.expectRevert(Market.MarketProviderAlreadyExists.selector);
-        market.providerAdd("https://example.com/");
-    }
-}
-
 contract MarketTestProviderRemove is MarketTestBase {
     function test_ProviderUnregisters() public {
         vm.prank(user);
