@@ -61,6 +61,7 @@ abstract contract RbacAdminTest is Test {
         public
         assumeNotEqualAddress(_otherAdmin, admin)
         assumeNotEqualAddress(_nonAdmin, admin)
+        assumeNotEqualAddress(_otherAdmin, _nonAdmin)
     {
         vm.prank(admin);
         vm.expectEmit();
