@@ -183,8 +183,6 @@ contract Market is
     );
     event MarketJobSettled(uint64 indexed jobId, uint256 lastSettled);
     event MarketJobClosed(uint64 indexed jobId, uint256 timestamp);
-    event MarketJobDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
-    event MarketJobWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
     event MarketJobSettlementWithdrawn(
         uint64 indexed jobId, address indexed token, address indexed provider, uint256 amount
     );
@@ -230,7 +228,7 @@ contract Market is
                 // set job credit balance to 0
                 jobCreditBalance[jobId] = 0;
                 creditToken.safeTransfer(_to, creditBalance);
-                emit MarketJobWithdrawn(jobId, address(creditToken), _to, creditBalance);
+                emit MarketTokenWithdrawn(jobId, address(creditToken), _to, creditBalance);
             }
         }
     }
@@ -444,6 +442,8 @@ contract Market is
 
     event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
     event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
+    event MarketTokenDeposited(uint64 indexed jobId, address indexed token, address indexed from, uint256 amount);
+    event MarketTokenWithdrawn(uint64 indexed jobId, address indexed token, address indexed to, uint256 amount);
 
     function _updateToken(address _token) internal {
         address oldToken = address(realToken);
@@ -481,13 +481,13 @@ contract Market is
                 (creditAmount, tokenAmount) = _calculateTokenSplit(_amount, creditBalance);
                 creditToken.safeTransferFrom(_from, address(this), creditAmount);
                 jobCreditBalance[_jobId] += creditAmount;
-                emit MarketJobDeposited(_jobId, address(creditToken), _from, creditAmount);
+                emit MarketTokenDeposited(_jobId, address(creditToken), _from, creditAmount);
             }
         }
 
         if (tokenAmount > 0) {
             realToken.safeTransferFrom(_from, address(this), tokenAmount);
-            emit MarketJobDeposited(_jobId, address(realToken), _from, tokenAmount);
+            emit MarketTokenDeposited(_jobId, address(realToken), _from, tokenAmount);
         }
 
         jobs[_jobId].balance += _amount;
@@ -565,14 +565,14 @@ contract Market is
 
         if (tokenAmountToTransfer > 0) {
             realToken.safeTransfer(_to, tokenAmountToTransfer);
-            emit MarketJobWithdrawn(_jobId, address(realToken), _to, tokenAmountToTransfer);
+            emit MarketTokenWithdrawn(_jobId, address(realToken), _to, tokenAmountToTransfer);
         }
 
         if (withdrawAmount > 0) {
             require(address(creditToken) != address(0), MarketCreditTokenNotSet());
             jobCreditBalance[_jobId] -= withdrawAmount;
             creditToken.safeTransfer(_to, withdrawAmount);
-            emit MarketJobWithdrawn(_jobId, address(creditToken), _to, withdrawAmount);
+            emit MarketTokenWithdrawn(_jobId, address(creditToken), _to, withdrawAmount);
         }
     }
 

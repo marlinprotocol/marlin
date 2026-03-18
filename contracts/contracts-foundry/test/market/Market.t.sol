@@ -34,7 +34,7 @@ contract CreditMock is ERC20Mock, ICredit {
     }
 }
 
-library Constants {
+library Utils {
     uint256 public constant ONE_MINUTE = 60;
     uint256 public constant TWO_MINUTES = ONE_MINUTE * 2;
     uint256 public constant FIVE_MINUTES = ONE_MINUTE * 5;
@@ -42,7 +42,16 @@ library Constants {
 
     uint256 public constant SIGNER1_INITIAL_FUND = 1000 * 10 ** 6;
     uint256 public constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
-    uint256 public constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
+    uint256 public constant JOB_RATE = 2 * 10 ** 16; // 0.02 USDC/s
+
+    function calcAmountToPay(uint256 rate, uint256 duration) internal pure returns (uint256) {
+        uint256 decimals = 10 ** 12;
+        return (rate * duration + decimals - 1) / decimals;
+    }
+
+    function usdc(uint256 amount) internal pure returns (uint256) {
+        return amount * 10 ** 6;
+    }
 }
 
 contract MarketErc165Test is Erc165Test {
@@ -52,7 +61,7 @@ contract MarketErc165Test is Erc165Test {
                 "Market.sol",
                 abi.encodeCall(
                     Market.initialize,
-                    (vm.randomAddress(), 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                    (vm.randomAddress(), 1234, Utils.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
                 ),
                 upgradeOptions()
             )
@@ -71,7 +80,7 @@ contract MarketRbacAdminTest is RbacAdminTest {
             Upgrades.deployUUPSProxy(
                 "Market.sol",
                 abi.encodeCall(
-                    Market.initialize, (_admin, 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                    Market.initialize, (_admin, 1234, Utils.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
                 ),
                 upgradeOptions()
             )
@@ -85,7 +94,7 @@ contract MarketRbacEmergencyWithdrawRoleTest is RbacRoleTest {
             Upgrades.deployUUPSProxy(
                 "Market.sol",
                 abi.encodeCall(
-                    Market.initialize, (_admin, 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                    Market.initialize, (_admin, 1234, Utils.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
                 ),
                 upgradeOptions()
             )
@@ -99,7 +108,7 @@ contract MarketDeployTest is Test {
         return Market(
             Upgrades.deployUUPSProxy(
                 "Market.sol",
-                abi.encodeCall(Market.initialize, (_admin, _jobId, Constants.NOTICE_PERIOD, _usdc, _credit)),
+                abi.encodeCall(Market.initialize, (_admin, _jobId, Utils.NOTICE_PERIOD, _usdc, _credit)),
                 upgradeOptions()
             )
         );
@@ -114,7 +123,7 @@ contract MarketDeployTest is Test {
     function test_Deploy_InitializationDisabled() public {
         Market _market = new Market();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        _market.initialize(vm.randomAddress(), 1234, Constants.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress());
+        _market.initialize(vm.randomAddress(), 1234, Utils.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress());
     }
 
     function test_Deploy_WithProxy(address _admin, address _usdc, address _credit, uint64 _jobId)
@@ -124,7 +133,7 @@ contract MarketDeployTest is Test {
         vm.expectEmit();
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         vm.expectEmit();
-        emit Market.MarketNoticePeriodUpdated(Constants.NOTICE_PERIOD);
+        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD);
         vm.expectEmit();
         emit Market.MarketTokenUpdated(address(0), _usdc);
         vm.expectEmit();
@@ -134,7 +143,7 @@ contract MarketDeployTest is Test {
         assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
-        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
         assertEq(address(_market.realToken()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
     }
@@ -146,7 +155,7 @@ contract MarketDeployTest is Test {
         vm.expectEmit();
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         vm.expectEmit();
-        emit Market.MarketNoticePeriodUpdated(Constants.NOTICE_PERIOD);
+        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD);
         vm.expectEmit();
         emit Market.MarketTokenUpdated(address(0), _usdc);
         vm.expectEmit();
@@ -156,7 +165,7 @@ contract MarketDeployTest is Test {
         assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
-        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
         assertEq(address(_market.realToken()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
 
@@ -167,7 +176,7 @@ contract MarketDeployTest is Test {
         assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
-        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
         assertEq(address(_market.realToken()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
     }
@@ -179,7 +188,7 @@ contract MarketDeployTest is Test {
         vm.expectEmit();
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         vm.expectEmit();
-        emit Market.MarketNoticePeriodUpdated(Constants.NOTICE_PERIOD);
+        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD);
         vm.expectEmit();
         emit Market.MarketTokenUpdated(address(0), _usdc);
         vm.expectEmit();
@@ -189,7 +198,7 @@ contract MarketDeployTest is Test {
         assertTrue(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), _admin));
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
-        assertEq(_market.noticePeriod(), Constants.NOTICE_PERIOD);
+        assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
         assertEq(address(_market.realToken()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
 
@@ -210,7 +219,7 @@ contract MarketTestProviderAdd is Test {
                     (
                         vm.randomAddress(),
                         uint64(vm.randomUint()),
-                        Constants.NOTICE_PERIOD,
+                        Utils.NOTICE_PERIOD,
                         vm.randomAddress(),
                         vm.randomAddress()
                     )
@@ -257,7 +266,7 @@ contract MarketTestProviderRemove is Test {
                     (
                         vm.randomAddress(),
                         uint64(vm.randomUint()),
-                        Constants.NOTICE_PERIOD,
+                        Utils.NOTICE_PERIOD,
                         vm.randomAddress(),
                         vm.randomAddress()
                     )
@@ -312,7 +321,7 @@ contract MarketTestProviderUpdate is Test {
                     (
                         vm.randomAddress(),
                         uint64(vm.randomUint()),
-                        Constants.NOTICE_PERIOD,
+                        Utils.NOTICE_PERIOD,
                         vm.randomAddress(),
                         vm.randomAddress()
                     )
