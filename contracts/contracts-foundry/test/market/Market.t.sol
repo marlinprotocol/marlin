@@ -245,6 +245,61 @@ contract MarketTestProviderAdd is Test {
     }
 }
 
+contract MarketTestProviderRemove is Test {
+    Market market;
+
+    function setUp() public {
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (
+                        vm.randomAddress(),
+                        uint64(vm.randomUint()),
+                        Constants.NOTICE_PERIOD,
+                        vm.randomAddress(),
+                        vm.randomAddress()
+                    )
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function test_ProviderRemove_Valid(address _provider, string memory _cp) public assumeNonEmptyString(_cp) {
+        vm.prank(_provider);
+        market.providerAdd(_cp);
+        assertEq(market.providers(_provider), _cp);
+        
+        vm.expectEmit();
+        emit Market.MarketProviderRemoved(_provider);
+        vm.prank(_provider);
+        market.providerRemove();
+
+        assertEq(market.providers(_provider), "");
+    }
+
+    function test_ProviderRemove_NeverRegistered(address _provider) public {
+        vm.prank(_provider);
+        vm.expectRevert(Market.MarketProviderNotFound.selector);
+        market.providerRemove();
+    }
+
+    function test_ProviderRemove_Unregistered(address _provider, string memory _cp) public assumeNonEmptyString(_cp) {
+        vm.prank(_provider);
+        market.providerAdd(_cp);
+        assertEq(market.providers(_provider), _cp);
+        vm.prank(_provider);
+        market.providerRemove();
+        assertEq(market.providers(_provider), "");
+
+        vm.prank(_provider);
+        vm.expectRevert(Market.MarketProviderNotFound.selector);
+        market.providerRemove();
+    }
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
