@@ -29,6 +29,17 @@ contract CreditMock is ERC20Mock, ICredit {
     }
 }
 
+library Constants {
+    uint256 public constant ONE_MINUTE = 60;
+    uint256 public constant TWO_MINUTES = ONE_MINUTE * 2;
+    uint256 public constant FIVE_MINUTES = ONE_MINUTE * 5;
+    uint256 public constant NOTICE_PERIOD = FIVE_MINUTES;
+
+    uint256 public constant SIGNER1_INITIAL_FUND = 1000 * 10 ** 6;
+    uint256 public constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
+    uint256 public constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
