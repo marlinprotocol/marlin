@@ -334,7 +334,7 @@ contract MarketTestProviderUpdate is Test {
         vm.expectEmit();
         emit Market.MarketProviderUpdated(_provider, _cp, _newCp);
         vm.prank(_provider);
-        market.providerUpdateWithCp(_newCp);
+        market.providerUpdate(_newCp);
 
         assertEq(market.providers(_provider), _newCp);
     }
@@ -346,7 +346,7 @@ contract MarketTestProviderUpdate is Test {
 
         vm.expectRevert(Market.MarketProviderInvalidCp.selector);
         vm.prank(_provider);
-        market.providerUpdateWithCp("");
+        market.providerUpdate("");
     }
 
     function test_ProviderUpdate_Unregistered(address _provider, string memory _newCp)
@@ -355,7 +355,7 @@ contract MarketTestProviderUpdate is Test {
     {
         vm.prank(_provider);
         vm.expectRevert(Market.MarketProviderNotFound.selector);
-        market.providerUpdateWithCp(_newCp);
+        market.providerUpdate(_newCp);
     }
 }
 

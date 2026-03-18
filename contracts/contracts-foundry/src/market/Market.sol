@@ -121,7 +121,7 @@ contract Market is
         emit MarketProviderRemoved(_provider);
     }
 
-    function _providerUpdateWithCp(address _provider, string memory _cp) internal {
+    function _providerUpdate(address _provider, string memory _cp) internal {
         require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
         require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
@@ -138,8 +138,8 @@ contract Market is
         return _providerRemove(_msgSender());
     }
 
-    function providerUpdateWithCp(string memory _cp) external {
-        return _providerUpdateWithCp(_msgSender(), _cp);
+    function providerUpdate(string memory _cp) external {
+        return _providerUpdate(_msgSender(), _cp);
     }
 
     /*---- Providers end ----*/
