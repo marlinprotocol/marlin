@@ -177,7 +177,7 @@ contract Market is
     error MarketInsufficientFundsToReviseRate();
     error MarketMetadataNotChanged();
 
-    event MarketNoticePeriodUpdated(uint256 noticePeriod);
+    event MarketNoticePeriodUpdated(uint256 from, uint256 to);
     event MarketJobOpened(
         uint64 indexed jobId, string metadata, address indexed owner, address indexed provider, uint256 timestamp
     );
@@ -208,8 +208,8 @@ contract Market is
     }
 
     function _updateNoticePeriod(uint256 _noticePeriod) internal {
+        emit MarketNoticePeriodUpdated(noticePeriod, _noticePeriod);
         noticePeriod = _noticePeriod;
-        emit MarketNoticePeriodUpdated(_noticePeriod);
     }
 
     function updateNoticePeriod(uint256 _noticePeriod) external onlyAdmin {

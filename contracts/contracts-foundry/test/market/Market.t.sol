@@ -133,7 +133,7 @@ contract MarketDeployTest is Test {
         vm.expectEmit();
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         vm.expectEmit();
-        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD);
+        emit Market.MarketNoticePeriodUpdated(0, Utils.NOTICE_PERIOD);
         vm.expectEmit();
         emit Market.MarketTokenUpdated(address(0), _usdc);
         vm.expectEmit();
@@ -155,7 +155,7 @@ contract MarketDeployTest is Test {
         vm.expectEmit();
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         vm.expectEmit();
-        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD);
+        emit Market.MarketNoticePeriodUpdated(0, Utils.NOTICE_PERIOD);
         vm.expectEmit();
         emit Market.MarketTokenUpdated(address(0), _usdc);
         vm.expectEmit();
@@ -188,7 +188,7 @@ contract MarketDeployTest is Test {
         vm.expectEmit();
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         vm.expectEmit();
-        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD);
+        emit Market.MarketNoticePeriodUpdated(0, Utils.NOTICE_PERIOD);
         vm.expectEmit();
         emit Market.MarketTokenUpdated(address(0), _usdc);
         vm.expectEmit();
