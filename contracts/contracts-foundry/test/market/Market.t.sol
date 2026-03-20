@@ -88,21 +88,6 @@ contract MarketRbacAdminTest is RbacAdminTest {
     }
 }
 
-contract MarketRbacEmergencyWithdrawRoleTest is RbacRoleTest {
-    function _rbacRoleDeployContract(address _admin) internal virtual override returns (IAccessControl, bytes32) {
-        Market uut = Market(
-            Upgrades.deployUUPSProxy(
-                "Market.sol",
-                abi.encodeCall(
-                    Market.initialize, (_admin, 1234, Utils.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
-                ),
-                upgradeOptions()
-            )
-        );
-        return (IAccessControl(uut), uut.EMERGENCY_WITHDRAW_ROLE());
-    }
-}
-
 contract MarketDeployTest is Test {
     function deployHelper(address _admin, address _usdc, address _credit, uint64 _jobId) public returns (Market) {
         return Market(
