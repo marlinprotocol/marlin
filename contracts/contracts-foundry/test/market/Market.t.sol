@@ -129,7 +129,7 @@ contract MarketDeployTest is Test {
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
         assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
-        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.token()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
     }
 
@@ -151,7 +151,7 @@ contract MarketDeployTest is Test {
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
         assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
-        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.token()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
 
         vm.startPrank(_admin);
@@ -162,7 +162,7 @@ contract MarketDeployTest is Test {
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
         assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
-        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.token()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
     }
 
@@ -184,7 +184,7 @@ contract MarketDeployTest is Test {
         assertFalse(_market.hasRole(_market.DEFAULT_ADMIN_ROLE(), address(this)));
         assertEq(_market.jobIndex(), _jobId);
         assertEq(_market.noticePeriod(), Utils.NOTICE_PERIOD);
-        assertEq(address(_market.realToken()), _usdc);
+        assertEq(address(_market.token()), _usdc);
         assertEq(address(_market.creditToken()), _credit);
 
         vm.expectRevert(Market.MarketOnlyAdmin.selector);
