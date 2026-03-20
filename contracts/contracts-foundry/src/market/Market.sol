@@ -164,16 +164,8 @@ contract Market is
     uint256[47] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
     error MarketJobNotFound();
-    error MarketOnlyJobOwner();
-    error MarketInsufficientFundsToSettle();
-    error MarketInvalidRate();
-    error MarketInvalidAmount();
+    error MarketJobOnlyOwner();
     error MarketJobInactive();
-    error MarketInsufficientFundsToWithdraw();
-    error MarketRateNotChanged();
-    error MarketInsufficientFundsToSettleBeforeRevisingRate();
-    error MarketInsufficientFunds();
-    error MarketMetadataNotChanged();
 
     event MarketNoticePeriodUpdated(uint256 from, uint256 to);
     event MarketJobOpened(
@@ -216,7 +208,7 @@ contract Market is
     }
 
     function _onlyJobOwner(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner == _msgSender(), MarketOnlyJobOwner());
+        require(jobs[_jobId].owner == _msgSender(), MarketJobOnlyOwner());
     }
 
     function _updateNoticePeriod(uint256 _noticePeriod) internal {
@@ -321,7 +313,6 @@ contract Market is
         if (_higherRate > _prevHighestRate) {
             jobs[_jobId].maxRate = _higherRate;
             uint256 _noticePeriodExtraCost = _calcAmountUsed((_higherRate - _prevHighestRate), noticePeriod);
-            require(jobs[_jobId].balance > _noticePeriodExtraCost, MarketInsufficientFunds());
             address _provider = jobs[_jobId].provider;
             _settle(_jobId, _provider, _noticePeriodExtraCost);
             jobs[_jobId].balance -= _noticePeriodExtraCost;
@@ -402,7 +393,11 @@ contract Market is
     /// @dev     Reverts if the metadata has not changed.
     /// @param   _jobId  The job to update the metadata of.
     /// @param   _metadata  The new metadata of the job.
-    function jobMetadataUpdate(uint64 _jobId, string calldata _metadata) external onlyJobOwner(_jobId) onlyActiveJob(_jobId) {
+    function jobMetadataUpdate(uint64 _jobId, string calldata _metadata)
+        external
+        onlyJobOwner(_jobId)
+        onlyActiveJob(_jobId)
+    {
         _jobMetadataUpdate(_jobId, _metadata);
     }
 
