@@ -353,6 +353,39 @@ contract MarketTestProviderUpdate is Test {
     }
 }
 
+contract MarketTestUpdateNoticePeriod is Test {
+    Market market;
+    address admin;
+
+    function setUp() public {
+        admin = vm.randomAddress();
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (admin, uint64(vm.randomUint()), Utils.NOTICE_PERIOD, vm.randomAddress(), vm.randomAddress())
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function test_UpdateNoticePeriod_Admin(uint256 _newNoticePeriod) public {
+        vm.expectEmit();
+        emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD, _newNoticePeriod);
+        vm.prank(admin);
+        market.updateNoticePeriod(_newNoticePeriod);
+
+        assertEq(market.noticePeriod(), _newNoticePeriod);
+    }
+
+    function test_UpdateNoticePeriod_NonAdmin(uint256 _newNoticePeriod) public {
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.updateNoticePeriod(_newNoticePeriod);
+    }
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
