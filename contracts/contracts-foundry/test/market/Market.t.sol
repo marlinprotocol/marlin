@@ -2219,3 +2219,100 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
         vm.stopPrank();
     }
 }
+
+contract MarketTestJobMetadataUpdate is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    CreditMock credit;
+    uint256 creditTokenBalance;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 initialTokenBalance;
+    uint256 initialCreditBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        credit = new CreditMock(usdc);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(credit))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market) || user == address(credit));
+        do {
+            provider = vm.randomAddress();
+        } while (
+            provider == address(0) || provider == address(market) || provider == address(credit) || provider == user
+        );
+        initialBalance = Utils.usdc(50);
+        initialTokenBalance = Utils.usdc(20);
+        initialCreditBalance = Utils.usdc(30);
+        usdc.mint(user, initialTokenBalance);
+        credit.mint(user, initialCreditBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialTokenBalance);
+        credit.approve(address(market), initialCreditBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobMetadataUpdate() public {
+        string memory _newMetadata = "efgh";
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketJobMetadataUpdated(jobId, block.timestamp, _newMetadata);
+        market.jobMetadataUpdate(jobId, _newMetadata);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _newMetadata,
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+    }
+
+    function test_JobMetadataUpdate_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobMetadataUpdate(jobId, "efgh");
+        vm.stopPrank();
+    }
+
+    function test_JobMetadataUpdate_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+        vm.expectRevert(Market.MarketJobInactive.selector);
+        market.jobMetadataUpdate(jobId, "efgh");
+        vm.stopPrank();
+    }
+
+    function test_JobMetadataUpdate_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobMetadataUpdate(jobId + 1, "efgh");
+        vm.stopPrank();
+    }
+}
