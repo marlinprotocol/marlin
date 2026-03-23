@@ -55,6 +55,27 @@ library Utils {
     }
 }
 
+abstract contract MarketTest is Test {
+    function assertEq(Market _market, uint64 _jobId, Market.Job memory _job) public {
+        (
+            string memory _jobMetadata,
+            address _jobOwner,
+            address _jobProvider,
+            uint256 _jobRate,
+            uint256 _jobBalance,
+            uint256 _jobLastSettled,
+            uint256 _jobMaxRate
+        ) = _market.jobs(_jobId);
+        assertEq(_jobMetadata, _job.metadata);
+        assertEq(_jobOwner, _job.owner);
+        assertEq(_jobProvider, _job.provider);
+        assertEq(_jobRate, _job.rate);
+        assertEq(_jobBalance, _job.balance);
+        assertEq(_jobLastSettled, _job.lastSettled);
+        assertEq(_jobMaxRate, _job.maxRate);
+    }
+}
+
 contract MarketErc165Test is Erc165Test {
     function _erc165DeployContract() internal virtual override returns (IERC165) {
         return IERC165(
@@ -89,7 +110,7 @@ contract MarketRbacAdminTest is RbacAdminTest {
     }
 }
 
-contract MarketDeployTest is Test {
+contract MarketTestDeploy is Test {
     function deployHelper(address _admin, address _usdc, address _credit, uint64 _jobId) public returns (Market) {
         return Market(
             Upgrades.deployUUPSProxy(
@@ -387,7 +408,7 @@ contract MarketTestUpdateNoticePeriod is Test {
     }
 }
 
-contract MarketTestJobOpen is Test {
+contract MarketTestJobOpen is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
@@ -446,24 +467,7 @@ contract MarketTestJobOpen is Test {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -502,24 +506,7 @@ contract MarketTestJobOpen is Test {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), _initialBalance - _noticePeriodCost);
 
@@ -563,24 +550,7 @@ contract MarketTestJobOpen is Test {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost);
 
@@ -638,7 +608,7 @@ contract MarketTestJobOpen is Test {
     }
 }
 
-contract MarketTestJobOpenNoCredit is Test {
+contract MarketTestJobOpenNoCredit is MarketTest {
     Market market;
     ERC20Mock usdc;
     uint64 jobId;
@@ -690,24 +660,7 @@ contract MarketTestJobOpenNoCredit is Test {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -737,7 +690,7 @@ contract MarketTestJobOpenNoCredit is Test {
     }
 }
 
-contract MarketTestJobSettle is Test {
+contract MarketTestJobSettle is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
@@ -792,24 +745,7 @@ contract MarketTestJobSettle is Test {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -838,24 +774,7 @@ contract MarketTestJobSettle is Test {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), _initialBalance - _noticePeriodCost - _settleAmount);
 
@@ -896,24 +815,7 @@ contract MarketTestJobSettle is Test {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
 
@@ -954,24 +856,7 @@ contract MarketTestJobSettle is Test {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
 
@@ -985,7 +870,7 @@ contract MarketTestJobSettle is Test {
     }
 }
 
-contract MarketTestJobSettleNoCredit is Test {
+contract MarketTestJobSettleNoCredit is MarketTest {
     Market market;
     ERC20Mock usdc;
     uint64 jobId;
@@ -1033,24 +918,7 @@ contract MarketTestJobSettleNoCredit is Test {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -1081,24 +949,7 @@ contract MarketTestJobSettleNoCredit is Test {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        {
-            (
-                string memory _jobMetadata,
-                address _jobOwner,
-                address _jobProvider,
-                uint256 _jobRate,
-                uint256 _jobBalance,
-                uint256 _jobLastSettled,
-                uint256 _jobMaxRate
-            ) = market.jobs(jobId);
-            assertEq(_jobMetadata, _metadata);
-            assertEq(_jobOwner, _user);
-            assertEq(_jobProvider, _provider);
-            assertEq(_jobRate, Utils.JOB_RATE);
-            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
-            assertEq(_jobLastSettled, block.timestamp);
-            assertEq(_jobMaxRate, Utils.JOB_RATE);
-        }
+        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
 
         assertEq(market.creditBalances(jobId), 0);
 
