@@ -154,7 +154,7 @@ contract Market is
         address provider;
         uint256 rate;
         uint256 balance;
-        uint256 lastSettled; // payment has been settled up to this timestamp
+        uint64 lastSettled; // payment has been settled up to this timestamp
         uint256 maxRate; // max rate for the job
     }
     mapping(uint64 => Job) public jobs;
@@ -169,14 +169,18 @@ contract Market is
 
     event MarketNoticePeriodUpdated(uint256 from, uint256 to);
     event MarketJobOpened(
-        uint64 indexed jobId, uint256 timestamp, string metadata, address indexed owner, address indexed provider
+        uint64 indexed jobId, uint64 timestamp, string metadata, address indexed owner, address indexed provider
     );
-    event MarketJobSettled(uint64 indexed jobId, uint256 timestamp, uint256 amount, address indexed to);
-    event MarketJobClosed(uint64 indexed jobId, uint256 timestamp);
-    event MarketJobDeposited(uint64 indexed jobId, uint256 timestamp, uint256 amount, address indexed from);
-    event MarketJobWithdrew(uint64 indexed jobId, uint256 timestamp, uint256 amount, address indexed to);
-    event MarketJobRateRevised(uint64 indexed jobId, uint256 timestamp, uint256 newRate);
-    event MarketJobMetadataUpdated(uint64 indexed jobId, uint256 timestamp, string metadata);
+    event MarketJobSettled(uint64 indexed jobId, uint64 timestamp, uint256 amount, address indexed to);
+    event MarketJobClosed(uint64 indexed jobId, uint64 timestamp);
+    event MarketJobDeposited(uint64 indexed jobId, uint64 timestamp, uint256 amount, address indexed from);
+    event MarketJobWithdrew(uint64 indexed jobId, uint64 timestamp, uint256 amount, address indexed to);
+    event MarketJobRateRevised(uint64 indexed jobId, uint64 timestamp, uint256 newRate);
+    event MarketJobMetadataUpdated(uint64 indexed jobId, uint64 timestamp, string metadata);
+
+    function _now() view internal returns (uint64) {
+        return uint64(block.timestamp);
+    }
 
     modifier onlyExistingJob(uint64 _jobId) {
         _onlyExistingJob(_jobId);
@@ -195,9 +199,8 @@ contract Market is
     function _onlyActiveJob(uint64 _jobId) internal view {
         _onlyExistingJob(_jobId);
         require(
-            (block.timestamp <= jobs[_jobId].lastSettled)
-                || (_calcAmountUsed(jobs[_jobId].rate, block.timestamp - jobs[_jobId].lastSettled)
-                        <= jobs[_jobId].balance),
+            (_now() <= jobs[_jobId].lastSettled)
+                || (_calcAmountUsed(jobs[_jobId].rate, _now() - jobs[_jobId].lastSettled) <= jobs[_jobId].balance),
             MarketJobInactive()
         );
     }
@@ -226,7 +229,7 @@ contract Market is
             _jobSettle(_jobId);
             uint256 _creditAmount = _withdrawAllCredit(_jobId, _to);
             jobs[_jobId].balance -= _creditAmount;
-            emit MarketJobWithdrew(_jobId, block.timestamp, _creditAmount, _to);
+            emit MarketJobWithdrew(_jobId, _now(), _creditAmount, _to);
         }
     }
 
@@ -247,10 +250,10 @@ contract Market is
             provider: _provider,
             rate: 0,
             balance: 0,
-            lastSettled: block.timestamp,
+            lastSettled: _now(),
             maxRate: 0
         });
-        emit MarketJobOpened(_jobId, block.timestamp, _metadata, _owner, _provider);
+        emit MarketJobOpened(_jobId, _now(), _metadata, _owner, _provider);
 
         // deposit initial balance
         _jobDeposit(_jobId, _balance, _owner);
@@ -262,14 +265,14 @@ contract Market is
     function _jobSettle(uint64 _jobId) internal returns (bool) {
         uint256 _rate = jobs[_jobId].rate;
         uint256 _lastSettled = jobs[_jobId].lastSettled;
-        uint256 _usageDuration = block.timestamp - _lastSettled;
+        uint256 _usageDuration = _now() - _lastSettled;
         uint256 _amountUsed = _calcAmountUsed(_rate, _usageDuration);
         uint256 _settleAmount = _min(_amountUsed, jobs[_jobId].balance);
         address _provider = jobs[_jobId].provider;
         _settle(_jobId, _provider, _settleAmount);
         jobs[_jobId].balance -= _settleAmount;
-        jobs[_jobId].lastSettled = block.timestamp;
-        emit MarketJobSettled(_jobId, block.timestamp, _settleAmount, _provider);
+        jobs[_jobId].lastSettled = _now();
+        emit MarketJobSettled(_jobId, _now(), _settleAmount, _provider);
 
         return _amountUsed == _settleAmount;
     }
@@ -281,17 +284,17 @@ contract Market is
         uint256 _balance = jobs[_jobId].balance;
         if (_balance > 0) {
             _withdraw(_jobId, _balance, _msgSender(), _balance);
-            emit MarketJobWithdrew(_jobId, block.timestamp, _balance, _msgSender());
+            emit MarketJobWithdrew(_jobId, _now(), _balance, _msgSender());
         }
 
         delete jobs[_jobId];
-        emit MarketJobClosed(_jobId, block.timestamp);
+        emit MarketJobClosed(_jobId, _now());
     }
 
     function _jobDeposit(uint64 _jobId, uint256 _amount, address _from) internal {
         _deposit(_jobId, _from, _amount);
         jobs[_jobId].balance += _amount;
-        emit MarketJobDeposited(_jobId, block.timestamp, _amount, _from);
+        emit MarketJobDeposited(_jobId, _now(), _amount, _from);
     }
 
     function _jobWithdraw(uint64 _jobId, uint256 _amount, address _to) internal {
@@ -299,7 +302,7 @@ contract Market is
 
         _withdraw(_jobId, jobs[_jobId].balance, _to, _amount);
         jobs[_jobId].balance -= _amount;
-        emit MarketJobWithdrew(_jobId, block.timestamp, _amount, _to);
+        emit MarketJobWithdrew(_jobId, _now(), _amount, _to);
     }
 
     function _jobReviseRate(uint64 _jobId, uint256 _newRate) internal {
@@ -316,17 +319,17 @@ contract Market is
             address _provider = jobs[_jobId].provider;
             _settle(_jobId, _provider, _noticePeriodExtraCost);
             jobs[_jobId].balance -= _noticePeriodExtraCost;
-            emit MarketJobSettled(_jobId, block.timestamp, _noticePeriodExtraCost, _provider);
+            emit MarketJobSettled(_jobId, _now(), _noticePeriodExtraCost, _provider);
         }
 
         // update rate
         jobs[_jobId].rate = _newRate;
-        emit MarketJobRateRevised(_jobId, block.timestamp, _newRate);
+        emit MarketJobRateRevised(_jobId, _now(), _newRate);
     }
 
     function _jobMetadataUpdate(uint64 _jobId, string calldata _metadata) internal {
         jobs[_jobId].metadata = _metadata;
-        emit MarketJobMetadataUpdated(_jobId, block.timestamp, _metadata);
+        emit MarketJobMetadataUpdated(_jobId, _now(), _metadata);
     }
 
     /// @notice  Opens a new job.
@@ -346,7 +349,7 @@ contract Market is
 
     /// @notice  Settles the job and sends the amount settled to the job's provider.
     ///          If the job has Credit balance, the credit balance will be deducted first.
-    /// @dev     Reverts if block.timestamp is before `lastSettled` of given jobId.
+    /// @dev     Reverts if _now() is before `lastSettled` of given jobId.
     ///          If settled with Credit tokens the Credit tokens will be burned and redeemed to USDC when transfering
     ///          to the job's provider.
     /// @param   _jobId  The job to settle.
@@ -373,7 +376,7 @@ contract Market is
     /// @notice  Withdraws the specified amount from the job balance.
     ///          If the amount required to be withdrawn is greater than the job's balance, the remaining balance will be
     ///          transferred from the job to the caller as Credit tokens.
-    /// @dev     Reverts if block.timestamp is before `lastSettled` of given jobId.
+    /// @dev     Reverts if _now() is before `lastSettled` of given jobId.
     /// @param   _jobId  The job to withdraw from.
     /// @param   _amount  The amount to withdraw.
     function jobWithdraw(uint64 _jobId, uint256 _amount) external onlyJobOwner(_jobId) onlyActiveJob(_jobId) {
@@ -426,12 +429,12 @@ contract Market is
 
     event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
     event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
-    event MarketTokenDeposited(uint64 indexed jobId, uint256 timestamp, address indexed from, uint256 amount);
-    event MarketCreditTokenDeposited(uint64 indexed jobId, uint256 timestamp, address indexed from, uint256 amount);
-    event MarketTokenWithdrew(uint64 indexed jobId, uint256 timestamp, address indexed to, uint256 amount);
-    event MarketCreditTokenWithdrew(uint64 indexed jobId, uint256 timestamp, address indexed to, uint256 amount);
-    event MarketTokenSettled(uint64 indexed jobId, uint256 timestamp, address indexed to, uint256 amount);
-    event MarketCreditTokenSettled(uint64 indexed jobId, uint256 timestamp, address indexed to, uint256 amount);
+    event MarketTokenDeposited(uint64 indexed jobId, uint64 timestamp, address indexed from, uint256 amount);
+    event MarketCreditTokenDeposited(uint64 indexed jobId, uint64 timestamp, address indexed from, uint256 amount);
+    event MarketTokenWithdrew(uint64 indexed jobId, uint64 timestamp, address indexed to, uint256 amount);
+    event MarketCreditTokenWithdrew(uint64 indexed jobId, uint64 timestamp, address indexed to, uint256 amount);
+    event MarketTokenSettled(uint64 indexed jobId, uint64 timestamp, address indexed to, uint256 amount);
+    event MarketCreditTokenSettled(uint64 indexed jobId, uint64 timestamp, address indexed to, uint256 amount);
 
     function _updateToken(address _token) internal {
         address oldToken = address(token);
@@ -462,14 +465,14 @@ contract Market is
                 _creditAmount = _min(_amount, _creditBalance);
                 creditToken.safeTransferFrom(_from, address(this), _creditAmount);
                 creditBalances[_jobId] += _creditAmount;
-                emit MarketCreditTokenDeposited(_jobId, block.timestamp, _from, _creditAmount);
+                emit MarketCreditTokenDeposited(_jobId, _now(), _from, _creditAmount);
             }
         }
 
         if (_amount > _creditAmount) {
             uint256 _tokenAmount = _amount - _creditAmount;
             token.safeTransferFrom(_from, address(this), _tokenAmount);
-            emit MarketTokenDeposited(_jobId, block.timestamp, _from, _tokenAmount);
+            emit MarketTokenDeposited(_jobId, _now(), _from, _tokenAmount);
         }
     }
 
@@ -482,14 +485,14 @@ contract Market is
                 _creditAmount = _min(_amount, _creditBalance);
                 creditBalances[_jobId] -= _creditAmount;
                 creditToken.redeemAndBurn(_to, _creditAmount);
-                emit MarketCreditTokenSettled(_jobId, block.timestamp, _to, _creditAmount);
+                emit MarketCreditTokenSettled(_jobId, _now(), _to, _creditAmount);
             }
         }
 
         if (_amount > _creditAmount) {
             uint256 _tokenAmount = _amount - _creditAmount;
             token.safeTransfer(_to, _tokenAmount);
-            emit MarketTokenSettled(_jobId, block.timestamp, _to, _tokenAmount);
+            emit MarketTokenSettled(_jobId, _now(), _to, _tokenAmount);
         }
     }
 
@@ -499,14 +502,14 @@ contract Market is
 
         if (_tokenAmount > 0) {
             token.safeTransfer(_to, _tokenAmount);
-            emit MarketTokenWithdrew(_jobId, block.timestamp, _to, _tokenAmount);
+            emit MarketTokenWithdrew(_jobId, _now(), _to, _tokenAmount);
         }
 
         if (_amount > _tokenAmount) {
             uint256 _creditAmount = _amount - _tokenAmount;
             creditBalances[_jobId] -= _creditAmount;
             creditToken.safeTransfer(_to, _creditAmount);
-            emit MarketCreditTokenWithdrew(_jobId, block.timestamp, _to, _creditAmount);
+            emit MarketCreditTokenWithdrew(_jobId, _now(), _to, _creditAmount);
         }
     }
 
@@ -514,7 +517,7 @@ contract Market is
         _creditAmount = creditBalances[_jobId];
         creditBalances[_jobId] = 0;
         creditToken.safeTransfer(_to, _creditAmount);
-        emit MarketCreditTokenWithdrew(_jobId, block.timestamp, _to, _creditAmount);
+        emit MarketCreditTokenWithdrew(_jobId, _now(), _to, _creditAmount);
     }
 
     /*---- Payments end ----*/

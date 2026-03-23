@@ -67,6 +67,10 @@ abstract contract MarketTest is Test {
         assertEq(_jobLastSettled, _job.lastSettled);
         assertEq(_jobMaxRate, _job.maxRate);
     }
+
+    function _now() view internal returns (uint64) {
+        return uint64(block.timestamp);
+    }
 }
 
 contract MarketErc165Test is Erc165Test {
@@ -516,17 +520,17 @@ contract MarketTestJobOpen is MarketTest {
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
         vm.expectEmit();
-        emit Market.MarketJobOpened(jobId, block.timestamp, _metadata, _user, _provider);
+        emit Market.MarketJobOpened(jobId, _now(), _metadata, _user, _provider);
         vm.expectEmit();
-        emit Market.MarketTokenDeposited(jobId, block.timestamp, _user, _initialBalance);
+        emit Market.MarketTokenDeposited(jobId, _now(), _user, _initialBalance);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _initialBalance, _user);
+        emit Market.MarketJobDeposited(jobId, _now(), _initialBalance, _user);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _noticePeriodCost);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _noticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _noticePeriodCost, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _noticePeriodCost, _provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, Utils.JOB_RATE);
+        emit Market.MarketJobRateRevised(jobId, _now(), Utils.JOB_RATE);
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
@@ -539,7 +543,7 @@ contract MarketTestJobOpen is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -567,17 +571,17 @@ contract MarketTestJobOpen is MarketTest {
         vm.startPrank(_user);
         credit.approve(address(market), _initialBalance);
         vm.expectEmit();
-        emit Market.MarketJobOpened(jobId, block.timestamp, _metadata, _user, _provider);
+        emit Market.MarketJobOpened(jobId, _now(), _metadata, _user, _provider);
         vm.expectEmit();
-        emit Market.MarketCreditTokenDeposited(jobId, block.timestamp, _user, _initialBalance);
+        emit Market.MarketCreditTokenDeposited(jobId, _now(), _user, _initialBalance);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _initialBalance, _user);
+        emit Market.MarketJobDeposited(jobId, _now(), _initialBalance, _user);
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _noticePeriodCost);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _noticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _noticePeriodCost, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _noticePeriodCost, _provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, Utils.JOB_RATE);
+        emit Market.MarketJobRateRevised(jobId, _now(), Utils.JOB_RATE);
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
@@ -590,7 +594,7 @@ contract MarketTestJobOpen is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -622,18 +626,18 @@ contract MarketTestJobOpen is MarketTest {
         usdc.approve(address(market), _initialTokenBalance);
         credit.approve(address(market), _initialCreditBalance);
         vm.expectEmit();
-        emit Market.MarketJobOpened(jobId, block.timestamp, _metadata, _user, _provider);
+        emit Market.MarketJobOpened(jobId, _now(), _metadata, _user, _provider);
         vm.expectEmit();
-        emit Market.MarketCreditTokenDeposited(jobId, block.timestamp, _user, _initialCreditBalance);
-        emit Market.MarketTokenDeposited(jobId, block.timestamp, _user, _initialTokenBalance);
+        emit Market.MarketCreditTokenDeposited(jobId, _now(), _user, _initialCreditBalance);
+        emit Market.MarketTokenDeposited(jobId, _now(), _user, _initialTokenBalance);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _initialBalance, _user);
+        emit Market.MarketJobDeposited(jobId, _now(), _initialBalance, _user);
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _noticePeriodCost);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _noticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _noticePeriodCost, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _noticePeriodCost, _provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, Utils.JOB_RATE);
+        emit Market.MarketJobRateRevised(jobId, _now(), Utils.JOB_RATE);
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
@@ -646,7 +650,7 @@ contract MarketTestJobOpen is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -745,17 +749,17 @@ contract MarketTestJobOpenNoCredit is MarketTest {
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
         vm.expectEmit();
-        emit Market.MarketJobOpened(jobId, block.timestamp, _metadata, _user, _provider);
+        emit Market.MarketJobOpened(jobId, _now(), _metadata, _user, _provider);
         vm.expectEmit();
-        emit Market.MarketTokenDeposited(jobId, block.timestamp, _user, _initialBalance);
+        emit Market.MarketTokenDeposited(jobId, _now(), _user, _initialBalance);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _initialBalance, _user);
+        emit Market.MarketJobDeposited(jobId, _now(), _initialBalance, _user);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _noticePeriodCost);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _noticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _noticePeriodCost, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _noticePeriodCost, _provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, Utils.JOB_RATE);
+        emit Market.MarketJobRateRevised(jobId, _now(), Utils.JOB_RATE);
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
@@ -768,7 +772,7 @@ contract MarketTestJobOpenNoCredit is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -851,9 +855,9 @@ contract MarketTestJobSettle is MarketTest {
         skip(2000);
         uint256 _settleAmount = Utils.usdc(40);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _settleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _settleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, _provider);
         market.jobSettle(jobId);
 
         assertEq(
@@ -865,7 +869,7 @@ contract MarketTestJobSettle is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost - _settleAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -892,9 +896,9 @@ contract MarketTestJobSettle is MarketTest {
         skip(2000);
         uint256 _settleAmount = Utils.usdc(40);
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _settleAmount);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _settleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, _provider);
         market.jobSettle(jobId);
 
         assertEq(
@@ -906,7 +910,7 @@ contract MarketTestJobSettle is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost - _settleAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -943,11 +947,11 @@ contract MarketTestJobSettle is MarketTest {
         uint256 _tokenSettleAmount = Utils.usdc(10) + _noticePeriodCost;
         uint256 _creditSettleAmount = Utils.usdc(30) - _noticePeriodCost;
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _creditSettleAmount);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _creditSettleAmount);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _tokenSettleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _tokenSettleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, _provider);
         market.jobSettle(jobId);
 
         assertEq(
@@ -959,7 +963,7 @@ contract MarketTestJobSettle is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost - _settleAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -996,11 +1000,11 @@ contract MarketTestJobSettle is MarketTest {
         uint256 _tokenSettleAmount = _initialTokenBalance;
         uint256 _creditSettleAmount = _initialCreditBalance - _noticePeriodCost;
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _creditSettleAmount);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _creditSettleAmount);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _tokenSettleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _tokenSettleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, _provider);
         market.jobSettle(jobId);
 
         assertEq(
@@ -1012,7 +1016,7 @@ contract MarketTestJobSettle is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost - _settleAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1072,9 +1076,9 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         skip(2000);
         uint256 _settleAmount = Utils.usdc(40);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _settleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _settleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, _provider);
         market.jobSettle(jobId);
 
         assertEq(
@@ -1086,7 +1090,7 @@ contract MarketTestJobSettleNoCredit is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost - _settleAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1115,9 +1119,9 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         uint256 _settleAmount = Utils.usdc(50) - _noticePeriodCost;
         uint256 _tokenSettleAmount = _initialTokenBalance - _noticePeriodCost;
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _tokenSettleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), _provider, _tokenSettleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, _provider);
         market.jobSettle(jobId);
 
         assertEq(
@@ -1129,7 +1133,7 @@ contract MarketTestJobSettleNoCredit is MarketTest {
                 _provider,
                 Utils.JOB_RATE,
                 _initialBalance - _noticePeriodCost - _settleAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1199,9 +1203,9 @@ contract MarketTestJobDeposit is MarketTest {
         vm.startPrank(user);
         usdc.approve(address(market), _depositAmount);
         vm.expectEmit();
-        emit Market.MarketTokenDeposited(jobId, block.timestamp, user, _depositAmount);
+        emit Market.MarketTokenDeposited(jobId, _now(), user, _depositAmount);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _depositAmount, user);
+        emit Market.MarketJobDeposited(jobId, _now(), _depositAmount, user);
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
@@ -1214,7 +1218,7 @@ contract MarketTestJobDeposit is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost + _depositAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1237,9 +1241,9 @@ contract MarketTestJobDeposit is MarketTest {
         vm.startPrank(user);
         credit.approve(address(market), _depositAmount);
         vm.expectEmit();
-        emit Market.MarketCreditTokenDeposited(jobId, block.timestamp, user, _depositAmount);
+        emit Market.MarketCreditTokenDeposited(jobId, _now(), user, _depositAmount);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _depositAmount, user);
+        emit Market.MarketJobDeposited(jobId, _now(), _depositAmount, user);
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
@@ -1252,7 +1256,7 @@ contract MarketTestJobDeposit is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost + _depositAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1279,11 +1283,11 @@ contract MarketTestJobDeposit is MarketTest {
         usdc.approve(address(market), _tokenDepositAmount);
         credit.approve(address(market), _creditDepositAmount);
         vm.expectEmit();
-        emit Market.MarketCreditTokenDeposited(jobId, block.timestamp, user, _creditDepositAmount);
+        emit Market.MarketCreditTokenDeposited(jobId, _now(), user, _creditDepositAmount);
         vm.expectEmit();
-        emit Market.MarketTokenDeposited(jobId, block.timestamp, user, _tokenDepositAmount);
+        emit Market.MarketTokenDeposited(jobId, _now(), user, _tokenDepositAmount);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _depositAmount, user);
+        emit Market.MarketJobDeposited(jobId, _now(), _depositAmount, user);
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
@@ -1296,7 +1300,7 @@ contract MarketTestJobDeposit is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost + _depositAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1388,9 +1392,9 @@ contract MarketTestJobDepositNoCredit is MarketTest {
         vm.startPrank(user);
         usdc.approve(address(market), _depositAmount);
         vm.expectEmit();
-        emit Market.MarketTokenDeposited(jobId, block.timestamp, user, _depositAmount);
+        emit Market.MarketTokenDeposited(jobId, _now(), user, _depositAmount);
         vm.expectEmit();
-        emit Market.MarketJobDeposited(jobId, block.timestamp, _depositAmount, user);
+        emit Market.MarketJobDeposited(jobId, _now(), _depositAmount, user);
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
@@ -1403,7 +1407,7 @@ contract MarketTestJobDepositNoCredit is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost + _depositAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1494,9 +1498,9 @@ contract MarketTestJobWithdraw is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, _withdrawAmount);
+        emit Market.MarketTokenWithdrew(jobId, _now(), user, _withdrawAmount);
         vm.expectEmit();
-        emit Market.MarketJobWithdrew(jobId, block.timestamp, _withdrawAmount, user);
+        emit Market.MarketJobWithdrew(jobId, _now(), _withdrawAmount, user);
         market.jobWithdraw(jobId, _withdrawAmount);
         vm.stopPrank();
 
@@ -1509,7 +1513,7 @@ contract MarketTestJobWithdraw is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost - _withdrawAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1532,11 +1536,11 @@ contract MarketTestJobWithdraw is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, _tokenWithdrawAmount);
+        emit Market.MarketTokenWithdrew(jobId, _now(), user, _tokenWithdrawAmount);
         vm.expectEmit();
-        emit Market.MarketCreditTokenWithdrew(jobId, block.timestamp, user, _creditWithdrawAmount);
+        emit Market.MarketCreditTokenWithdrew(jobId, _now(), user, _creditWithdrawAmount);
         vm.expectEmit();
-        emit Market.MarketJobWithdrew(jobId, block.timestamp, _withdrawAmount, user);
+        emit Market.MarketJobWithdrew(jobId, _now(), _withdrawAmount, user);
         market.jobWithdraw(jobId, _withdrawAmount);
         vm.stopPrank();
 
@@ -1549,7 +1553,7 @@ contract MarketTestJobWithdraw is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost - _withdrawAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1630,9 +1634,9 @@ contract MarketTestJobWithdrawNoCredit is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, _withdrawAmount);
+        emit Market.MarketTokenWithdrew(jobId, _now(), user, _withdrawAmount);
         vm.expectEmit();
-        emit Market.MarketJobWithdrew(jobId, block.timestamp, _withdrawAmount, user);
+        emit Market.MarketJobWithdrew(jobId, _now(), _withdrawAmount, user);
         market.jobWithdraw(jobId, _withdrawAmount);
         vm.stopPrank();
 
@@ -1645,7 +1649,7 @@ contract MarketTestJobWithdrawNoCredit is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost - _withdrawAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -1731,13 +1735,13 @@ contract MarketTestJobClose is MarketTest {
     function test_JobClose() public {
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, initialTokenBalance);
+        emit Market.MarketTokenWithdrew(jobId, _now(), user, initialTokenBalance);
         vm.expectEmit();
-        emit Market.MarketCreditTokenWithdrew(jobId, block.timestamp, user, initialCreditBalance - noticePeriodCost);
+        emit Market.MarketCreditTokenWithdrew(jobId, _now(), user, initialCreditBalance - noticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobWithdrew(jobId, block.timestamp, initialBalance - noticePeriodCost, user);
+        emit Market.MarketJobWithdrew(jobId, _now(), initialBalance - noticePeriodCost, user);
         vm.expectEmit();
-        emit Market.MarketJobClosed(jobId, block.timestamp);
+        emit Market.MarketJobClosed(jobId, _now());
         market.jobClose(jobId);
         vm.stopPrank();
 
@@ -1769,13 +1773,13 @@ contract MarketTestJobClose is MarketTest {
         uint256 _tokenSettleAmount = (initialBalance - noticePeriodCost) - _creditSettleAmount;
 
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, _creditSettleAmount);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), provider, _creditSettleAmount);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _tokenSettleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), provider, _tokenSettleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, initialBalance - noticePeriodCost, provider);
+        emit Market.MarketJobSettled(jobId, _now(), initialBalance - noticePeriodCost, provider);
         vm.expectEmit();
-        emit Market.MarketJobClosed(jobId, block.timestamp);
+        emit Market.MarketJobClosed(jobId, _now());
         market.jobClose(jobId);
         vm.stopPrank();
 
@@ -1849,11 +1853,11 @@ contract MarketTestJobCloseNoCredit is MarketTest {
     function test_JobClose() public {
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, initialBalance - noticePeriodCost);
+        emit Market.MarketTokenWithdrew(jobId, _now(), user, initialBalance - noticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobWithdrew(jobId, block.timestamp, initialBalance - noticePeriodCost, user);
+        emit Market.MarketJobWithdrew(jobId, _now(), initialBalance - noticePeriodCost, user);
         vm.expectEmit();
-        emit Market.MarketJobClosed(jobId, block.timestamp);
+        emit Market.MarketJobClosed(jobId, _now());
         market.jobClose(jobId);
         vm.stopPrank();
 
@@ -1878,11 +1882,11 @@ contract MarketTestJobCloseNoCredit is MarketTest {
         uint256 _settleAmount = initialBalance - noticePeriodCost;
 
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _settleAmount);
+        emit Market.MarketTokenSettled(jobId, _now(), provider, _settleAmount);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, provider);
+        emit Market.MarketJobSettled(jobId, _now(), _settleAmount, provider);
         vm.expectEmit();
-        emit Market.MarketJobClosed(jobId, block.timestamp);
+        emit Market.MarketJobClosed(jobId, _now());
         market.jobClose(jobId);
         vm.stopPrank();
 
@@ -1966,11 +1970,11 @@ contract MarketTestJobReviseRate is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, _extraNoticePeriodCost);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), provider, _extraNoticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _extraNoticePeriodCost, provider);
+        emit Market.MarketJobSettled(jobId, _now(), _extraNoticePeriodCost, provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _newRate);
         market.jobReviseRate(jobId, _newRate);
         vm.stopPrank();
 
@@ -1983,7 +1987,7 @@ contract MarketTestJobReviseRate is MarketTest {
                 provider,
                 _newRate,
                 initialBalance - noticePeriodCost - _extraNoticePeriodCost,
-                block.timestamp,
+                _now(),
                 _newRate
             )
         );
@@ -2005,13 +2009,13 @@ contract MarketTestJobReviseRate is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, _creditRemaining);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), provider, _creditRemaining);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _extraNoticePeriodCost - _creditRemaining);
+        emit Market.MarketTokenSettled(jobId, _now(), provider, _extraNoticePeriodCost - _creditRemaining);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _extraNoticePeriodCost, provider);
+        emit Market.MarketJobSettled(jobId, _now(), _extraNoticePeriodCost, provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _newRate);
         market.jobReviseRate(jobId, _newRate);
         vm.stopPrank();
 
@@ -2024,7 +2028,7 @@ contract MarketTestJobReviseRate is MarketTest {
                 provider,
                 _newRate,
                 initialBalance - noticePeriodCost - _extraNoticePeriodCost,
-                block.timestamp,
+                _now(),
                 _newRate
             )
         );
@@ -2044,7 +2048,7 @@ contract MarketTestJobReviseRate is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _newRate);
         market.jobReviseRate(jobId, _newRate);
         vm.stopPrank();
 
@@ -2052,7 +2056,7 @@ contract MarketTestJobReviseRate is MarketTest {
             market,
             jobId,
             Market.Job(
-                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, block.timestamp, Utils.JOB_RATE
+                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -2074,7 +2078,7 @@ contract MarketTestJobReviseRate is MarketTest {
         market.jobReviseRate(jobId, _decreasedRate);
 
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _increasedRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _increasedRate);
         market.jobReviseRate(jobId, _increasedRate);
         vm.stopPrank();
 
@@ -2087,7 +2091,7 @@ contract MarketTestJobReviseRate is MarketTest {
                 provider,
                 _increasedRate,
                 initialBalance - noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -2168,11 +2172,11 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _extraNoticePeriodCost);
+        emit Market.MarketTokenSettled(jobId, _now(), provider, _extraNoticePeriodCost);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, _extraNoticePeriodCost, provider);
+        emit Market.MarketJobSettled(jobId, _now(), _extraNoticePeriodCost, provider);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _newRate);
         market.jobReviseRate(jobId, _newRate);
         vm.stopPrank();
 
@@ -2185,7 +2189,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
                 provider,
                 _newRate,
                 initialBalance - noticePeriodCost - _extraNoticePeriodCost,
-                block.timestamp,
+                _now(),
                 _newRate
             )
         );
@@ -2200,7 +2204,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _newRate);
         market.jobReviseRate(jobId, _newRate);
         vm.stopPrank();
 
@@ -2208,7 +2212,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
             market,
             jobId,
             Market.Job(
-                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, block.timestamp, Utils.JOB_RATE
+                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -2225,7 +2229,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
         market.jobReviseRate(jobId, _decreasedRate);
 
         vm.expectEmit();
-        emit Market.MarketJobRateRevised(jobId, block.timestamp, _increasedRate);
+        emit Market.MarketJobRateRevised(jobId, _now(), _increasedRate);
         market.jobReviseRate(jobId, _increasedRate);
         vm.stopPrank();
 
@@ -2238,7 +2242,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
                 provider,
                 _increasedRate,
                 initialBalance - noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -2326,7 +2330,7 @@ contract MarketTestJobMetadataUpdate is MarketTest {
 
         vm.startPrank(user);
         vm.expectEmit();
-        emit Market.MarketJobMetadataUpdated(jobId, block.timestamp, _newMetadata);
+        emit Market.MarketJobMetadataUpdated(jobId, _now(), _newMetadata);
         market.jobMetadataUpdate(jobId, _newMetadata);
         vm.stopPrank();
 
@@ -2339,7 +2343,7 @@ contract MarketTestJobMetadataUpdate is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
@@ -2428,13 +2432,13 @@ contract MarketTestEmergencyWithdrawCredit is MarketTest {
         uint256 _creditAmount = initialCreditBalance - noticePeriodCost;
 
         vm.expectEmit();
-        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, 0);
+        emit Market.MarketCreditTokenSettled(jobId, _now(), provider, 0);
         vm.expectEmit();
-        emit Market.MarketJobSettled(jobId, block.timestamp, 0, provider);
+        emit Market.MarketJobSettled(jobId, _now(), 0, provider);
         vm.expectEmit();
-        emit Market.MarketCreditTokenWithdrew(jobId, block.timestamp, admin, _creditAmount);
+        emit Market.MarketCreditTokenWithdrew(jobId, _now(), admin, _creditAmount);
         vm.expectEmit();
-        emit Market.MarketJobWithdrew(jobId, block.timestamp, _creditAmount, admin);
+        emit Market.MarketJobWithdrew(jobId, _now(), _creditAmount, admin);
         market.emergencyWithdrawCredit(admin, jobIds);
         vm.stopPrank();
 
@@ -2447,7 +2451,7 @@ contract MarketTestEmergencyWithdrawCredit is MarketTest {
                 provider,
                 Utils.JOB_RATE,
                 initialBalance - noticePeriodCost - _creditAmount,
-                block.timestamp,
+                _now(),
                 Utils.JOB_RATE
             )
         );
