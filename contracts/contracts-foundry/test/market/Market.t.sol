@@ -1846,3 +1846,376 @@ contract MarketTestJobCloseNoCredit is MarketTest {
         vm.stopPrank();
     }
 }
+
+contract MarketTestJobReviseRate is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    CreditMock credit;
+    uint256 creditTokenBalance;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 initialTokenBalance;
+    uint256 initialCreditBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        credit = new CreditMock(usdc);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(credit))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market) || user == address(credit));
+        do {
+            provider = vm.randomAddress();
+        } while (
+            provider == address(0) || provider == address(market) || provider == address(credit) || provider == user
+        );
+        initialBalance = Utils.usdc(50);
+        initialTokenBalance = Utils.usdc(20);
+        initialCreditBalance = Utils.usdc(30);
+        usdc.mint(user, initialTokenBalance);
+        credit.mint(user, initialCreditBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialTokenBalance);
+        credit.approve(address(market), initialCreditBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_Increase() public {
+        uint256 _newRate = Utils.JOB_RATE * 2;
+        uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, _extraNoticePeriodCost);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _extraNoticePeriodCost, provider);
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        market.jobReviseRate(jobId, _newRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _newRate,
+                initialBalance - noticePeriodCost - _extraNoticePeriodCost,
+                block.timestamp,
+                _newRate
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost - _extraNoticePeriodCost);
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialTokenBalance);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost + _extraNoticePeriodCost);
+        assertEq(credit.balanceOf(user), 0);
+        assertEq(credit.balanceOf(address(market)), initialCreditBalance - noticePeriodCost - _extraNoticePeriodCost);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobReviseRate_IncreaseHitToken() public {
+        uint256 _newRate = Utils.JOB_RATE * 6; // To exceed the remaining credit balance (30 - 6 = 24). Extra is 30.
+        uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint256 _creditRemaining = initialCreditBalance - noticePeriodCost;
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, _creditRemaining);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _extraNoticePeriodCost - _creditRemaining);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _extraNoticePeriodCost, provider);
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        market.jobReviseRate(jobId, _newRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _newRate,
+                initialBalance - noticePeriodCost - _extraNoticePeriodCost,
+                block.timestamp,
+                _newRate
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), 0);
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialTokenBalance - (_extraNoticePeriodCost - _creditRemaining));
+        assertEq(usdc.balanceOf(provider), noticePeriodCost + _extraNoticePeriodCost);
+        assertEq(credit.balanceOf(user), 0);
+        assertEq(credit.balanceOf(address(market)), 0);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobReviseRate_Decrease() public {
+        uint256 _newRate = Utils.JOB_RATE / 2;
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        market.jobReviseRate(jobId, _newRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _newRate,
+                initialBalance - noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost);
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialTokenBalance);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+        assertEq(credit.balanceOf(user), 0);
+        assertEq(credit.balanceOf(address(market)), initialCreditBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobReviseRate_DecreaseAndIncreaseBelowMax() public {
+        uint256 _decreasedRate = Utils.JOB_RATE / 2;
+        uint256 _increasedRate = Utils.JOB_RATE * 3 / 4;
+
+        vm.startPrank(user);
+        market.jobReviseRate(jobId, _decreasedRate);
+
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _increasedRate);
+        market.jobReviseRate(jobId, _increasedRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _increasedRate,
+                initialBalance - noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost);
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialTokenBalance);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+        assertEq(credit.balanceOf(user), 0);
+        assertEq(credit.balanceOf(address(market)), initialCreditBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobReviseRate_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobReviseRate(jobId, Utils.JOB_RATE * 2);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+        vm.expectRevert(Market.MarketJobInactive.selector);
+        market.jobReviseRate(jobId, Utils.JOB_RATE * 2);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobReviseRate(jobId + 1, Utils.JOB_RATE * 2);
+        vm.stopPrank();
+    }
+}
+
+contract MarketTestJobReviseRateNoCredit is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(0))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market));
+        do {
+            provider = vm.randomAddress();
+        } while (provider == address(0) || provider == address(market) || provider == user);
+        initialBalance = Utils.usdc(50);
+        usdc.mint(user, initialBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_Increase() public {
+        uint256 _newRate = Utils.JOB_RATE * 2;
+        uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _extraNoticePeriodCost);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _extraNoticePeriodCost, provider);
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        market.jobReviseRate(jobId, _newRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _newRate,
+                initialBalance - noticePeriodCost - _extraNoticePeriodCost,
+                block.timestamp,
+                _newRate
+            )
+        );
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialBalance - noticePeriodCost - _extraNoticePeriodCost);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost + _extraNoticePeriodCost);
+    }
+
+    function test_JobReviseRate_Decrease() public {
+        uint256 _newRate = Utils.JOB_RATE / 2;
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _newRate);
+        market.jobReviseRate(jobId, _newRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _newRate,
+                initialBalance - noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialBalance - noticePeriodCost);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+    }
+
+    function test_JobReviseRate_DecreaseAndIncreaseBelowMax() public {
+        uint256 _decreasedRate = Utils.JOB_RATE / 2;
+        uint256 _increasedRate = Utils.JOB_RATE * 3 / 4;
+
+        vm.startPrank(user);
+        market.jobReviseRate(jobId, _decreasedRate);
+
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, _increasedRate);
+        market.jobReviseRate(jobId, _increasedRate);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                _increasedRate,
+                initialBalance - noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialBalance - noticePeriodCost);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+    }
+
+    function test_JobReviseRate_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobReviseRate(jobId, Utils.JOB_RATE * 2);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+        vm.expectRevert(Market.MarketJobInactive.selector);
+        market.jobReviseRate(jobId, Utils.JOB_RATE * 2);
+        vm.stopPrank();
+    }
+
+    function test_JobReviseRate_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobReviseRate(jobId + 1, Utils.JOB_RATE * 2);
+        vm.stopPrank();
+    }
+}
