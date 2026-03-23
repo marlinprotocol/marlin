@@ -1614,3 +1614,235 @@ contract MarketTestJobWithdrawNoCredit is MarketTest {
         vm.stopPrank();
     }
 }
+
+contract MarketTestJobClose is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    CreditMock credit;
+    uint256 creditTokenBalance;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 initialTokenBalance;
+    uint256 initialCreditBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        credit = new CreditMock(usdc);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(credit))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market) || user == address(credit));
+        do {
+            provider = vm.randomAddress();
+        } while (
+            provider == address(0) || provider == address(market) || provider == address(credit) || provider == user
+        );
+        initialBalance = Utils.usdc(50);
+        initialTokenBalance = Utils.usdc(20);
+        initialCreditBalance = Utils.usdc(30);
+        usdc.mint(user, initialTokenBalance);
+        credit.mint(user, initialCreditBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialTokenBalance);
+        credit.approve(address(market), initialCreditBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobClose() public {
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, initialTokenBalance);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenWithdrew(jobId, block.timestamp, user, initialCreditBalance - noticePeriodCost);
+        vm.expectEmit();
+        emit Market.MarketJobWithdrew(jobId, block.timestamp, initialBalance - noticePeriodCost, user);
+        vm.expectEmit();
+        emit Market.MarketJobClosed(jobId, block.timestamp);
+        market.jobClose(jobId);
+        vm.stopPrank();
+
+        assertEq(market, jobId, Market.Job("", address(0), address(0), 0, 0, 0, 0));
+
+        assertEq(market.creditBalances(jobId), 0);
+
+        assertEq(usdc.balanceOf(user), initialTokenBalance);
+        assertEq(usdc.balanceOf(address(market)), 0);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(user), initialCreditBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(address(market)), 0);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobClose_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobClose(jobId);
+        vm.stopPrank();
+    }
+
+    function test_JobClose_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+
+        uint256 _creditSettleAmount = initialCreditBalance - noticePeriodCost;
+        uint256 _tokenSettleAmount = (initialBalance - noticePeriodCost) - _creditSettleAmount;
+
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, _creditSettleAmount);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _tokenSettleAmount);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, initialBalance - noticePeriodCost, provider);
+        vm.expectEmit();
+        emit Market.MarketJobClosed(jobId, block.timestamp);
+        market.jobClose(jobId);
+        vm.stopPrank();
+
+        assertEq(market, jobId, Market.Job("", address(0), address(0), 0, 0, 0, 0));
+
+        assertEq(market.creditBalances(jobId), 0);
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), 0);
+        assertEq(usdc.balanceOf(provider), initialBalance);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - noticePeriodCost - _creditSettleAmount);
+        assertEq(credit.balanceOf(user), 0);
+        assertEq(credit.balanceOf(address(market)), 0);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobClose_AlreadyClosed() public {
+        vm.startPrank(user);
+        market.jobClose(jobId);
+
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobClose(jobId);
+        vm.stopPrank();
+    }
+
+    function test_JobClose_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobClose(jobId + 1);
+        vm.stopPrank();
+    }
+}
+
+contract MarketTestJobCloseNoCredit is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(0))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market));
+        do {
+            provider = vm.randomAddress();
+        } while (provider == address(0) || provider == address(market) || provider == user);
+        initialBalance = Utils.usdc(50);
+        usdc.mint(user, initialBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobClose() public {
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, initialBalance - noticePeriodCost);
+        vm.expectEmit();
+        emit Market.MarketJobWithdrew(jobId, block.timestamp, initialBalance - noticePeriodCost, user);
+        vm.expectEmit();
+        emit Market.MarketJobClosed(jobId, block.timestamp);
+        market.jobClose(jobId);
+        vm.stopPrank();
+
+        assertEq(market, jobId, Market.Job("", address(0), address(0), 0, 0, 0, 0));
+
+        assertEq(usdc.balanceOf(user), initialBalance - noticePeriodCost);
+        assertEq(usdc.balanceOf(address(market)), 0);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+    }
+
+    function test_JobClose_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobClose(jobId);
+        vm.stopPrank();
+    }
+
+    function test_JobClose_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+
+        uint256 _settleAmount = initialBalance - noticePeriodCost;
+
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, provider, _settleAmount);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, provider);
+        vm.expectEmit();
+        emit Market.MarketJobClosed(jobId, block.timestamp);
+        market.jobClose(jobId);
+        vm.stopPrank();
+
+        assertEq(market, jobId, Market.Job("", address(0), address(0), 0, 0, 0, 0));
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), 0);
+        assertEq(usdc.balanceOf(provider), initialBalance);
+    }
+
+    function test_JobClose_AlreadyClosed() public {
+        vm.startPrank(user);
+        market.jobClose(jobId);
+
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobClose(jobId);
+        vm.stopPrank();
+    }
+
+    function test_JobClose_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobClose(jobId + 1);
+        vm.stopPrank();
+    }
+}
