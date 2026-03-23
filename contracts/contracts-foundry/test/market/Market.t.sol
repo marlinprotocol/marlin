@@ -16,7 +16,7 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 contract ERC20Mock is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
 
-    function mint(address account, uint256 amount) public {
+    function mint(address account, uint64 amount) public {
         _mint(account, amount);
     }
 }
@@ -35,15 +35,15 @@ contract CreditMock is ERC20Mock, ICredit {
 }
 
 library Utils {
-    uint256 public constant NOTICE_PERIOD = 300;
+    uint64 public constant NOTICE_PERIOD = 300;
     uint64 public constant JOB_RATE = 2 * 10 ** 10; // 0.02 USDC/s
 
-    function calcAmountToPay(uint256 rate, uint256 duration) internal pure returns (uint256) {
-        uint256 decimals = 10 ** 6;
+    function calcAmountToPay(uint64 rate, uint64 duration) internal pure returns (uint64) {
+        uint64 decimals = 10 ** 6;
         return (rate * duration + decimals - 1) / decimals;
     }
 
-    function usdc(uint256 amount) internal pure returns (uint256) {
+    function usdc(uint64 amount) internal pure returns (uint64) {
         return amount * 10 ** 6;
     }
 }
@@ -54,10 +54,10 @@ abstract contract MarketTest is Test {
             string memory _jobMetadata,
             address _jobOwner,
             address _jobProvider,
-            uint256 _jobRate,
-            uint256 _jobBalance,
-            uint256 _jobLastSettled,
-            uint256 _jobMaxRate
+            uint64 _jobRate,
+            uint64 _jobBalance,
+            uint64 _jobLastSettled,
+            uint64 _jobMaxRate
         ) = _market.jobs(_jobId);
         assertEq(_jobMetadata, _job.metadata);
         assertEq(_jobOwner, _job.owner);
@@ -68,7 +68,7 @@ abstract contract MarketTest is Test {
         assertEq(_jobMaxRate, _job.maxRate);
     }
 
-    function _now() view internal returns (uint64) {
+    function _now() internal view returns (uint64) {
         return uint64(block.timestamp);
     }
 }
@@ -390,7 +390,7 @@ contract MarketTestUpdateNoticePeriod is Test {
         );
     }
 
-    function test_UpdateNoticePeriod_Admin(uint256 _newNoticePeriod) public {
+    function test_UpdateNoticePeriod_Admin(uint64 _newNoticePeriod) public {
         vm.expectEmit();
         emit Market.MarketNoticePeriodUpdated(Utils.NOTICE_PERIOD, _newNoticePeriod);
         vm.prank(admin);
@@ -399,7 +399,7 @@ contract MarketTestUpdateNoticePeriod is Test {
         assertEq(market.noticePeriod(), _newNoticePeriod);
     }
 
-    function test_UpdateNoticePeriod_NonAdmin(uint256 _newNoticePeriod) public {
+    function test_UpdateNoticePeriod_NonAdmin(uint64 _newNoticePeriod) public {
         vm.expectRevert(Market.MarketOnlyAdmin.selector);
         market.updateNoticePeriod(_newNoticePeriod);
     }
@@ -479,7 +479,7 @@ contract MarketTestJobOpen is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
 
     function setUp() public {
@@ -513,9 +513,9 @@ contract MarketTestJobOpen is MarketTest {
     function test_JobOpen_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
         usdc.mint(_user, _initialBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
@@ -538,13 +538,7 @@ contract MarketTestJobOpen is MarketTest {
             market,
             jobId,
             Market.Job(
-                _metadata,
-                _user,
-                _provider,
-                Utils.JOB_RATE,
-                _initialBalance - _noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                _metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -564,9 +558,9 @@ contract MarketTestJobOpen is MarketTest {
     function test_JobOpen_OnlyCredit(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
         credit.mint(_user, _initialBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         credit.approve(address(market), _initialBalance);
@@ -589,13 +583,7 @@ contract MarketTestJobOpen is MarketTest {
             market,
             jobId,
             Market.Job(
-                _metadata,
-                _user,
-                _provider,
-                Utils.JOB_RATE,
-                _initialBalance - _noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                _metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -615,12 +603,12 @@ contract MarketTestJobOpen is MarketTest {
     function test_JobOpen_USDCAndCredit(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(20);
-        uint256 _initialCreditBalance = Utils.usdc(30);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(20);
+        uint64 _initialCreditBalance = Utils.usdc(30);
         usdc.mint(_user, _initialTokenBalance);
         credit.mint(_user, _initialCreditBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialTokenBalance);
@@ -645,13 +633,7 @@ contract MarketTestJobOpen is MarketTest {
             market,
             jobId,
             Market.Job(
-                _metadata,
-                _user,
-                _provider,
-                Utils.JOB_RATE,
-                _initialBalance - _noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                _metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -671,9 +653,9 @@ contract MarketTestJobOpen is MarketTest {
     function test_JobOpen_NotEnoughUSDC(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(10);
-        uint256 _initialCreditBalance = Utils.usdc(30);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(10);
+        uint64 _initialCreditBalance = Utils.usdc(30);
         usdc.mint(_user, _initialTokenBalance);
         credit.mint(_user, _initialCreditBalance);
 
@@ -692,9 +674,9 @@ contract MarketTestJobOpen is MarketTest {
     function test_JobOpen_NotEnoughCredit(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(20);
-        uint256 _initialCreditBalance = Utils.usdc(20);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(20);
+        uint64 _initialCreditBalance = Utils.usdc(20);
         usdc.mint(_user, _initialTokenBalance);
         credit.mint(_user, _initialCreditBalance);
 
@@ -742,9 +724,9 @@ contract MarketTestJobOpenNoCredit is MarketTest {
     function test_JobOpen_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
         usdc.mint(_user, _initialBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
@@ -767,13 +749,7 @@ contract MarketTestJobOpenNoCredit is MarketTest {
             market,
             jobId,
             Market.Job(
-                _metadata,
-                _user,
-                _provider,
-                Utils.JOB_RATE,
-                _initialBalance - _noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                _metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -789,8 +765,8 @@ contract MarketTestJobOpenNoCredit is MarketTest {
     function test_JobOpen_NotEnoughUSDC(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(10);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(10);
         usdc.mint(_user, _initialTokenBalance);
 
         vm.startPrank(_user);
@@ -809,7 +785,7 @@ contract MarketTestJobSettle is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
 
     function setUp() public {
@@ -843,9 +819,9 @@ contract MarketTestJobSettle is MarketTest {
     function test_JobSettle_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
         usdc.mint(_user, _initialBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
@@ -853,7 +829,7 @@ contract MarketTestJobSettle is MarketTest {
         vm.stopPrank();
 
         skip(2000);
-        uint256 _settleAmount = Utils.usdc(40);
+        uint64 _settleAmount = Utils.usdc(40);
         vm.expectEmit();
         emit Market.MarketTokenSettled(jobId, _now(), _provider, _settleAmount);
         vm.expectEmit();
@@ -884,9 +860,9 @@ contract MarketTestJobSettle is MarketTest {
     function test_JobSettle_OnlyCredit(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
         credit.mint(_user, _initialBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         credit.approve(address(market), _initialBalance);
@@ -894,7 +870,7 @@ contract MarketTestJobSettle is MarketTest {
         vm.stopPrank();
 
         skip(2000);
-        uint256 _settleAmount = Utils.usdc(40);
+        uint64 _settleAmount = Utils.usdc(40);
         vm.expectEmit();
         emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _settleAmount);
         vm.expectEmit();
@@ -929,12 +905,12 @@ contract MarketTestJobSettle is MarketTest {
     function test_JobSettle_USDCAndCredit(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(20);
-        uint256 _initialCreditBalance = Utils.usdc(30);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(20);
+        uint64 _initialCreditBalance = Utils.usdc(30);
         usdc.mint(_user, _initialTokenBalance);
         credit.mint(_user, _initialCreditBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialTokenBalance);
@@ -943,9 +919,9 @@ contract MarketTestJobSettle is MarketTest {
         vm.stopPrank();
 
         skip(2000);
-        uint256 _settleAmount = Utils.usdc(40);
-        uint256 _tokenSettleAmount = Utils.usdc(10) + _noticePeriodCost;
-        uint256 _creditSettleAmount = Utils.usdc(30) - _noticePeriodCost;
+        uint64 _settleAmount = Utils.usdc(40);
+        uint64 _tokenSettleAmount = Utils.usdc(10) + _noticePeriodCost;
+        uint64 _creditSettleAmount = Utils.usdc(30) - _noticePeriodCost;
         vm.expectEmit();
         emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _creditSettleAmount);
         vm.expectEmit();
@@ -982,12 +958,12 @@ contract MarketTestJobSettle is MarketTest {
     function test_JobSettle_NotEnoughBalance(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(20);
-        uint256 _initialCreditBalance = Utils.usdc(30);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(20);
+        uint64 _initialCreditBalance = Utils.usdc(30);
         usdc.mint(_user, _initialTokenBalance);
         credit.mint(_user, _initialCreditBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialTokenBalance);
@@ -996,9 +972,9 @@ contract MarketTestJobSettle is MarketTest {
         vm.stopPrank();
 
         skip(3000);
-        uint256 _settleAmount = Utils.usdc(50) - _noticePeriodCost;
-        uint256 _tokenSettleAmount = _initialTokenBalance;
-        uint256 _creditSettleAmount = _initialCreditBalance - _noticePeriodCost;
+        uint64 _settleAmount = Utils.usdc(50) - _noticePeriodCost;
+        uint64 _tokenSettleAmount = _initialTokenBalance;
+        uint64 _creditSettleAmount = _initialCreditBalance - _noticePeriodCost;
         vm.expectEmit();
         emit Market.MarketCreditTokenSettled(jobId, _now(), _provider, _creditSettleAmount);
         vm.expectEmit();
@@ -1064,9 +1040,9 @@ contract MarketTestJobSettleNoCredit is MarketTest {
     function test_JobSettle_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
         usdc.mint(_user, _initialBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
@@ -1074,7 +1050,7 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         vm.stopPrank();
 
         skip(2000);
-        uint256 _settleAmount = Utils.usdc(40);
+        uint64 _settleAmount = Utils.usdc(40);
         vm.expectEmit();
         emit Market.MarketTokenSettled(jobId, _now(), _provider, _settleAmount);
         vm.expectEmit();
@@ -1105,10 +1081,10 @@ contract MarketTestJobSettleNoCredit is MarketTest {
     function test_JobSettle_NotEnoughBalance(address _user, address _provider, string memory _metadata) public {
         _assumptions(_user, _provider);
 
-        uint256 _initialBalance = Utils.usdc(50);
-        uint256 _initialTokenBalance = Utils.usdc(50);
+        uint64 _initialBalance = Utils.usdc(50);
+        uint64 _initialTokenBalance = Utils.usdc(50);
         usdc.mint(_user, _initialTokenBalance);
-        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialTokenBalance);
@@ -1116,8 +1092,8 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         vm.stopPrank();
 
         skip(3000);
-        uint256 _settleAmount = Utils.usdc(50) - _noticePeriodCost;
-        uint256 _tokenSettleAmount = _initialTokenBalance - _noticePeriodCost;
+        uint64 _settleAmount = Utils.usdc(50) - _noticePeriodCost;
+        uint64 _tokenSettleAmount = _initialTokenBalance - _noticePeriodCost;
         vm.expectEmit();
         emit Market.MarketTokenSettled(jobId, _now(), _provider, _tokenSettleAmount);
         vm.expectEmit();
@@ -1150,14 +1126,14 @@ contract MarketTestJobDeposit is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 initialTokenBalance;
-    uint256 initialCreditBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 initialTokenBalance;
+    uint64 initialCreditBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1197,7 +1173,7 @@ contract MarketTestJobDeposit is MarketTest {
     }
 
     function test_JobDeposit_OnlyUSDC() public {
-        uint256 _depositAmount = Utils.usdc(40);
+        uint64 _depositAmount = Utils.usdc(40);
         usdc.mint(user, _depositAmount);
 
         vm.startPrank(user);
@@ -1235,7 +1211,7 @@ contract MarketTestJobDeposit is MarketTest {
     }
 
     function test_JobDeposit_OnlyCredit() public {
-        uint256 _depositAmount = Utils.usdc(40);
+        uint64 _depositAmount = Utils.usdc(40);
         credit.mint(user, _depositAmount);
 
         vm.startPrank(user);
@@ -1273,9 +1249,9 @@ contract MarketTestJobDeposit is MarketTest {
     }
 
     function test_JobDeposit_UsdcAndCredit() public {
-        uint256 _depositAmount = Utils.usdc(40);
-        uint256 _tokenDepositAmount = Utils.usdc(10);
-        uint256 _creditDepositAmount = Utils.usdc(30);
+        uint64 _depositAmount = Utils.usdc(40);
+        uint64 _tokenDepositAmount = Utils.usdc(10);
+        uint64 _creditDepositAmount = Utils.usdc(30);
         usdc.mint(user, _tokenDepositAmount);
         credit.mint(user, _creditDepositAmount);
 
@@ -1317,9 +1293,9 @@ contract MarketTestJobDeposit is MarketTest {
     }
 
     function test_JobDeposit_NonExistent() public {
-        uint256 _depositAmount = Utils.usdc(40);
-        uint256 _tokenDepositAmount = Utils.usdc(10);
-        uint256 _creditDepositAmount = Utils.usdc(30);
+        uint64 _depositAmount = Utils.usdc(40);
+        uint64 _tokenDepositAmount = Utils.usdc(10);
+        uint64 _creditDepositAmount = Utils.usdc(30);
         usdc.mint(user, _tokenDepositAmount);
         credit.mint(user, _creditDepositAmount);
 
@@ -1332,9 +1308,9 @@ contract MarketTestJobDeposit is MarketTest {
     }
 
     function test_JobDeposit_Inactive() public {
-        uint256 _depositAmount = Utils.usdc(40);
-        uint256 _tokenDepositAmount = Utils.usdc(10);
-        uint256 _creditDepositAmount = Utils.usdc(30);
+        uint64 _depositAmount = Utils.usdc(40);
+        uint64 _tokenDepositAmount = Utils.usdc(10);
+        uint64 _creditDepositAmount = Utils.usdc(30);
         usdc.mint(user, _tokenDepositAmount);
         credit.mint(user, _creditDepositAmount);
 
@@ -1354,8 +1330,8 @@ contract MarketTestJobDepositNoCredit is MarketTest {
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1386,7 +1362,7 @@ contract MarketTestJobDepositNoCredit is MarketTest {
     }
 
     function test_JobDeposit_OnlyUSDC() public {
-        uint256 _depositAmount = Utils.usdc(40);
+        uint64 _depositAmount = Utils.usdc(40);
         usdc.mint(user, _depositAmount);
 
         vm.startPrank(user);
@@ -1420,7 +1396,7 @@ contract MarketTestJobDepositNoCredit is MarketTest {
     }
 
     function test_JobDeposit_NonExistent() public {
-        uint256 _depositAmount = Utils.usdc(40);
+        uint64 _depositAmount = Utils.usdc(40);
         usdc.mint(user, _depositAmount);
 
         vm.startPrank(user);
@@ -1431,7 +1407,7 @@ contract MarketTestJobDepositNoCredit is MarketTest {
     }
 
     function test_JobDeposit_Inactive() public {
-        uint256 _depositAmount = Utils.usdc(40);
+        uint64 _depositAmount = Utils.usdc(40);
         usdc.mint(user, _depositAmount);
 
         vm.startPrank(user);
@@ -1447,14 +1423,14 @@ contract MarketTestJobWithdraw is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 initialTokenBalance;
-    uint256 initialCreditBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 initialTokenBalance;
+    uint64 initialCreditBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1494,7 +1470,7 @@ contract MarketTestJobWithdraw is MarketTest {
     }
 
     function test_JobWithdraw_OnlyUSDC() public {
-        uint256 _withdrawAmount = Utils.usdc(10);
+        uint64 _withdrawAmount = Utils.usdc(10);
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -1530,9 +1506,9 @@ contract MarketTestJobWithdraw is MarketTest {
     }
 
     function test_JobWithdraw_OnlyCredit() public {
-        uint256 _withdrawAmount = Utils.usdc(30);
-        uint256 _tokenWithdrawAmount = initialTokenBalance;
-        uint256 _creditWithdrawAmount = _withdrawAmount - _tokenWithdrawAmount;
+        uint64 _withdrawAmount = Utils.usdc(30);
+        uint64 _tokenWithdrawAmount = initialTokenBalance;
+        uint64 _creditWithdrawAmount = _withdrawAmount - _tokenWithdrawAmount;
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -1598,8 +1574,8 @@ contract MarketTestJobWithdrawNoCredit is MarketTest {
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1630,7 +1606,7 @@ contract MarketTestJobWithdrawNoCredit is MarketTest {
     }
 
     function test_JobWithdraw_OnlyUSDC() public {
-        uint256 _withdrawAmount = Utils.usdc(10);
+        uint64 _withdrawAmount = Utils.usdc(10);
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -1686,14 +1662,14 @@ contract MarketTestJobClose is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 initialTokenBalance;
-    uint256 initialCreditBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 initialTokenBalance;
+    uint64 initialCreditBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1769,8 +1745,8 @@ contract MarketTestJobClose is MarketTest {
         vm.startPrank(user);
         skip(3000);
 
-        uint256 _creditSettleAmount = initialCreditBalance - noticePeriodCost;
-        uint256 _tokenSettleAmount = (initialBalance - noticePeriodCost) - _creditSettleAmount;
+        uint64 _creditSettleAmount = initialCreditBalance - noticePeriodCost;
+        uint64 _tokenSettleAmount = (initialBalance - noticePeriodCost) - _creditSettleAmount;
 
         vm.expectEmit();
         emit Market.MarketCreditTokenSettled(jobId, _now(), provider, _creditSettleAmount);
@@ -1796,6 +1772,15 @@ contract MarketTestJobClose is MarketTest {
         assertEq(credit.balanceOf(provider), 0);
     }
 
+    function test_JobClose_Overflow() public {
+        vm.startPrank(user);
+        skip(2**62);
+
+        vm.expectRevert(Market.MarketOutOfRange.selector);
+        market.jobClose(jobId);
+        vm.stopPrank();
+    }
+
     function test_JobClose_AlreadyClosed() public {
         vm.startPrank(user);
         market.jobClose(jobId);
@@ -1819,8 +1804,8 @@ contract MarketTestJobCloseNoCredit is MarketTest {
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1879,7 +1864,7 @@ contract MarketTestJobCloseNoCredit is MarketTest {
         vm.startPrank(user);
         skip(3000);
 
-        uint256 _settleAmount = initialBalance - noticePeriodCost;
+        uint64 _settleAmount = initialBalance - noticePeriodCost;
 
         vm.expectEmit();
         emit Market.MarketTokenSettled(jobId, _now(), provider, _settleAmount);
@@ -1918,14 +1903,14 @@ contract MarketTestJobReviseRate is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 initialTokenBalance;
-    uint256 initialCreditBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 initialTokenBalance;
+    uint64 initialCreditBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -1966,7 +1951,7 @@ contract MarketTestJobReviseRate is MarketTest {
 
     function test_JobReviseRate_Increase() public {
         uint64 _newRate = Utils.JOB_RATE * 2;
-        uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -2004,8 +1989,8 @@ contract MarketTestJobReviseRate is MarketTest {
 
     function test_JobReviseRate_IncreaseHitToken() public {
         uint64 _newRate = Utils.JOB_RATE * 6; // To exceed the remaining credit balance (30 - 6 = 24). Extra is 30.
-        uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
-        uint256 _creditRemaining = initialCreditBalance - noticePeriodCost;
+        uint64 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _creditRemaining = initialCreditBalance - noticePeriodCost;
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -2055,9 +2040,7 @@ contract MarketTestJobReviseRate is MarketTest {
         assertEq(
             market,
             jobId,
-            Market.Job(
-                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
-            )
+            Market.Job("abcd", user, provider, _newRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE)
         );
 
         assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost);
@@ -2086,13 +2069,7 @@ contract MarketTestJobReviseRate is MarketTest {
             market,
             jobId,
             Market.Job(
-                "abcd",
-                user,
-                provider,
-                _increasedRate,
-                initialBalance - noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                "abcd", user, provider, _increasedRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -2135,8 +2112,8 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -2168,7 +2145,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
 
     function test_JobReviseRate_Increase() public {
         uint64 _newRate = Utils.JOB_RATE * 2;
-        uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+        uint64 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -2211,9 +2188,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
         assertEq(
             market,
             jobId,
-            Market.Job(
-                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
-            )
+            Market.Job("abcd", user, provider, _newRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE)
         );
 
         assertEq(usdc.balanceOf(user), 0);
@@ -2237,13 +2212,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
             market,
             jobId,
             Market.Job(
-                "abcd",
-                user,
-                provider,
-                _increasedRate,
-                initialBalance - noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                "abcd", user, provider, _increasedRate, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
 
@@ -2279,14 +2248,14 @@ contract MarketTestJobMetadataUpdate is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
     address user;
     address provider;
-    uint256 initialBalance;
-    uint256 initialTokenBalance;
-    uint256 initialCreditBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 initialTokenBalance;
+    uint64 initialCreditBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
@@ -2338,13 +2307,7 @@ contract MarketTestJobMetadataUpdate is MarketTest {
             market,
             jobId,
             Market.Job(
-                _newMetadata,
-                user,
-                provider,
-                Utils.JOB_RATE,
-                initialBalance - noticePeriodCost,
-                _now(),
-                Utils.JOB_RATE
+                _newMetadata, user, provider, Utils.JOB_RATE, initialBalance - noticePeriodCost, _now(), Utils.JOB_RATE
             )
         );
     }
@@ -2376,15 +2339,15 @@ contract MarketTestEmergencyWithdrawCredit is MarketTest {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 creditTokenBalance;
+    uint64 creditTokenBalance;
     uint64 jobId;
     address user;
     address provider;
     address admin;
-    uint256 initialBalance;
-    uint256 initialTokenBalance;
-    uint256 initialCreditBalance;
-    uint256 noticePeriodCost;
+    uint64 initialBalance;
+    uint64 initialTokenBalance;
+    uint64 initialCreditBalance;
+    uint64 noticePeriodCost;
 
     function setUp() public {
         admin = vm.randomAddress();
@@ -2429,7 +2392,7 @@ contract MarketTestEmergencyWithdrawCredit is MarketTest {
         uint64[] memory jobIds = new uint64[](1);
         jobIds[0] = jobId;
 
-        uint256 _creditAmount = initialCreditBalance - noticePeriodCost;
+        uint64 _creditAmount = initialCreditBalance - noticePeriodCost;
 
         vm.expectEmit();
         emit Market.MarketCreditTokenSettled(jobId, _now(), provider, 0);
