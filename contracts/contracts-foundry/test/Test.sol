@@ -15,6 +15,11 @@ contract Test is ForgeTest {
         _;
     }
 
+    modifier assumeNonZeroAddress(address x) {
+        vm.assume(x != address(0));
+        _;
+    }
+
     modifier assumeNonEmptyString(string memory x) {
         vm.assume(bytes(x).length != 0);
         _;
