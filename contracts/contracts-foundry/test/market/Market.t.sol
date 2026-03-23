@@ -391,14 +391,14 @@ contract MarketTestJobOpen is Test {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 initialCreditBalance;
+    uint256 creditTokenBalance;
     uint64 jobId;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
         credit = new CreditMock(usdc);
-        initialCreditBalance = Utils.usdc(1000);
-        usdc.mint(address(credit), initialCreditBalance);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
         jobId = uint64(vm.randomUint(0, 10000));
         market = Market(
             Upgrades.deployUUPSProxy(
@@ -470,7 +470,7 @@ contract MarketTestJobOpen is Test {
         assertEq(usdc.balanceOf(_user), 0);
         assertEq(usdc.balanceOf(address(market)), _initialBalance - _noticePeriodCost);
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost);
-        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance);
         assertEq(credit.balanceOf(_user), 0);
         assertEq(credit.balanceOf(address(market)), 0);
         assertEq(credit.balanceOf(_provider), 0);
@@ -526,7 +526,7 @@ contract MarketTestJobOpen is Test {
         assertEq(usdc.balanceOf(_user), 0);
         assertEq(usdc.balanceOf(address(market)), 0);
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost);
-        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - _noticePeriodCost);
         assertEq(credit.balanceOf(_user), 0);
         assertEq(credit.balanceOf(address(market)), _initialBalance - _noticePeriodCost);
         assertEq(credit.balanceOf(_provider), 0);
@@ -587,7 +587,7 @@ contract MarketTestJobOpen is Test {
         assertEq(usdc.balanceOf(_user), 0);
         assertEq(usdc.balanceOf(address(market)), _initialTokenBalance);
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost);
-        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - _noticePeriodCost);
         assertEq(credit.balanceOf(_user), 0);
         assertEq(credit.balanceOf(address(market)), _initialCreditBalance - _noticePeriodCost);
         assertEq(credit.balanceOf(_provider), 0);
@@ -741,14 +741,14 @@ contract MarketTestJobSettle is Test {
     Market market;
     ERC20Mock usdc;
     CreditMock credit;
-    uint256 initialCreditBalance;
+    uint256 creditTokenBalance;
     uint64 jobId;
 
     function setUp() public {
         usdc = new ERC20Mock("Circle USD", "USDC");
         credit = new CreditMock(usdc);
-        initialCreditBalance = Utils.usdc(1000);
-        usdc.mint(address(credit), initialCreditBalance);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
         jobId = uint64(vm.randomUint(0, 10000));
         market = Market(
             Upgrades.deployUUPSProxy(
@@ -862,7 +862,7 @@ contract MarketTestJobSettle is Test {
         assertEq(usdc.balanceOf(_user), 0);
         assertEq(usdc.balanceOf(address(market)), 0);
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
-        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost - _settleAmount);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - _noticePeriodCost - _settleAmount);
         assertEq(credit.balanceOf(_user), 0);
         assertEq(credit.balanceOf(address(market)), _initialBalance - _noticePeriodCost - _settleAmount);
         assertEq(credit.balanceOf(_provider), 0);
@@ -920,7 +920,7 @@ contract MarketTestJobSettle is Test {
         assertEq(usdc.balanceOf(_user), 0);
         assertEq(usdc.balanceOf(address(market)), _initialTokenBalance - _tokenSettleAmount);
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
-        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - _noticePeriodCost - _creditSettleAmount);
         assertEq(credit.balanceOf(_user), 0);
         assertEq(credit.balanceOf(address(market)), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
         assertEq(credit.balanceOf(_provider), 0);
@@ -978,7 +978,7 @@ contract MarketTestJobSettle is Test {
         assertEq(usdc.balanceOf(_user), 0);
         assertEq(usdc.balanceOf(address(market)), _initialTokenBalance - _tokenSettleAmount);
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
-        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - _noticePeriodCost - _creditSettleAmount);
         assertEq(credit.balanceOf(_user), 0);
         assertEq(credit.balanceOf(address(market)), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
         assertEq(credit.balanceOf(_provider), 0);
