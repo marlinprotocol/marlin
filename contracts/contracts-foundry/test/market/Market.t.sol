@@ -36,7 +36,7 @@ contract CreditMock is ERC20Mock, ICredit {
 
 library Utils {
     uint256 public constant NOTICE_PERIOD = 300;
-    uint256 public constant JOB_RATE = 2 * 10 ** 10; // 0.02 USDC/s
+    uint64 public constant JOB_RATE = 2 * 10 ** 10; // 0.02 USDC/s
 
     function calcAmountToPay(uint256 rate, uint256 duration) internal pure returns (uint256) {
         uint256 decimals = 10 ** 6;
@@ -1965,7 +1965,7 @@ contract MarketTestJobReviseRate is MarketTest {
     }
 
     function test_JobReviseRate_Increase() public {
-        uint256 _newRate = Utils.JOB_RATE * 2;
+        uint64 _newRate = Utils.JOB_RATE * 2;
         uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(user);
@@ -2003,7 +2003,7 @@ contract MarketTestJobReviseRate is MarketTest {
     }
 
     function test_JobReviseRate_IncreaseHitToken() public {
-        uint256 _newRate = Utils.JOB_RATE * 6; // To exceed the remaining credit balance (30 - 6 = 24). Extra is 30.
+        uint64 _newRate = Utils.JOB_RATE * 6; // To exceed the remaining credit balance (30 - 6 = 24). Extra is 30.
         uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
         uint256 _creditRemaining = initialCreditBalance - noticePeriodCost;
 
@@ -2044,7 +2044,7 @@ contract MarketTestJobReviseRate is MarketTest {
     }
 
     function test_JobReviseRate_Decrease() public {
-        uint256 _newRate = Utils.JOB_RATE / 2;
+        uint64 _newRate = Utils.JOB_RATE / 2;
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -2071,8 +2071,8 @@ contract MarketTestJobReviseRate is MarketTest {
     }
 
     function test_JobReviseRate_DecreaseAndIncreaseBelowMax() public {
-        uint256 _decreasedRate = Utils.JOB_RATE / 2;
-        uint256 _increasedRate = Utils.JOB_RATE * 3 / 4;
+        uint64 _decreasedRate = Utils.JOB_RATE / 2;
+        uint64 _increasedRate = Utils.JOB_RATE * 3 / 4;
 
         vm.startPrank(user);
         market.jobReviseRate(jobId, _decreasedRate);
@@ -2167,7 +2167,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
     }
 
     function test_JobReviseRate_Increase() public {
-        uint256 _newRate = Utils.JOB_RATE * 2;
+        uint64 _newRate = Utils.JOB_RATE * 2;
         uint256 _extraNoticePeriodCost = Utils.calcAmountToPay(_newRate - Utils.JOB_RATE, Utils.NOTICE_PERIOD);
 
         vm.startPrank(user);
@@ -2200,7 +2200,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
     }
 
     function test_JobReviseRate_Decrease() public {
-        uint256 _newRate = Utils.JOB_RATE / 2;
+        uint64 _newRate = Utils.JOB_RATE / 2;
 
         vm.startPrank(user);
         vm.expectEmit();
@@ -2222,8 +2222,8 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
     }
 
     function test_JobReviseRate_DecreaseAndIncreaseBelowMax() public {
-        uint256 _decreasedRate = Utils.JOB_RATE / 2;
-        uint256 _increasedRate = Utils.JOB_RATE * 3 / 4;
+        uint64 _decreasedRate = Utils.JOB_RATE / 2;
+        uint64 _increasedRate = Utils.JOB_RATE * 3 / 4;
 
         vm.startPrank(user);
         market.jobReviseRate(jobId, _decreasedRate);

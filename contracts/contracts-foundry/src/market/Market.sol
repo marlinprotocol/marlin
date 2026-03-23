@@ -152,10 +152,10 @@ contract Market is
         string metadata;
         address owner;
         address provider;
-        uint256 rate;
+        uint64 rate;
         uint256 balance;
         uint64 lastSettled; // payment has been settled up to this timestamp
-        uint256 maxRate; // max rate for the job
+        uint64 maxRate; // max rate for the job
     }
     mapping(uint64 => Job) public jobs;
     uint64 public jobIndex;
@@ -175,7 +175,7 @@ contract Market is
     event MarketJobClosed(uint64 indexed jobId, uint64 timestamp);
     event MarketJobDeposited(uint64 indexed jobId, uint64 timestamp, uint256 amount, address indexed from);
     event MarketJobWithdrew(uint64 indexed jobId, uint64 timestamp, uint256 amount, address indexed to);
-    event MarketJobRateRevised(uint64 indexed jobId, uint64 timestamp, uint256 newRate);
+    event MarketJobRateRevised(uint64 indexed jobId, uint64 timestamp, uint64 newRate);
     event MarketJobMetadataUpdated(uint64 indexed jobId, uint64 timestamp, string metadata);
 
     function _now() view internal returns (uint64) {
@@ -237,7 +237,7 @@ contract Market is
         _emergencyWithdrawCredit(_to, _jobIds);
     }
 
-    function _jobOpen(string calldata _metadata, address _owner, address _provider, uint256 _rate, uint256 _balance)
+    function _jobOpen(string calldata _metadata, address _owner, address _provider, uint64 _rate, uint256 _balance)
         internal
     {
         uint64 _jobId = jobIndex;
@@ -263,7 +263,7 @@ contract Market is
     }
 
     function _jobSettle(uint64 _jobId) internal returns (bool) {
-        uint256 _rate = jobs[_jobId].rate;
+        uint64 _rate = jobs[_jobId].rate;
         uint256 _lastSettled = jobs[_jobId].lastSettled;
         uint256 _usageDuration = _now() - _lastSettled;
         uint256 _amountUsed = _calcAmountUsed(_rate, _usageDuration);
@@ -305,14 +305,14 @@ contract Market is
         emit MarketJobWithdrew(_jobId, _now(), _amount, _to);
     }
 
-    function _jobReviseRate(uint64 _jobId, uint256 _newRate) internal {
+    function _jobReviseRate(uint64 _jobId, uint64 _newRate) internal {
         _jobSettle(_jobId);
 
         // deduct shutdown delay cost
         // higher rate is used to calculate shutdown delay cost
-        uint256 _oldRate = jobs[_jobId].rate;
-        uint256 _higherRate = _max(_oldRate, _newRate);
-        uint256 _prevHighestRate = jobs[_jobId].maxRate;
+        uint64 _oldRate = jobs[_jobId].rate;
+        uint64 _higherRate = _max(_oldRate, _newRate);
+        uint64 _prevHighestRate = jobs[_jobId].maxRate;
         if (_higherRate > _prevHighestRate) {
             jobs[_jobId].maxRate = _higherRate;
             uint256 _noticePeriodExtraCost = _calcAmountUsed((_higherRate - _prevHighestRate), noticePeriod);
@@ -343,7 +343,7 @@ contract Market is
     /// @param   _provider  The provider of the job.
     /// @param   _rate      The rate of the job.
     /// @param   _balance   Amount of tokens to deposit into the job.
-    function jobOpen(string calldata _metadata, address _provider, uint256 _rate, uint256 _balance) external {
+    function jobOpen(string calldata _metadata, address _provider, uint64 _rate, uint256 _balance) external {
         _jobOpen(_metadata, _msgSender(), _provider, _rate, _balance);
     }
 
@@ -388,7 +388,7 @@ contract Market is
     /// @dev     Reverts if the rate has not changed.
     /// @param   _jobId  The job to revise the rate of.
     /// @param   _newRate  The new rate of the job.
-    function jobReviseRate(uint64 _jobId, uint256 _newRate) external onlyJobOwner(_jobId) onlyActiveJob(_jobId) {
+    function jobReviseRate(uint64 _jobId, uint64 _newRate) external onlyJobOwner(_jobId) onlyActiveJob(_jobId) {
         _jobReviseRate(_jobId, _newRate);
     }
 
@@ -404,11 +404,11 @@ contract Market is
         _jobMetadataUpdate(_jobId, _metadata);
     }
 
-    function _calcAmountUsed(uint256 _rate, uint256 _usageDuration) internal pure returns (uint256) {
-        return (_rate * _usageDuration + 10 ** EXTRA_DECIMALS - 1) / 10 ** EXTRA_DECIMALS;
+    function _calcAmountUsed(uint64 _rate, uint256 _usageDuration) internal pure returns (uint256) {
+        return (uint256(_rate) * _usageDuration + 10 ** EXTRA_DECIMALS - 1) / 10 ** EXTRA_DECIMALS;
     }
 
-    function _max(uint256 _a, uint256 _b) internal pure returns (uint256) {
+    function _max(uint64 _a, uint64 _b) internal pure returns (uint64) {
         return _a > _b ? _a : _b;
     }
 
