@@ -146,7 +146,7 @@ contract Market is
 
     /*---- Jobs start ----*/
 
-    uint256 public constant EXTRA_DECIMALS = 12;
+    uint256 public constant EXTRA_DECIMALS = 6;
 
     struct Job {
         string metadata;

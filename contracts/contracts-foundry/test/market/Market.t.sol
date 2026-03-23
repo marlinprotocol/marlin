@@ -36,10 +36,10 @@ contract CreditMock is ERC20Mock, ICredit {
 
 library Utils {
     uint256 public constant NOTICE_PERIOD = 300;
-    uint256 public constant JOB_RATE = 2 * 10 ** 16; // 0.02 USDC/s
+    uint256 public constant JOB_RATE = 2 * 10 ** 10; // 0.02 USDC/s
 
     function calcAmountToPay(uint256 rate, uint256 duration) internal pure returns (uint256) {
-        uint256 decimals = 10 ** 12;
+        uint256 decimals = 10 ** 6;
         return (rate * duration + decimals - 1) / decimals;
     }
 
