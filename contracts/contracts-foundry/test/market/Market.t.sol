@@ -56,7 +56,7 @@ library Utils {
 }
 
 abstract contract MarketTest is Test {
-    function assertEq(Market _market, uint64 _jobId, Market.Job memory _job) public {
+    function assertEq(Market _market, uint64 _jobId, Market.Job memory _job) internal {
         (
             string memory _jobMetadata,
             address _jobOwner,
