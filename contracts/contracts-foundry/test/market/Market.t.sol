@@ -630,6 +630,101 @@ contract MarketTestJobOpen is Test {
     }
 }
 
+contract MarketTestJobOpenNoCredit is Test {
+    Market market;
+    ERC20Mock usdc;
+    uint64 jobId;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(0))
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function _assumptions(address _user, address _provider)
+        internal
+        assumeNonZeroAddress(_user)
+        assumeNonZeroAddress(_provider)
+        assumeNotEqualAddress(_user, _provider)
+        assumeNotEqualAddress(_user, address(market))
+        assumeNotEqualAddress(_provider, address(market))
+    {}
+
+    function test_JobOpen_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
+        _assumptions(_user, _provider);
+
+        uint256 _initialBalance = Utils.usdc(50);
+        usdc.mint(_user, _initialBalance);
+        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(_user);
+        usdc.approve(address(market), _initialBalance);
+        vm.expectEmit();
+        emit Market.MarketJobOpened(jobId, block.timestamp, _metadata, _user, _provider);
+        vm.expectEmit();
+        emit Market.MarketTokenDeposited(jobId, block.timestamp, _user, _initialBalance);
+        vm.expectEmit();
+        emit Market.MarketJobDeposited(jobId, block.timestamp, _initialBalance, _user);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _noticePeriodCost);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _noticePeriodCost, _provider);
+        vm.expectEmit();
+        emit Market.MarketJobRateRevised(jobId, block.timestamp, Utils.JOB_RATE);
+        market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
+        vm.stopPrank();
+
+        {
+            (
+                string memory _jobMetadata,
+                address _jobOwner,
+                address _jobProvider,
+                uint256 _jobRate,
+                uint256 _jobBalance,
+                uint256 _jobLastSettled,
+                uint256 _jobMaxRate
+            ) = market.jobs(jobId);
+            assertEq(_jobMetadata, _metadata);
+            assertEq(_jobOwner, _user);
+            assertEq(_jobProvider, _provider);
+            assertEq(_jobRate, Utils.JOB_RATE);
+            assertEq(_jobBalance, _initialBalance - _noticePeriodCost);
+            assertEq(_jobLastSettled, block.timestamp);
+            assertEq(_jobMaxRate, Utils.JOB_RATE);
+        }
+
+        assertEq(market.creditBalances(jobId), 0);
+
+        assertEq(usdc.balanceOf(_user), 0);
+        assertEq(usdc.balanceOf(address(market)), _initialBalance - _noticePeriodCost);
+        assertEq(usdc.balanceOf(_provider), _noticePeriodCost);
+
+        assertEq(market.jobIndex(), jobId + 1);
+    }
+
+    function test_JobOpen_NotEnoughUSDC(address _user, address _provider, string memory _metadata) public {
+        _assumptions(_user, _provider);
+
+        uint256 _initialBalance = Utils.usdc(50);
+        uint256 _initialTokenBalance = Utils.usdc(10);
+        usdc.mint(_user, _initialTokenBalance);
+
+        vm.startPrank(_user);
+        usdc.approve(address(market), _initialBalance);
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(50)));
+        market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
+        vm.stopPrank();
+    }
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
@@ -654,7 +749,7 @@ abstract contract MarketTestBase is Test {
 
     uint256 constant SIGNER1_INITIAL_FUND = 1000 * 10 ** 6;
     uint256 constant SIGNER2_INITIAL_FUND = 1000 * 10 ** 6;
-    uint256 constant JOB_RATE_1 = 1 * 10 ** 16; // 0.01 USDC/s
+    uint256 constant JOB_RATE = 1 * 10 ** 16; // 0.01 USDC/s
 
     uint64 initialJobIndex;
     uint256 jobOpenedTimestamp;
