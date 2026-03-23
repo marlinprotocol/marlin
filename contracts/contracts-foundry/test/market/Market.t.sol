@@ -1989,13 +1989,7 @@ contract MarketTestJobReviseRate is MarketTest {
             market,
             jobId,
             Market.Job(
-                "abcd",
-                user,
-                provider,
-                _newRate,
-                initialBalance - noticePeriodCost,
-                block.timestamp,
-                Utils.JOB_RATE
+                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, block.timestamp, Utils.JOB_RATE
             )
         );
 
@@ -2151,13 +2145,7 @@ contract MarketTestJobReviseRateNoCredit is MarketTest {
             market,
             jobId,
             Market.Job(
-                "abcd",
-                user,
-                provider,
-                _newRate,
-                initialBalance - noticePeriodCost,
-                block.timestamp,
-                Utils.JOB_RATE
+                "abcd", user, provider, _newRate, initialBalance - noticePeriodCost, block.timestamp, Utils.JOB_RATE
             )
         );
 
@@ -2313,6 +2301,106 @@ contract MarketTestJobMetadataUpdate is MarketTest {
         vm.startPrank(user);
         vm.expectRevert(Market.MarketJobOnlyOwner.selector);
         market.jobMetadataUpdate(jobId + 1, "efgh");
+        vm.stopPrank();
+    }
+}
+
+contract MarketTestEmergencyWithdrawCredit is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    CreditMock credit;
+    uint256 creditTokenBalance;
+    uint64 jobId;
+    address user;
+    address provider;
+    address admin;
+    uint256 initialBalance;
+    uint256 initialTokenBalance;
+    uint256 initialCreditBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        admin = vm.randomAddress();
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        credit = new CreditMock(usdc);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(Market.initialize, (admin, jobId, Utils.NOTICE_PERIOD, address(usdc), address(credit))),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market) || user == address(credit) || user == admin);
+        do {
+            provider = vm.randomAddress();
+        } while (
+            provider == address(0) || provider == address(market) || provider == address(credit) || provider == user
+                || provider == admin
+        );
+        initialBalance = Utils.usdc(50);
+        initialTokenBalance = Utils.usdc(20);
+        initialCreditBalance = Utils.usdc(30);
+        usdc.mint(user, initialTokenBalance);
+        credit.mint(user, initialCreditBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialTokenBalance);
+        credit.approve(address(market), initialCreditBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_EmergencyWithdrawCredit() public {
+        vm.startPrank(admin);
+
+        uint64[] memory jobIds = new uint64[](1);
+        jobIds[0] = jobId;
+
+        uint256 _creditAmount = initialCreditBalance - noticePeriodCost;
+
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, provider, 0);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, 0, provider);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenWithdrew(jobId, block.timestamp, admin, _creditAmount);
+        vm.expectEmit();
+        emit Market.MarketJobWithdrew(jobId, block.timestamp, _creditAmount, admin);
+        market.emergencyWithdrawCredit(admin, jobIds);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost - _creditAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), 0);
+        assertEq(credit.balanceOf(admin), _creditAmount);
+        assertEq(credit.balanceOf(address(market)), 0);
+    }
+
+    function test_EmergencyWithdrawCredit_NotAdmin() public {
+        uint64[] memory jobIds = new uint64[](1);
+        jobIds[0] = jobId;
+
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.emergencyWithdrawCredit(user, jobIds);
         vm.stopPrank();
     }
 }
