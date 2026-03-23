@@ -467,7 +467,19 @@ contract MarketTestJobOpen is MarketTest {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -506,7 +518,19 @@ contract MarketTestJobOpen is MarketTest {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), _initialBalance - _noticePeriodCost);
 
@@ -550,7 +574,19 @@ contract MarketTestJobOpen is MarketTest {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost);
 
@@ -660,7 +696,19 @@ contract MarketTestJobOpenNoCredit is MarketTest {
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -745,7 +793,19 @@ contract MarketTestJobSettle is MarketTest {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost - _settleAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -774,7 +834,19 @@ contract MarketTestJobSettle is MarketTest {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost - _settleAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), _initialBalance - _noticePeriodCost - _settleAmount);
 
@@ -815,7 +887,19 @@ contract MarketTestJobSettle is MarketTest {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost - _settleAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
 
@@ -856,7 +940,19 @@ contract MarketTestJobSettle is MarketTest {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost - _settleAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
 
@@ -918,7 +1014,19 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost - _settleAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -949,7 +1057,19 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
         market.jobSettle(jobId);
 
-        assertEq(market, jobId, Market.Job(_metadata, _user, _provider, Utils.JOB_RATE, _initialBalance - _noticePeriodCost - _settleAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                _metadata,
+                _user,
+                _provider,
+                Utils.JOB_RATE,
+                _initialBalance - _noticePeriodCost - _settleAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), 0);
 
@@ -1022,7 +1142,19 @@ contract MarketTestJobDeposit is MarketTest {
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job("abcd", user, provider, Utils.JOB_RATE, initialBalance - noticePeriodCost + _depositAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost + _depositAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost);
 
@@ -1048,7 +1180,19 @@ contract MarketTestJobDeposit is MarketTest {
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job("abcd", user, provider, Utils.JOB_RATE, initialBalance - noticePeriodCost + _depositAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost + _depositAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost + _depositAmount);
 
@@ -1080,7 +1224,19 @@ contract MarketTestJobDeposit is MarketTest {
         market.jobDeposit(jobId, _depositAmount);
         vm.stopPrank();
 
-        assertEq(market, jobId, Market.Job("abcd", user, provider, Utils.JOB_RATE, initialBalance - noticePeriodCost + _depositAmount, block.timestamp, Utils.JOB_RATE));
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost + _depositAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
 
         assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost + _creditDepositAmount);
 
