@@ -408,6 +408,76 @@ contract MarketTestUpdateNoticePeriod is Test {
     }
 }
 
+contract MarketTestUpdateToken is Test {
+    Market market;
+    address admin;
+    address initialToken;
+
+    function setUp() public {
+        admin = vm.randomAddress();
+        initialToken = vm.randomAddress();
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (admin, uint64(vm.randomUint()), Utils.NOTICE_PERIOD, initialToken, vm.randomAddress())
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function test_UpdateToken_Admin(address _newToken) public {
+        vm.expectEmit();
+        emit Market.MarketTokenUpdated(initialToken, _newToken);
+        vm.prank(admin);
+        market.updateToken(_newToken);
+
+        assertEq(address(market.token()), _newToken);
+    }
+
+    function test_UpdateToken_NonAdmin(address _newToken) public {
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.updateToken(_newToken);
+    }
+}
+
+contract MarketTestUpdateCreditToken is Test {
+    Market market;
+    address admin;
+    address initialCreditToken;
+
+    function setUp() public {
+        admin = vm.randomAddress();
+        initialCreditToken = vm.randomAddress();
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize,
+                    (admin, uint64(vm.randomUint()), Utils.NOTICE_PERIOD, vm.randomAddress(), initialCreditToken)
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function test_UpdateCreditToken_Admin(address _newCreditToken) public {
+        vm.expectEmit();
+        emit Market.MarketCreditTokenUpdated(initialCreditToken, _newCreditToken);
+        vm.prank(admin);
+        market.updateCreditToken(_newCreditToken);
+
+        assertEq(address(market.creditToken()), _newCreditToken);
+    }
+
+    function test_UpdateCreditToken_NonAdmin(address _newCreditToken) public {
+        vm.expectRevert(Market.MarketOnlyAdmin.selector);
+        market.updateCreditToken(_newCreditToken);
+    }
+}
+
 contract MarketTestJobOpen is MarketTest {
     Market market;
     ERC20Mock usdc;
