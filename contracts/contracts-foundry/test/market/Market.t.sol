@@ -607,7 +607,11 @@ contract MarketTestJobOpen is Test {
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
         credit.approve(address(market), _initialBalance);
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(20)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(20)
+            )
+        );
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
     }
@@ -624,7 +628,11 @@ contract MarketTestJobOpen is Test {
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
         credit.approve(address(market), _initialBalance);
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(30)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(30)
+            )
+        );
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
     }
@@ -719,9 +727,261 @@ contract MarketTestJobOpenNoCredit is Test {
 
         vm.startPrank(_user);
         usdc.approve(address(market), _initialBalance);
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(50)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientBalance.selector, _user, _initialTokenBalance, Utils.usdc(50)
+            )
+        );
         market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
         vm.stopPrank();
+    }
+}
+
+contract MarketTestJobSettle is Test {
+    Market market;
+    ERC20Mock usdc;
+    CreditMock credit;
+    uint256 initialCreditBalance;
+    uint64 jobId;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        credit = new CreditMock(usdc);
+        initialCreditBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), initialCreditBalance);
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(credit))
+                ),
+                upgradeOptions()
+            )
+        );
+    }
+
+    function _assumptions(address _user, address _provider)
+        internal
+        assumeNonZeroAddress(_user)
+        assumeNonZeroAddress(_provider)
+        assumeNotEqualAddress(_user, _provider)
+        assumeNotEqualAddress(_user, address(market))
+        assumeNotEqualAddress(_provider, address(market))
+        assumeNotEqualAddress(_user, address(credit))
+        assumeNotEqualAddress(_provider, address(credit))
+    {}
+
+    function test_JobSettle_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
+        _assumptions(_user, _provider);
+
+        uint256 _initialBalance = Utils.usdc(50);
+        usdc.mint(_user, _initialBalance);
+        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(_user);
+        usdc.approve(address(market), _initialBalance);
+        market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
+        vm.stopPrank();
+
+        skip(2000);
+        uint256 _settleAmount = Utils.usdc(40);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _settleAmount);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        market.jobSettle(jobId);
+
+        {
+            (
+                string memory _jobMetadata,
+                address _jobOwner,
+                address _jobProvider,
+                uint256 _jobRate,
+                uint256 _jobBalance,
+                uint256 _jobLastSettled,
+                uint256 _jobMaxRate
+            ) = market.jobs(jobId);
+            assertEq(_jobMetadata, _metadata);
+            assertEq(_jobOwner, _user);
+            assertEq(_jobProvider, _provider);
+            assertEq(_jobRate, Utils.JOB_RATE);
+            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
+            assertEq(_jobLastSettled, block.timestamp);
+            assertEq(_jobMaxRate, Utils.JOB_RATE);
+        }
+
+        assertEq(market.creditBalances(jobId), 0);
+
+        assertEq(usdc.balanceOf(_user), 0);
+        assertEq(usdc.balanceOf(address(market)), _initialBalance - _noticePeriodCost - _settleAmount);
+        assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
+    }
+
+    function test_JobSettle_OnlyCredit(address _user, address _provider, string memory _metadata) public {
+        _assumptions(_user, _provider);
+
+        uint256 _initialBalance = Utils.usdc(50);
+        credit.mint(_user, _initialBalance);
+        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(_user);
+        credit.approve(address(market), _initialBalance);
+        market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
+        vm.stopPrank();
+
+        skip(2000);
+        uint256 _settleAmount = Utils.usdc(40);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _settleAmount);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        market.jobSettle(jobId);
+
+        {
+            (
+                string memory _jobMetadata,
+                address _jobOwner,
+                address _jobProvider,
+                uint256 _jobRate,
+                uint256 _jobBalance,
+                uint256 _jobLastSettled,
+                uint256 _jobMaxRate
+            ) = market.jobs(jobId);
+            assertEq(_jobMetadata, _metadata);
+            assertEq(_jobOwner, _user);
+            assertEq(_jobProvider, _provider);
+            assertEq(_jobRate, Utils.JOB_RATE);
+            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
+            assertEq(_jobLastSettled, block.timestamp);
+            assertEq(_jobMaxRate, Utils.JOB_RATE);
+        }
+
+        assertEq(market.creditBalances(jobId), _initialBalance - _noticePeriodCost - _settleAmount);
+
+        assertEq(usdc.balanceOf(_user), 0);
+        assertEq(usdc.balanceOf(address(market)), 0);
+        assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
+        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost - _settleAmount);
+        assertEq(credit.balanceOf(_user), 0);
+        assertEq(credit.balanceOf(address(market)), _initialBalance - _noticePeriodCost - _settleAmount);
+        assertEq(credit.balanceOf(_provider), 0);
+    }
+
+    function test_JobSettle_USDCAndCredit(address _user, address _provider, string memory _metadata) public {
+        _assumptions(_user, _provider);
+
+        uint256 _initialBalance = Utils.usdc(50);
+        uint256 _initialTokenBalance = Utils.usdc(20);
+        uint256 _initialCreditBalance = Utils.usdc(30);
+        usdc.mint(_user, _initialTokenBalance);
+        credit.mint(_user, _initialCreditBalance);
+        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(_user);
+        usdc.approve(address(market), _initialTokenBalance);
+        credit.approve(address(market), _initialCreditBalance);
+        market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
+        vm.stopPrank();
+
+        skip(2000);
+        uint256 _settleAmount = Utils.usdc(40);
+        uint256 _tokenSettleAmount = Utils.usdc(10) + _noticePeriodCost;
+        uint256 _creditSettleAmount = Utils.usdc(30) - _noticePeriodCost;
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _creditSettleAmount);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _tokenSettleAmount);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        market.jobSettle(jobId);
+
+        {
+            (
+                string memory _jobMetadata,
+                address _jobOwner,
+                address _jobProvider,
+                uint256 _jobRate,
+                uint256 _jobBalance,
+                uint256 _jobLastSettled,
+                uint256 _jobMaxRate
+            ) = market.jobs(jobId);
+            assertEq(_jobMetadata, _metadata);
+            assertEq(_jobOwner, _user);
+            assertEq(_jobProvider, _provider);
+            assertEq(_jobRate, Utils.JOB_RATE);
+            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
+            assertEq(_jobLastSettled, block.timestamp);
+            assertEq(_jobMaxRate, Utils.JOB_RATE);
+        }
+
+        assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+
+        assertEq(usdc.balanceOf(_user), 0);
+        assertEq(usdc.balanceOf(address(market)), _initialTokenBalance - _tokenSettleAmount);
+        assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
+        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+        assertEq(credit.balanceOf(_user), 0);
+        assertEq(credit.balanceOf(address(market)), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+        assertEq(credit.balanceOf(_provider), 0);
+    }
+
+    function test_JobSettle_NotEnoughBalance(address _user, address _provider, string memory _metadata) public {
+        _assumptions(_user, _provider);
+
+        uint256 _initialBalance = Utils.usdc(50);
+        uint256 _initialTokenBalance = Utils.usdc(20);
+        uint256 _initialCreditBalance = Utils.usdc(30);
+        usdc.mint(_user, _initialTokenBalance);
+        credit.mint(_user, _initialCreditBalance);
+        uint256 _noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(_user);
+        usdc.approve(address(market), _initialTokenBalance);
+        credit.approve(address(market), _initialCreditBalance);
+        market.jobOpen(_metadata, _provider, Utils.JOB_RATE, _initialBalance);
+        vm.stopPrank();
+
+        skip(3000);
+        uint256 _settleAmount = Utils.usdc(50) - _noticePeriodCost;
+        uint256 _tokenSettleAmount = _initialTokenBalance;
+        uint256 _creditSettleAmount = _initialCreditBalance - _noticePeriodCost;
+        vm.expectEmit();
+        emit Market.MarketCreditTokenSettled(jobId, block.timestamp, _provider, _creditSettleAmount);
+        vm.expectEmit();
+        emit Market.MarketTokenSettled(jobId, block.timestamp, _provider, _tokenSettleAmount);
+        vm.expectEmit();
+        emit Market.MarketJobSettled(jobId, block.timestamp, _settleAmount, _provider);
+        market.jobSettle(jobId);
+
+        {
+            (
+                string memory _jobMetadata,
+                address _jobOwner,
+                address _jobProvider,
+                uint256 _jobRate,
+                uint256 _jobBalance,
+                uint256 _jobLastSettled,
+                uint256 _jobMaxRate
+            ) = market.jobs(jobId);
+            assertEq(_jobMetadata, _metadata);
+            assertEq(_jobOwner, _user);
+            assertEq(_jobProvider, _provider);
+            assertEq(_jobRate, Utils.JOB_RATE);
+            assertEq(_jobBalance, _initialBalance - _noticePeriodCost - _settleAmount);
+            assertEq(_jobLastSettled, block.timestamp);
+            assertEq(_jobMaxRate, Utils.JOB_RATE);
+        }
+
+        assertEq(market.creditBalances(jobId), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+
+        assertEq(usdc.balanceOf(_user), 0);
+        assertEq(usdc.balanceOf(address(market)), _initialTokenBalance - _tokenSettleAmount);
+        assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
+        assertEq(usdc.balanceOf(address(credit)), initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+        assertEq(credit.balanceOf(_user), 0);
+        assertEq(credit.balanceOf(address(market)), _initialCreditBalance - _noticePeriodCost - _creditSettleAmount);
+        assertEq(credit.balanceOf(_provider), 0);
     }
 }
 
