@@ -1375,3 +1375,242 @@ contract MarketTestJobDepositNoCredit is MarketTest {
         vm.stopPrank();
     }
 }
+
+contract MarketTestJobWithdraw is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    CreditMock credit;
+    uint256 creditTokenBalance;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 initialTokenBalance;
+    uint256 initialCreditBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        credit = new CreditMock(usdc);
+        creditTokenBalance = Utils.usdc(1000);
+        usdc.mint(address(credit), creditTokenBalance);
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(credit))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market) || user == address(credit));
+        do {
+            provider = vm.randomAddress();
+        } while (
+            provider == address(0) || provider == address(market) || provider == address(credit) || provider == user
+        );
+        initialBalance = Utils.usdc(50);
+        initialTokenBalance = Utils.usdc(20);
+        initialCreditBalance = Utils.usdc(30);
+        usdc.mint(user, initialTokenBalance);
+        credit.mint(user, initialCreditBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialTokenBalance);
+        credit.approve(address(market), initialCreditBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_OnlyUSDC() public {
+        uint256 _withdrawAmount = Utils.usdc(10);
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, _withdrawAmount);
+        vm.expectEmit();
+        emit Market.MarketJobWithdrew(jobId, block.timestamp, _withdrawAmount, user);
+        market.jobWithdraw(jobId, _withdrawAmount);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost - _withdrawAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost);
+
+        assertEq(usdc.balanceOf(user), _withdrawAmount);
+        assertEq(usdc.balanceOf(address(market)), initialTokenBalance - _withdrawAmount);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(user), 0);
+        assertEq(credit.balanceOf(address(market)), initialCreditBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobWithdraw_OnlyCredit() public {
+        uint256 _withdrawAmount = Utils.usdc(30);
+        uint256 _tokenWithdrawAmount = initialTokenBalance;
+        uint256 _creditWithdrawAmount = _withdrawAmount - _tokenWithdrawAmount;
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, _tokenWithdrawAmount);
+        vm.expectEmit();
+        emit Market.MarketCreditTokenWithdrew(jobId, block.timestamp, user, _creditWithdrawAmount);
+        vm.expectEmit();
+        emit Market.MarketJobWithdrew(jobId, block.timestamp, _withdrawAmount, user);
+        market.jobWithdraw(jobId, _withdrawAmount);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost - _withdrawAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), initialCreditBalance - noticePeriodCost - _creditWithdrawAmount);
+
+        assertEq(usdc.balanceOf(user), _tokenWithdrawAmount);
+        assertEq(usdc.balanceOf(address(market)), initialTokenBalance - _tokenWithdrawAmount);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+        assertEq(usdc.balanceOf(address(credit)), creditTokenBalance - noticePeriodCost);
+        assertEq(credit.balanceOf(user), _creditWithdrawAmount);
+        assertEq(credit.balanceOf(address(market)), initialCreditBalance - noticePeriodCost - _creditWithdrawAmount);
+        assertEq(credit.balanceOf(provider), 0);
+    }
+
+    function test_JobWithdraw_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobWithdraw(jobId, Utils.usdc(10));
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+        vm.expectRevert(Market.MarketJobInactive.selector);
+        market.jobWithdraw(jobId, Utils.usdc(10));
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobWithdraw(jobId + 1, Utils.usdc(10));
+        vm.stopPrank();
+    }
+}
+
+contract MarketTestJobWithdrawNoCredit is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(0))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market));
+        do {
+            provider = vm.randomAddress();
+        } while (provider == address(0) || provider == address(market) || provider == user);
+        initialBalance = Utils.usdc(50);
+        usdc.mint(user, initialBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_OnlyUSDC() public {
+        uint256 _withdrawAmount = Utils.usdc(10);
+
+        vm.startPrank(user);
+        vm.expectEmit();
+        emit Market.MarketTokenWithdrew(jobId, block.timestamp, user, _withdrawAmount);
+        vm.expectEmit();
+        emit Market.MarketJobWithdrew(jobId, block.timestamp, _withdrawAmount, user);
+        market.jobWithdraw(jobId, _withdrawAmount);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost - _withdrawAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(usdc.balanceOf(user), _withdrawAmount);
+        assertEq(usdc.balanceOf(address(market)), initialBalance - noticePeriodCost - _withdrawAmount);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+    }
+
+    function test_JobWithdraw_NotOwner() public {
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        vm.startPrank(provider);
+        market.jobWithdraw(jobId, Utils.usdc(10));
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_Inactive() public {
+        vm.startPrank(user);
+        skip(3000);
+        vm.expectRevert(Market.MarketJobInactive.selector);
+        market.jobWithdraw(jobId, Utils.usdc(10));
+        vm.stopPrank();
+    }
+
+    function test_JobWithdraw_NonExistent() public {
+        vm.startPrank(user);
+        vm.expectRevert(Market.MarketJobOnlyOwner.selector);
+        market.jobWithdraw(jobId + 1, Utils.usdc(10));
+        vm.stopPrank();
+    }
+}
