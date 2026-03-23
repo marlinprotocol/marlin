@@ -1281,6 +1281,101 @@ contract MarketTestJobDeposit is MarketTest {
     }
 }
 
+contract MarketTestJobDepositNoCredit is MarketTest {
+    Market market;
+    ERC20Mock usdc;
+    uint64 jobId;
+    address user;
+    address provider;
+    uint256 initialBalance;
+    uint256 noticePeriodCost;
+
+    function setUp() public {
+        usdc = new ERC20Mock("Circle USD", "USDC");
+        jobId = uint64(vm.randomUint(0, 10000));
+        market = Market(
+            Upgrades.deployUUPSProxy(
+                "Market.sol",
+                abi.encodeCall(
+                    Market.initialize, (vm.randomAddress(), jobId, Utils.NOTICE_PERIOD, address(usdc), address(0))
+                ),
+                upgradeOptions()
+            )
+        );
+        do {
+            user = vm.randomAddress();
+        } while (user == address(0) || user == address(market));
+        do {
+            provider = vm.randomAddress();
+        } while (provider == address(0) || provider == address(market) || provider == user);
+        initialBalance = Utils.usdc(50);
+        usdc.mint(user, initialBalance);
+        noticePeriodCost = Utils.calcAmountToPay(Utils.JOB_RATE, Utils.NOTICE_PERIOD);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), initialBalance);
+        market.jobOpen("abcd", provider, Utils.JOB_RATE, initialBalance);
+        vm.stopPrank();
+    }
+
+    function test_JobDeposit_OnlyUSDC() public {
+        uint256 _depositAmount = Utils.usdc(40);
+        usdc.mint(user, _depositAmount);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), _depositAmount);
+        vm.expectEmit();
+        emit Market.MarketTokenDeposited(jobId, block.timestamp, user, _depositAmount);
+        vm.expectEmit();
+        emit Market.MarketJobDeposited(jobId, block.timestamp, _depositAmount, user);
+        market.jobDeposit(jobId, _depositAmount);
+        vm.stopPrank();
+
+        assertEq(
+            market,
+            jobId,
+            Market.Job(
+                "abcd",
+                user,
+                provider,
+                Utils.JOB_RATE,
+                initialBalance - noticePeriodCost + _depositAmount,
+                block.timestamp,
+                Utils.JOB_RATE
+            )
+        );
+
+        assertEq(market.creditBalances(jobId), 0);
+
+        assertEq(usdc.balanceOf(user), 0);
+        assertEq(usdc.balanceOf(address(market)), initialBalance - noticePeriodCost + _depositAmount);
+        assertEq(usdc.balanceOf(provider), noticePeriodCost);
+    }
+
+    function test_JobDeposit_NonExistent() public {
+        uint256 _depositAmount = Utils.usdc(40);
+        usdc.mint(user, _depositAmount);
+
+        vm.startPrank(user);
+        usdc.approve(address(market), _depositAmount);
+        vm.expectRevert(Market.MarketJobNotFound.selector);
+        market.jobDeposit(jobId + 1, _depositAmount);
+        vm.stopPrank();
+    }
+
+    function test_JobDeposit_Inactive() public {
+        uint256 _depositAmount = Utils.usdc(40);
+        usdc.mint(user, _depositAmount);
+
+        vm.startPrank(user);
+        skip(3000);
+        usdc.approve(address(market), _depositAmount);
+        vm.expectRevert(Market.MarketJobInactive.selector);
+        market.jobDeposit(jobId, _depositAmount);
+        vm.stopPrank();
+    }
+}
+
 contract MarketV2 is Market {
     function version() external pure returns (uint256) {
         return 2;
