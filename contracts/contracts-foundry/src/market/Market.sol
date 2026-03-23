@@ -424,10 +424,6 @@ contract Market is
 
     uint256[47] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
 
-    error MarketWithdrawalAmountExceedsJobBalance();
-    error MarketCreditBalanceExceedsJobBalance();
-    error MarketCreditTokenNotSet();
-
     event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
     event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
     event MarketTokenDeposited(uint64 indexed jobId, uint256 timestamp, address indexed from, uint256 amount);
