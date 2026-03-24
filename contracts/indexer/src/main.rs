@@ -8,9 +8,9 @@ use diesel_migrations::MigrationHarness;
 use diesel_migrations::embed_migrations;
 use dotenvy::dotenv;
 
-use oyster_indexer::AlloyProvider;
-use oyster_indexer::event_loop;
-use oyster_indexer::start_from;
+use market_indexer::AlloyProvider;
+use market_indexer::event_loop;
+use market_indexer::start_from;
 use tracing::debug;
 use tracing::error;
 use tracing::info;

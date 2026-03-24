@@ -17,7 +17,7 @@ impl TestDb {
     pub fn new() -> Self {
         dotenvy::dotenv().ok();
 
-        let db_name = format!("oyster_indexer_test_{}", id().to_string());
+        let db_name = format!("market_indexer_test_{}", id().to_string());
         let admin_url = std::env::var("TEST_DATABASE_URL").unwrap();
         let test_url = admin_url[..=admin_url.rfind('/').unwrap()].to_owned() + &db_name;
 
