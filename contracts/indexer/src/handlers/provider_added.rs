@@ -3,13 +3,13 @@ use alloy::hex::ToHexExt;
 use alloy::primitives::Address;
 use alloy::rpc::types::Log;
 use alloy::sol_types::SolValue;
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use diesel::query_dsl::methods::FilterDsl;
+use anyhow::anyhow;
 use diesel::ExpressionMethods;
 use diesel::PgConnection;
 use diesel::RunQueryDsl;
+use diesel::query_dsl::methods::FilterDsl;
 use tracing::warn;
 use tracing::{info, instrument};
 

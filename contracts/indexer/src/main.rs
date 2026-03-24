@@ -1,16 +1,16 @@
 use anyhow::Result;
-use clap::command;
 use clap::Parser;
+use clap::command;
 use diesel::Connection;
 use diesel::PgConnection;
-use diesel_migrations::embed_migrations;
 use diesel_migrations::EmbeddedMigrations;
 use diesel_migrations::MigrationHarness;
+use diesel_migrations::embed_migrations;
 use dotenvy::dotenv;
 
+use oyster_indexer::AlloyProvider;
 use oyster_indexer::event_loop;
 use oyster_indexer::start_from;
-use oyster_indexer::AlloyProvider;
 use tracing::debug;
 use tracing::error;
 use tracing::info;

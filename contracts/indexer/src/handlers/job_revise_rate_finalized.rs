@@ -1,16 +1,16 @@
 use std::str::FromStr;
 
+use crate::LogsProvider;
 use crate::constants::RATE_SCALING_FACTOR;
 use crate::schema::jobs;
 use crate::schema::rate_revisions;
-use crate::LogsProvider;
 use alloy::hex::ToHexExt;
 use alloy::primitives::U256;
 use alloy::rpc::types::Log;
 use alloy::sol_types::SolValue;
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use diesel::ExpressionMethods;
 use diesel::PgConnection;

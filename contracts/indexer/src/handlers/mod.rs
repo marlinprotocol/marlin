@@ -1,6 +1,6 @@
 use alloy::rpc::types::Log;
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use diesel::PgConnection;
 use ethp::event;
 use tracing::warn;

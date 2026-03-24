@@ -1,11 +1,11 @@
+use crate::LogsProvider;
 use crate::schema::jobs;
 use crate::schema::rate_revisions;
-use crate::LogsProvider;
 use alloy::hex::ToHexExt;
 use alloy::rpc::types::Log;
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use diesel::ExpressionMethods;
 use diesel::PgConnection;

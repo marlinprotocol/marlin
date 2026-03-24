@@ -6,10 +6,10 @@ use std::time::Duration;
 
 use alloy::primitives::Address;
 use alloy::providers::Provider;
-use alloy::rpc::types::eth::Log;
 use alloy::rpc::types::Filter;
+use alloy::rpc::types::eth::Log;
 use alloy::transports::http::reqwest::Url;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use diesel::prelude::*;
 
 use handlers::handle_log;
