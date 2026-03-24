@@ -89,7 +89,7 @@ contract Market is
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
-        jobIndex = _initialJobIndex;
+        _getJobsStorage().jobIndex = _initialJobIndex;
         _updateNoticePeriod(_noticePeriod);
 
         _updateToken(_token);
@@ -201,14 +201,53 @@ contract Market is
         uint64 lastSettled;
         uint64 maxRate;
     }
-    /// @notice Mapping of job ID to Job struct
-    mapping(uint64 => Job) public jobs;
-    /// @notice Current job ID index
-    uint64 public jobIndex;
-    /// @notice Notice period for rate changes
-    uint64 public noticePeriod;
+    /// @custom:storage-location ERC7201:marlin.storage.Market.jobs
+    struct JobsStorage {
+        /// @notice Mapping of job ID to Job struct
+        mapping(uint64 => Job) jobs;
+        /// @notice Current job ID index
+        uint64 jobIndex;
+        /// @notice Notice period for rate changes
+        uint64 noticePeriod;
+    }
 
-    uint256[48] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
+    // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.jobs")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant JobsStorageLocation = 0x0199c48c8402fa9d072a25f85aebfe76427010391da1ff3e04557cd15bf94300;
+
+    function _getJobsStorage() private pure returns (JobsStorage storage $) {
+        assembly {
+            $.slot := JobsStorageLocation
+        }
+    }
+
+    function jobs(uint64 _jobId) public view returns (
+        string memory metadata,
+        address owner,
+        address provider,
+        uint64 rate,
+        uint64 balance,
+        uint64 lastSettled,
+        uint64 maxRate
+    ) {
+        Job storage job = _getJobsStorage().jobs[_jobId];
+        return (
+            job.metadata,
+            job.owner,
+            job.provider,
+            job.rate,
+            job.balance,
+            job.lastSettled,
+            job.maxRate
+        );
+    }
+
+    function jobIndex() public view returns (uint64) {
+        return _getJobsStorage().jobIndex;
+    }
+
+    function noticePeriod() public view returns (uint64) {
+        return _getJobsStorage().noticePeriod;
+    }
 
     /// @notice Thrown when job does not exist
     error MarketJobNotFound();
@@ -248,7 +287,7 @@ contract Market is
     }
 
     function _onlyExistingJob(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner != address(0), MarketJobNotFound());
+        require(_getJobsStorage().jobs[_jobId].owner != address(0), MarketJobNotFound());
     }
 
     modifier onlyActiveJob(uint64 _jobId) {
@@ -258,9 +297,10 @@ contract Market is
 
     function _onlyActiveJob(uint64 _jobId) internal view {
         _onlyExistingJob(_jobId);
+        JobsStorage storage $ = _getJobsStorage();
         require(
-            (_now() <= jobs[_jobId].lastSettled)
-                || (_calcAmountUsed(jobs[_jobId].rate, _now() - jobs[_jobId].lastSettled) <= jobs[_jobId].balance),
+            (_now() <= $.jobs[_jobId].lastSettled)
+                || (_calcAmountUsed($.jobs[_jobId].rate, _now() - $.jobs[_jobId].lastSettled) <= $.jobs[_jobId].balance),
             MarketJobInactive()
         );
     }
@@ -271,12 +311,13 @@ contract Market is
     }
 
     function _onlyJobOwner(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner == _msgSender(), MarketJobOnlyOwner());
+        require(_getJobsStorage().jobs[_jobId].owner == _msgSender(), MarketJobOnlyOwner());
     }
 
     function _updateNoticePeriod(uint64 _noticePeriod) internal {
-        emit MarketNoticePeriodUpdated(noticePeriod, _noticePeriod);
-        noticePeriod = _noticePeriod;
+        JobsStorage storage $ = _getJobsStorage();
+        emit MarketNoticePeriodUpdated($.noticePeriod, _noticePeriod);
+        $.noticePeriod = _noticePeriod;
     }
 
     /// @notice Updates the notice period
@@ -286,11 +327,12 @@ contract Market is
     }
 
     function _emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) internal {
+        JobsStorage storage $ = _getJobsStorage();
         for (uint256 i = 0; i < _jobIds.length; i++) {
             uint64 _jobId = _jobIds[i];
             _jobSettle(_jobId);
             uint64 _creditAmount = _withdrawAllCredit(_jobId, _to);
-            jobs[_jobId].balance -= _creditAmount;
+            $.jobs[_jobId].balance -= _creditAmount;
             emit MarketJobWithdrew(_jobId, _now(), _creditAmount, _to);
         }
     }
@@ -305,11 +347,12 @@ contract Market is
     function _jobOpen(string calldata _metadata, address _owner, address _provider, uint64 _rate, uint64 _balance)
         internal
     {
-        uint64 _jobId = jobIndex;
-        jobIndex = _jobId + 1;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _jobId = $.jobIndex;
+        $.jobIndex = _jobId + 1;
 
         // create job with initial balance 0
-        jobs[_jobId] = Job({
+        $.jobs[_jobId] = Job({
             metadata: _metadata,
             owner: _owner,
             provider: _provider,
@@ -328,15 +371,16 @@ contract Market is
     }
 
     function _jobSettle(uint64 _jobId) internal returns (bool) {
-        uint64 _rate = jobs[_jobId].rate;
-        uint64 _lastSettled = jobs[_jobId].lastSettled;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _rate = $.jobs[_jobId].rate;
+        uint64 _lastSettled = $.jobs[_jobId].lastSettled;
         uint64 _usageDuration = _now() - _lastSettled;
         uint64 _amountUsed = _calcAmountUsed(_rate, _usageDuration);
-        uint64 _settleAmount = _min(_amountUsed, jobs[_jobId].balance);
-        address _provider = jobs[_jobId].provider;
+        uint64 _settleAmount = _min(_amountUsed, $.jobs[_jobId].balance);
+        address _provider = $.jobs[_jobId].provider;
         _settle(_jobId, _provider, _settleAmount);
-        jobs[_jobId].balance -= _settleAmount;
-        jobs[_jobId].lastSettled = _now();
+        $.jobs[_jobId].balance -= _settleAmount;
+        $.jobs[_jobId].lastSettled = _now();
         emit MarketJobSettled(_jobId, _now(), _settleAmount, _provider);
 
         return _amountUsed == _settleAmount;
@@ -346,27 +390,29 @@ contract Market is
         _jobSettle(_jobId);
 
         // refund leftover balance
-        uint64 _balance = jobs[_jobId].balance;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _balance = $.jobs[_jobId].balance;
         if (_balance > 0) {
             _withdraw(_jobId, _balance, _msgSender(), _balance);
             emit MarketJobWithdrew(_jobId, _now(), _balance, _msgSender());
         }
 
-        delete jobs[_jobId];
+        delete $.jobs[_jobId];
         emit MarketJobClosed(_jobId, _now());
     }
 
     function _jobDeposit(uint64 _jobId, uint64 _amount, address _from) internal {
         _deposit(_jobId, _from, _amount);
-        jobs[_jobId].balance += _amount;
+        _getJobsStorage().jobs[_jobId].balance += _amount;
         emit MarketJobDeposited(_jobId, _now(), _amount, _from);
     }
 
     function _jobWithdraw(uint64 _jobId, uint64 _amount, address _to) internal {
         _jobSettle(_jobId);
 
-        _withdraw(_jobId, jobs[_jobId].balance, _to, _amount);
-        jobs[_jobId].balance -= _amount;
+        JobsStorage storage $ = _getJobsStorage();
+        _withdraw(_jobId, $.jobs[_jobId].balance, _to, _amount);
+        $.jobs[_jobId].balance -= _amount;
         emit MarketJobWithdrew(_jobId, _now(), _amount, _to);
     }
 
@@ -375,25 +421,26 @@ contract Market is
 
         // deduct shutdown delay cost
         // higher rate is used to calculate shutdown delay cost
-        uint64 _oldRate = jobs[_jobId].rate;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _oldRate = $.jobs[_jobId].rate;
         uint64 _higherRate = _max(_oldRate, _newRate);
-        uint64 _prevHighestRate = jobs[_jobId].maxRate;
+        uint64 _prevHighestRate = $.jobs[_jobId].maxRate;
         if (_higherRate > _prevHighestRate) {
-            jobs[_jobId].maxRate = _higherRate;
-            uint64 _noticePeriodExtraCost = _calcAmountUsed((_higherRate - _prevHighestRate), noticePeriod);
-            address _provider = jobs[_jobId].provider;
+            $.jobs[_jobId].maxRate = _higherRate;
+            uint64 _noticePeriodExtraCost = _calcAmountUsed((_higherRate - _prevHighestRate), $.noticePeriod);
+            address _provider = $.jobs[_jobId].provider;
             _settle(_jobId, _provider, _noticePeriodExtraCost);
-            jobs[_jobId].balance -= _noticePeriodExtraCost;
+            $.jobs[_jobId].balance -= _noticePeriodExtraCost;
             emit MarketJobSettled(_jobId, _now(), _noticePeriodExtraCost, _provider);
         }
 
         // update rate
-        jobs[_jobId].rate = _newRate;
+        $.jobs[_jobId].rate = _newRate;
         emit MarketJobRateRevised(_jobId, _now(), _newRate);
     }
 
     function _jobMetadataUpdate(uint64 _jobId, string calldata _metadata) internal {
-        jobs[_jobId].metadata = _metadata;
+        _getJobsStorage().jobs[_jobId].metadata = _metadata;
         emit MarketJobMetadataUpdated(_jobId, _now(), _metadata);
     }
 
