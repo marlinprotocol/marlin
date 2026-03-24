@@ -48,4 +48,11 @@ contract Test is ForgeTest {
         options.unsafeSkipAllChecks = true;
         return options;
     }
+
+    function upgradeOptions(bytes memory _constructorData) internal returns (Options memory) {
+        Options memory options;
+        options.unsafeSkipAllChecks = true;
+        options.constructorData = _constructorData;
+        return options;
+    }
 }

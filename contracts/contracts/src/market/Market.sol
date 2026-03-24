@@ -28,9 +28,6 @@ contract Market is
     using SafeERC20 for IERC20;
     using SafeERC20 for ICredit;
 
-    // in case we add more contracts in the inheritance chain
-    uint256[500] private __gap_0; // forge-lint: disable-line(mixed-case-variable)
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     // disable all initializers and reinitializers
     // safeguard against takeover of the logic contract
@@ -68,8 +65,6 @@ contract Market is
 
     /*---- Initializer start ----*/
 
-    uint256[50] private __gap_initializer; // forge-lint: disable-line(mixed-case-variable)
-
     /// @notice Initializes the Market contract
     /// @param _admin Address of the contract admin
     /// @param _initialJobIndex Initial job index
@@ -89,7 +84,7 @@ contract Market is
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
-        jobIndex = _initialJobIndex;
+        _getJobsStorage().jobIndex = _initialJobIndex;
         _updateNoticePeriod(_noticePeriod);
 
         _updateToken(_token);
@@ -100,10 +95,21 @@ contract Market is
 
     /*---- Providers start ----*/
 
-    /// @notice Mapping of provider address to control plane endpoint url
-    mapping(address => string) public providers;
+    /// @custom:storage-location erc7201:marlin.storage.Market.providers
+    struct ProvidersStorage {
+        /// @notice Mapping of provider address to control plane endpoint url
+        mapping(address => string) providers;
+    }
 
-    uint256[49] private __gap_providers; // forge-lint: disable-line(mixed-case-variable)
+    // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.providers")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant PROVIDERS_STORAGE_LOCATION =
+        0x84127d05d3686c1ef79b9015b6c3f0823997e8a0ac6ae09b6d4a6930c2de9200;
+
+    function _getProvidersStorage() private pure returns (ProvidersStorage storage $) {
+        assembly {
+            $.slot := PROVIDERS_STORAGE_LOCATION
+        }
+    }
 
     /// @notice Thrown when provider already exists
     error MarketProviderAlreadyExists();
@@ -119,30 +125,42 @@ contract Market is
     /// @notice Emitted when a provider is updated
     event MarketProviderUpdated(address indexed provider, string oldCp, string newCp);
 
+    function providers(address _provider) public view returns (string memory) {
+        ProvidersStorage storage $ = _getProvidersStorage();
+
+        return $.providers[_provider];
+    }
+
     function _providerAdd(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider]).length == 0, MarketProviderAlreadyExists());
+        ProvidersStorage storage $ = _getProvidersStorage();
+
+        require(bytes($.providers[_provider]).length == 0, MarketProviderAlreadyExists());
         require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
-        providers[_provider] = _cp;
+        $.providers[_provider] = _cp;
 
         emit MarketProviderAdded(_provider, _cp);
     }
 
     function _providerRemove(address _provider) internal {
-        require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
+        ProvidersStorage storage $ = _getProvidersStorage();
 
-        delete providers[_provider];
+        require(bytes($.providers[_provider]).length != 0, MarketProviderNotFound());
+
+        delete $.providers[_provider];
 
         emit MarketProviderRemoved(_provider);
     }
 
     function _providerUpdate(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
+        ProvidersStorage storage $ = _getProvidersStorage();
+
+        require(bytes($.providers[_provider]).length != 0, MarketProviderNotFound());
         require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
-        emit MarketProviderUpdated(_provider, providers[_provider], _cp);
+        emit MarketProviderUpdated(_provider, $.providers[_provider], _cp);
 
-        providers[_provider] = _cp;
+        $.providers[_provider] = _cp;
     }
 
     /// @notice Adds a provider
@@ -178,14 +196,50 @@ contract Market is
         uint64 lastSettled;
         uint64 maxRate;
     }
-    /// @notice Mapping of job ID to Job struct
-    mapping(uint64 => Job) public jobs;
-    /// @notice Current job ID index
-    uint64 public jobIndex;
-    /// @notice Notice period for rate changes
-    uint64 public noticePeriod;
 
-    uint256[48] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
+    /// @custom:storage-location erc7201:marlin.storage.Market.jobs
+    struct JobsStorage {
+        /// @notice Mapping of job ID to Job struct
+        mapping(uint64 => Job) jobs;
+        /// @notice Current job ID index
+        uint64 jobIndex;
+        /// @notice Notice period for rate changes
+        uint64 noticePeriod;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.jobs")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant JOBS_STORAGE_LOCATION = 0x0199c48c8402fa9d072a25f85aebfe76427010391da1ff3e04557cd15bf94300;
+
+    function _getJobsStorage() private pure returns (JobsStorage storage $) {
+        assembly {
+            $.slot := JOBS_STORAGE_LOCATION
+        }
+    }
+
+    function jobs(uint64 _jobId)
+        public
+        view
+        returns (
+            string memory metadata,
+            address owner,
+            address provider,
+            uint64 rate,
+            uint64 balance,
+            uint64 lastSettled,
+            uint64 maxRate
+        )
+    {
+        Job storage job = _getJobsStorage().jobs[_jobId];
+        return (job.metadata, job.owner, job.provider, job.rate, job.balance, job.lastSettled, job.maxRate);
+    }
+
+    function jobIndex() public view returns (uint64) {
+        return _getJobsStorage().jobIndex;
+    }
+
+    function noticePeriod() public view returns (uint64) {
+        return _getJobsStorage().noticePeriod;
+    }
 
     /// @notice Thrown when job does not exist
     error MarketJobNotFound();
@@ -225,7 +279,7 @@ contract Market is
     }
 
     function _onlyExistingJob(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner != address(0), MarketJobNotFound());
+        require(_getJobsStorage().jobs[_jobId].owner != address(0), MarketJobNotFound());
     }
 
     modifier onlyActiveJob(uint64 _jobId) {
@@ -235,9 +289,11 @@ contract Market is
 
     function _onlyActiveJob(uint64 _jobId) internal view {
         _onlyExistingJob(_jobId);
+        JobsStorage storage $ = _getJobsStorage();
         require(
-            (_now() <= jobs[_jobId].lastSettled)
-                || (_calcAmountUsed(jobs[_jobId].rate, _now() - jobs[_jobId].lastSettled) <= jobs[_jobId].balance),
+            (_now() <= $.jobs[_jobId].lastSettled)
+                || (_calcAmountUsed($.jobs[_jobId].rate, _now() - $.jobs[_jobId].lastSettled)
+                        <= $.jobs[_jobId].balance),
             MarketJobInactive()
         );
     }
@@ -248,12 +304,13 @@ contract Market is
     }
 
     function _onlyJobOwner(uint64 _jobId) internal view {
-        require(jobs[_jobId].owner == _msgSender(), MarketJobOnlyOwner());
+        require(_getJobsStorage().jobs[_jobId].owner == _msgSender(), MarketJobOnlyOwner());
     }
 
     function _updateNoticePeriod(uint64 _noticePeriod) internal {
-        emit MarketNoticePeriodUpdated(noticePeriod, _noticePeriod);
-        noticePeriod = _noticePeriod;
+        JobsStorage storage $ = _getJobsStorage();
+        emit MarketNoticePeriodUpdated($.noticePeriod, _noticePeriod);
+        $.noticePeriod = _noticePeriod;
     }
 
     /// @notice Updates the notice period
@@ -263,11 +320,12 @@ contract Market is
     }
 
     function _emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) internal {
+        JobsStorage storage $ = _getJobsStorage();
         for (uint256 i = 0; i < _jobIds.length; i++) {
             uint64 _jobId = _jobIds[i];
             _jobSettle(_jobId);
             uint64 _creditAmount = _withdrawAllCredit(_jobId, _to);
-            jobs[_jobId].balance -= _creditAmount;
+            $.jobs[_jobId].balance -= _creditAmount;
             emit MarketJobWithdrew(_jobId, _now(), _creditAmount, _to);
         }
     }
@@ -282,11 +340,12 @@ contract Market is
     function _jobOpen(string calldata _metadata, address _owner, address _provider, uint64 _rate, uint64 _balance)
         internal
     {
-        uint64 _jobId = jobIndex;
-        jobIndex = _jobId + 1;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _jobId = $.jobIndex;
+        $.jobIndex = _jobId + 1;
 
         // create job with initial balance 0
-        jobs[_jobId] = Job({
+        $.jobs[_jobId] = Job({
             metadata: _metadata,
             owner: _owner,
             provider: _provider,
@@ -305,15 +364,16 @@ contract Market is
     }
 
     function _jobSettle(uint64 _jobId) internal returns (bool) {
-        uint64 _rate = jobs[_jobId].rate;
-        uint64 _lastSettled = jobs[_jobId].lastSettled;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _rate = $.jobs[_jobId].rate;
+        uint64 _lastSettled = $.jobs[_jobId].lastSettled;
         uint64 _usageDuration = _now() - _lastSettled;
         uint64 _amountUsed = _calcAmountUsed(_rate, _usageDuration);
-        uint64 _settleAmount = _min(_amountUsed, jobs[_jobId].balance);
-        address _provider = jobs[_jobId].provider;
+        uint64 _settleAmount = _min(_amountUsed, $.jobs[_jobId].balance);
+        address _provider = $.jobs[_jobId].provider;
         _settle(_jobId, _provider, _settleAmount);
-        jobs[_jobId].balance -= _settleAmount;
-        jobs[_jobId].lastSettled = _now();
+        $.jobs[_jobId].balance -= _settleAmount;
+        $.jobs[_jobId].lastSettled = _now();
         emit MarketJobSettled(_jobId, _now(), _settleAmount, _provider);
 
         return _amountUsed == _settleAmount;
@@ -323,27 +383,29 @@ contract Market is
         _jobSettle(_jobId);
 
         // refund leftover balance
-        uint64 _balance = jobs[_jobId].balance;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _balance = $.jobs[_jobId].balance;
         if (_balance > 0) {
             _withdraw(_jobId, _balance, _msgSender(), _balance);
             emit MarketJobWithdrew(_jobId, _now(), _balance, _msgSender());
         }
 
-        delete jobs[_jobId];
+        delete $.jobs[_jobId];
         emit MarketJobClosed(_jobId, _now());
     }
 
     function _jobDeposit(uint64 _jobId, uint64 _amount, address _from) internal {
         _deposit(_jobId, _from, _amount);
-        jobs[_jobId].balance += _amount;
+        _getJobsStorage().jobs[_jobId].balance += _amount;
         emit MarketJobDeposited(_jobId, _now(), _amount, _from);
     }
 
     function _jobWithdraw(uint64 _jobId, uint64 _amount, address _to) internal {
         _jobSettle(_jobId);
 
-        _withdraw(_jobId, jobs[_jobId].balance, _to, _amount);
-        jobs[_jobId].balance -= _amount;
+        JobsStorage storage $ = _getJobsStorage();
+        _withdraw(_jobId, $.jobs[_jobId].balance, _to, _amount);
+        $.jobs[_jobId].balance -= _amount;
         emit MarketJobWithdrew(_jobId, _now(), _amount, _to);
     }
 
@@ -352,25 +414,26 @@ contract Market is
 
         // deduct shutdown delay cost
         // higher rate is used to calculate shutdown delay cost
-        uint64 _oldRate = jobs[_jobId].rate;
+        JobsStorage storage $ = _getJobsStorage();
+        uint64 _oldRate = $.jobs[_jobId].rate;
         uint64 _higherRate = _max(_oldRate, _newRate);
-        uint64 _prevHighestRate = jobs[_jobId].maxRate;
+        uint64 _prevHighestRate = $.jobs[_jobId].maxRate;
         if (_higherRate > _prevHighestRate) {
-            jobs[_jobId].maxRate = _higherRate;
-            uint64 _noticePeriodExtraCost = _calcAmountUsed((_higherRate - _prevHighestRate), noticePeriod);
-            address _provider = jobs[_jobId].provider;
+            $.jobs[_jobId].maxRate = _higherRate;
+            uint64 _noticePeriodExtraCost = _calcAmountUsed((_higherRate - _prevHighestRate), $.noticePeriod);
+            address _provider = $.jobs[_jobId].provider;
             _settle(_jobId, _provider, _noticePeriodExtraCost);
-            jobs[_jobId].balance -= _noticePeriodExtraCost;
+            $.jobs[_jobId].balance -= _noticePeriodExtraCost;
             emit MarketJobSettled(_jobId, _now(), _noticePeriodExtraCost, _provider);
         }
 
         // update rate
-        jobs[_jobId].rate = _newRate;
+        $.jobs[_jobId].rate = _newRate;
         emit MarketJobRateRevised(_jobId, _now(), _newRate);
     }
 
     function _jobMetadataUpdate(uint64 _jobId, string calldata _metadata) internal {
-        jobs[_jobId].metadata = _metadata;
+        _getJobsStorage().jobs[_jobId].metadata = _metadata;
         emit MarketJobMetadataUpdated(_jobId, _now(), _metadata);
     }
 
@@ -467,14 +530,37 @@ contract Market is
 
     /*---- Payments start ----*/
 
-    /// @notice ERC20 token used for payments
-    IERC20 public token;
-    /// @notice Credit token used for payments
-    ICredit public creditToken;
-    /// @notice Mapping of job ID to credit balance
-    mapping(uint64 => uint64) public creditBalances;
+    /// @custom:storage-location erc7201:marlin.storage.Market.payments
+    struct PaymentsStorage {
+        /// @notice ERC20 token used for payments
+        IERC20 token;
+        /// @notice Credit token used for payments
+        ICredit creditToken;
+        /// @notice Mapping of job ID to credit balance
+        mapping(uint64 => uint64) creditBalances;
+    }
 
-    uint256[47] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
+    // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.payments")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant PAYMENTS_STORAGE_LOCATION =
+        0x5cd1c8e8b1239ead80978bc175ad8c8fc2d879d20628a10b31ed3a0d1dbdb200;
+
+    function _getPaymentsStorage() private pure returns (PaymentsStorage storage $) {
+        assembly {
+            $.slot := PAYMENTS_STORAGE_LOCATION
+        }
+    }
+
+    function token() public view returns (IERC20) {
+        return _getPaymentsStorage().token;
+    }
+
+    function creditToken() public view returns (ICredit) {
+        return _getPaymentsStorage().creditToken;
+    }
+
+    function creditBalances(uint64 _jobId) public view returns (uint64) {
+        return _getPaymentsStorage().creditBalances[_jobId];
+    }
 
     /// @notice Emitted when the ERC20 token is updated
     event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
@@ -494,14 +580,18 @@ contract Market is
     event MarketCreditTokenSettled(uint64 indexed jobId, uint64 timestamp, address indexed to, uint64 amount);
 
     function _updateToken(address _token) internal {
-        address oldToken = address(token);
-        token = IERC20(_token);
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        address oldToken = address($.token);
+        $.token = IERC20(_token);
         emit MarketTokenUpdated(oldToken, _token);
     }
 
     function _updateCreditToken(address _creditToken) internal {
-        address oldCreditToken = address(creditToken);
-        creditToken = ICredit(_creditToken);
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        address oldCreditToken = address($.creditToken);
+        $.creditToken = ICredit(_creditToken);
         emit MarketCreditTokenUpdated(oldCreditToken, _creditToken);
     }
 
@@ -518,67 +608,75 @@ contract Market is
     }
 
     function _deposit(uint64 _jobId, address _from, uint64 _amount) internal {
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
         uint64 _creditAmount = 0;
 
-        if (address(creditToken) != address(0)) {
+        if (address($.creditToken) != address(0)) {
             uint64 _creditBalance =
-                _min(_safe64(creditToken.balanceOf(_from)), _safe64(creditToken.allowance(_from, address(this))));
+                _min(_safe64($.creditToken.balanceOf(_from)), _safe64($.creditToken.allowance(_from, address(this))));
             if (_creditBalance > 0) {
                 _creditAmount = _min(_amount, _creditBalance);
-                creditToken.safeTransferFrom(_from, address(this), _creditAmount);
-                creditBalances[_jobId] += _creditAmount;
+                $.creditToken.safeTransferFrom(_from, address(this), _creditAmount);
+                $.creditBalances[_jobId] += _creditAmount;
                 emit MarketCreditTokenDeposited(_jobId, _now(), _from, _creditAmount);
             }
         }
 
         if (_amount > _creditAmount) {
             uint64 _tokenAmount = _amount - _creditAmount;
-            token.safeTransferFrom(_from, address(this), _tokenAmount);
+            $.token.safeTransferFrom(_from, address(this), _tokenAmount);
             emit MarketTokenDeposited(_jobId, _now(), _from, _tokenAmount);
         }
     }
 
     function _settle(uint64 _jobId, address _to, uint64 _amount) internal {
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
         uint64 _creditAmount = 0;
 
-        if (address(creditToken) != address(0)) {
-            uint64 _creditBalance = creditBalances[_jobId];
+        if (address($.creditToken) != address(0)) {
+            uint64 _creditBalance = $.creditBalances[_jobId];
             if (_creditBalance > 0) {
                 _creditAmount = _min(_amount, _creditBalance);
-                creditBalances[_jobId] -= _creditAmount;
-                creditToken.redeemAndBurn(_to, _creditAmount);
+                $.creditBalances[_jobId] -= _creditAmount;
+                $.creditToken.redeemAndBurn(_to, _creditAmount);
                 emit MarketCreditTokenSettled(_jobId, _now(), _to, _creditAmount);
             }
         }
 
         if (_amount > _creditAmount) {
             uint64 _tokenAmount = _amount - _creditAmount;
-            token.safeTransfer(_to, _tokenAmount);
+            $.token.safeTransfer(_to, _tokenAmount);
             emit MarketTokenSettled(_jobId, _now(), _to, _tokenAmount);
         }
     }
 
     function _withdraw(uint64 _jobId, uint64 _jobBalance, address _to, uint64 _amount) internal {
-        uint64 _jobTokenBalance = _jobBalance - creditBalances[_jobId];
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        uint64 _jobTokenBalance = _jobBalance - $.creditBalances[_jobId];
         uint64 _tokenAmount = _min(_jobTokenBalance, _amount);
 
         if (_tokenAmount > 0) {
-            token.safeTransfer(_to, _tokenAmount);
+            $.token.safeTransfer(_to, _tokenAmount);
             emit MarketTokenWithdrew(_jobId, _now(), _to, _tokenAmount);
         }
 
         if (_amount > _tokenAmount) {
             uint64 _creditAmount = _amount - _tokenAmount;
-            creditBalances[_jobId] -= _creditAmount;
-            creditToken.safeTransfer(_to, _creditAmount);
+            $.creditBalances[_jobId] -= _creditAmount;
+            $.creditToken.safeTransfer(_to, _creditAmount);
             emit MarketCreditTokenWithdrew(_jobId, _now(), _to, _creditAmount);
         }
     }
 
     function _withdrawAllCredit(uint64 _jobId, address _to) internal returns (uint64 _creditAmount) {
-        _creditAmount = creditBalances[_jobId];
-        creditBalances[_jobId] = 0;
-        creditToken.safeTransfer(_to, _creditAmount);
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        _creditAmount = $.creditBalances[_jobId];
+        $.creditBalances[_jobId] = 0;
+        $.creditToken.safeTransfer(_to, _creditAmount);
         emit MarketCreditTokenWithdrew(_jobId, _now(), _to, _creditAmount);
     }
 
