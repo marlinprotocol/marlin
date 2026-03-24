@@ -16,6 +16,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICredit} from "../token/ICredit.sol";
 
+/// @title Market Contract
+/// @notice Manages jobs, providers, and payments
 contract Market is
     Initializable, // initializer
     ContextUpgradeable, // _msgSender, _msgData
@@ -36,6 +38,7 @@ contract Market is
         _disableInitializers();
     }
 
+    /// @notice Thrown when caller is not admin
     error MarketOnlyAdmin();
 
     modifier onlyAdmin() {
@@ -67,6 +70,12 @@ contract Market is
 
     uint256[50] private __gap_initializer; // forge-lint: disable-line(mixed-case-variable)
 
+    /// @notice Initializes the Market contract
+    /// @param _admin Address of the contract admin
+    /// @param _initialJobIndex Initial job index
+    /// @param _noticePeriod Notice period for rate changes
+    /// @param _token Address of the ERC20 token
+    /// @param _creditToken Address of the Credit token
     function initialize(
         address _admin,
         uint64 _initialJobIndex,
@@ -91,17 +100,23 @@ contract Market is
 
     /*---- Providers start ----*/
 
-    // provider address -> control plane endpoint url
+    /// @notice Mapping of provider address to control plane endpoint url
     mapping(address => string) public providers;
 
     uint256[49] private __gap_providers; // forge-lint: disable-line(mixed-case-variable)
 
+    /// @notice Thrown when provider already exists
     error MarketProviderAlreadyExists();
+    /// @notice Thrown when provider does not exist
     error MarketProviderNotFound();
+    /// @notice Thrown when provider control plane endpoint is invalid
     error MarketProviderInvalidCp();
 
+    /// @notice Emitted when a provider is added
     event MarketProviderAdded(address indexed provider, string cp);
+    /// @notice Emitted when a provider is removed
     event MarketProviderRemoved(address indexed provider);
+    /// @notice Emitted when a provider is updated
     event MarketProviderUpdated(address indexed provider, string oldCp, string newCp);
 
     function _providerAdd(address _provider, string memory _cp) internal {
@@ -130,14 +145,19 @@ contract Market is
         providers[_provider] = _cp;
     }
 
+    /// @notice Adds a provider
+    /// @param _cp Control plane endpoint url
     function providerAdd(string memory _cp) external {
         return _providerAdd(_msgSender(), _cp);
     }
 
+    /// @notice Removes a provider
     function providerRemove() external {
         return _providerRemove(_msgSender());
     }
 
+    /// @notice Updates a provider
+    /// @param _cp New control plane endpoint url
     function providerUpdate(string memory _cp) external {
         return _providerUpdate(_msgSender(), _cp);
     }
@@ -148,6 +168,7 @@ contract Market is
 
     uint256 public constant EXTRA_DECIMALS = 6;
 
+    /// @notice Struct representing a Job
     struct Job {
         string metadata;
         address owner;
@@ -157,27 +178,41 @@ contract Market is
         uint64 lastSettled;
         uint64 maxRate;
     }
-    // job id -> job
+    /// @notice Mapping of job ID to Job struct
     mapping(uint64 => Job) public jobs;
+    /// @notice Current job ID index
     uint64 public jobIndex;
+    /// @notice Notice period for rate changes
     uint64 public noticePeriod;
 
     uint256[48] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
+    /// @notice Thrown when job does not exist
     error MarketJobNotFound();
+    /// @notice Thrown when caller is not job owner
     error MarketJobOnlyOwner();
+    /// @notice Thrown when job is inactive
     error MarketJobInactive();
+    /// @notice Thrown when value is out of range
     error MarketOutOfRange();
 
+    /// @notice Emitted when notice period is updated
     event MarketNoticePeriodUpdated(uint64 from, uint64 to);
+    /// @notice Emitted when a job is opened
     event MarketJobOpened(
         uint64 indexed jobId, uint64 timestamp, string metadata, address indexed owner, address indexed provider
     );
+    /// @notice Emitted when a job is settled
     event MarketJobSettled(uint64 indexed jobId, uint64 timestamp, uint64 amount, address indexed to);
+    /// @notice Emitted when a job is closed
     event MarketJobClosed(uint64 indexed jobId, uint64 timestamp);
+    /// @notice Emitted when a job is deposited to
     event MarketJobDeposited(uint64 indexed jobId, uint64 timestamp, uint64 amount, address indexed from);
+    /// @notice Emitted when a job is withdrawn from
     event MarketJobWithdrew(uint64 indexed jobId, uint64 timestamp, uint64 amount, address indexed to);
+    /// @notice Emitted when a job's rate is revised
     event MarketJobRateRevised(uint64 indexed jobId, uint64 timestamp, uint64 newRate);
+    /// @notice Emitted when a job's metadata is updated
     event MarketJobMetadataUpdated(uint64 indexed jobId, uint64 timestamp, string metadata);
 
     function _now() internal view returns (uint64) {
@@ -221,6 +256,8 @@ contract Market is
         noticePeriod = _noticePeriod;
     }
 
+    /// @notice Updates the notice period
+    /// @param _noticePeriod New notice period
     function updateNoticePeriod(uint64 _noticePeriod) external onlyAdmin {
         _updateNoticePeriod(_noticePeriod);
     }
@@ -235,6 +272,9 @@ contract Market is
         }
     }
 
+    /// @notice Emergency withdraws credit from specified jobs
+    /// @param _to Address to send withdrawn credits to
+    /// @param _jobIds Array of job IDs to withdraw credits from
     function emergencyWithdrawCredit(address _to, uint64[] calldata _jobIds) external onlyAdmin {
         _emergencyWithdrawCredit(_to, _jobIds);
     }
@@ -427,20 +467,30 @@ contract Market is
 
     /*---- Payments start ----*/
 
+    /// @notice ERC20 token used for payments
     IERC20 public token;
+    /// @notice Credit token used for payments
     ICredit public creditToken;
-    // job id -> credit balance
+    /// @notice Mapping of job ID to credit balance
     mapping(uint64 => uint64) public creditBalances;
 
     uint256[47] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
 
+    /// @notice Emitted when the ERC20 token is updated
     event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
+    /// @notice Emitted when the Credit token is updated
     event MarketCreditTokenUpdated(address indexed oldCreditToken, address indexed newCreditToken);
+    /// @notice Emitted when token is deposited
     event MarketTokenDeposited(uint64 indexed jobId, uint64 timestamp, address indexed from, uint64 amount);
+    /// @notice Emitted when credit token is deposited
     event MarketCreditTokenDeposited(uint64 indexed jobId, uint64 timestamp, address indexed from, uint64 amount);
+    /// @notice Emitted when token is withdrawn
     event MarketTokenWithdrew(uint64 indexed jobId, uint64 timestamp, address indexed to, uint64 amount);
+    /// @notice Emitted when credit token is withdrawn
     event MarketCreditTokenWithdrew(uint64 indexed jobId, uint64 timestamp, address indexed to, uint64 amount);
+    /// @notice Emitted when token is settled
     event MarketTokenSettled(uint64 indexed jobId, uint64 timestamp, address indexed to, uint64 amount);
+    /// @notice Emitted when credit token is settled
     event MarketCreditTokenSettled(uint64 indexed jobId, uint64 timestamp, address indexed to, uint64 amount);
 
     function _updateToken(address _token) internal {
@@ -455,10 +505,14 @@ contract Market is
         emit MarketCreditTokenUpdated(oldCreditToken, _creditToken);
     }
 
+    /// @notice Updates the token
+    /// @param _token Address of the new ERC20 token
     function updateToken(address _token) external onlyAdmin {
         _updateToken(_token);
     }
 
+    /// @notice Updates the credit token
+    /// @param _creditToken Address of the new Credit token
     function updateCreditToken(address _creditToken) external onlyAdmin {
         _updateCreditToken(_creditToken);
     }
