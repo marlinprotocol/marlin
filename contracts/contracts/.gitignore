@@ -1,10 +1,21 @@
-node_modules
+# Compiler files
+cache/
+out/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Docs
+docs/
+
+# Dotenv file
 .env
-.DS_Store
-cache
-artifacts
-coverage
-coverage.json
-.openzeppelin/unknown-31337.json
-typechain-types
-*.log
+
+broadcast/
+
+node_modules
+
+lcov.info
+coverage/

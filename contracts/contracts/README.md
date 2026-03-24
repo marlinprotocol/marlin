@@ -1,22 +1,32 @@
-![Marlin Oyster Logo](./logo.svg)
+# Marlin contracts
 
-# Contracts
+This project contains contracts associated with the Marlin platform. It uses [Foundry](https://getfoundry.sh/) for development and testing.
 
-Contracts pertaining to the Marlin Oyster platform.
+## Setup
 
-## Dependencies
-
-The contracts are built on a relatively modern (as of early 2024) stack including:
-- OpenZeppelin contracts v5
-- Solidity v0.8
-- Ethers v6
-- Hardhat
-- Typescript
-
-## Installation
+#### Install Foundry
 
 ```bash
-npm install @marlinorg/oyster-contracts
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+#### Install dependencies
+
+```bash
+forge install
+```
+
+## Build
+
+```bash
+forge build
+```
+
+## Test
+
+```bash
+forge test
 ```
 
 ## License
