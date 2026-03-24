@@ -100,7 +100,7 @@ contract Market is
 
     /*---- Providers start ----*/
 
-    /// @custom:storage-location ERC7201:marlin.storage.Market.providers
+    /// @custom:storage-location erc7201:marlin.storage.Market.providers
     struct ProvidersStorage {
         /// @notice Mapping of provider address to control plane endpoint url
         mapping(address => string) providers;
@@ -490,14 +490,36 @@ contract Market is
 
     /*---- Payments start ----*/
 
-    /// @notice ERC20 token used for payments
-    IERC20 public token;
-    /// @notice Credit token used for payments
-    ICredit public creditToken;
-    /// @notice Mapping of job ID to credit balance
-    mapping(uint64 => uint64) public creditBalances;
+    /// @custom:storage-location erc7201:marlin.storage.Market.payments
+    struct PaymentsStorage {
+        /// @notice ERC20 token used for payments
+        IERC20 token;
+        /// @notice Credit token used for payments
+        ICredit creditToken;
+        /// @notice Mapping of job ID to credit balance
+        mapping(uint64 => uint64) creditBalances;
+    }
 
-    uint256[47] private __gap_payments; // forge-lint: disable-line(mixed-case-variable)
+    // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.payments")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant PAYMENTS_STORAGE_LOCATION = 0x5cd1c8e8b1239ead80978bc175ad8c8fc2d879d20628a10b31ed3a0d1dbdb200;
+
+    function _getPaymentsStorage() private pure returns (PaymentsStorage storage $) {
+        assembly {
+            $.slot := PAYMENTS_STORAGE_LOCATION
+        }
+    }
+
+    function token() public view returns (IERC20) {
+        return _getPaymentsStorage().token;
+    }
+
+    function creditToken() public view returns (ICredit) {
+        return _getPaymentsStorage().creditToken;
+    }
+
+    function creditBalances(uint64 _jobId) public view returns (uint64) {
+        return _getPaymentsStorage().creditBalances[_jobId];
+    }
 
     /// @notice Emitted when the ERC20 token is updated
     event MarketTokenUpdated(address indexed oldToken, address indexed newToken);
@@ -517,14 +539,18 @@ contract Market is
     event MarketCreditTokenSettled(uint64 indexed jobId, uint64 timestamp, address indexed to, uint64 amount);
 
     function _updateToken(address _token) internal {
-        address oldToken = address(token);
-        token = IERC20(_token);
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        address oldToken = address($.token);
+        $.token = IERC20(_token);
         emit MarketTokenUpdated(oldToken, _token);
     }
 
     function _updateCreditToken(address _creditToken) internal {
-        address oldCreditToken = address(creditToken);
-        creditToken = ICredit(_creditToken);
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        address oldCreditToken = address($.creditToken);
+        $.creditToken = ICredit(_creditToken);
         emit MarketCreditTokenUpdated(oldCreditToken, _creditToken);
     }
 
@@ -541,67 +567,75 @@ contract Market is
     }
 
     function _deposit(uint64 _jobId, address _from, uint64 _amount) internal {
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
         uint64 _creditAmount = 0;
 
-        if (address(creditToken) != address(0)) {
+        if (address($.creditToken) != address(0)) {
             uint64 _creditBalance =
-                _min(_safe64(creditToken.balanceOf(_from)), _safe64(creditToken.allowance(_from, address(this))));
+                _min(_safe64($.creditToken.balanceOf(_from)), _safe64($.creditToken.allowance(_from, address(this))));
             if (_creditBalance > 0) {
                 _creditAmount = _min(_amount, _creditBalance);
-                creditToken.safeTransferFrom(_from, address(this), _creditAmount);
-                creditBalances[_jobId] += _creditAmount;
+                $.creditToken.safeTransferFrom(_from, address(this), _creditAmount);
+                $.creditBalances[_jobId] += _creditAmount;
                 emit MarketCreditTokenDeposited(_jobId, _now(), _from, _creditAmount);
             }
         }
 
         if (_amount > _creditAmount) {
             uint64 _tokenAmount = _amount - _creditAmount;
-            token.safeTransferFrom(_from, address(this), _tokenAmount);
+            $.token.safeTransferFrom(_from, address(this), _tokenAmount);
             emit MarketTokenDeposited(_jobId, _now(), _from, _tokenAmount);
         }
     }
 
     function _settle(uint64 _jobId, address _to, uint64 _amount) internal {
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
         uint64 _creditAmount = 0;
 
-        if (address(creditToken) != address(0)) {
-            uint64 _creditBalance = creditBalances[_jobId];
+        if (address($.creditToken) != address(0)) {
+            uint64 _creditBalance = $.creditBalances[_jobId];
             if (_creditBalance > 0) {
                 _creditAmount = _min(_amount, _creditBalance);
-                creditBalances[_jobId] -= _creditAmount;
-                creditToken.redeemAndBurn(_to, _creditAmount);
+                $.creditBalances[_jobId] -= _creditAmount;
+                $.creditToken.redeemAndBurn(_to, _creditAmount);
                 emit MarketCreditTokenSettled(_jobId, _now(), _to, _creditAmount);
             }
         }
 
         if (_amount > _creditAmount) {
             uint64 _tokenAmount = _amount - _creditAmount;
-            token.safeTransfer(_to, _tokenAmount);
+            $.token.safeTransfer(_to, _tokenAmount);
             emit MarketTokenSettled(_jobId, _now(), _to, _tokenAmount);
         }
     }
 
     function _withdraw(uint64 _jobId, uint64 _jobBalance, address _to, uint64 _amount) internal {
-        uint64 _jobTokenBalance = _jobBalance - creditBalances[_jobId];
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        uint64 _jobTokenBalance = _jobBalance - $.creditBalances[_jobId];
         uint64 _tokenAmount = _min(_jobTokenBalance, _amount);
 
         if (_tokenAmount > 0) {
-            token.safeTransfer(_to, _tokenAmount);
+            $.token.safeTransfer(_to, _tokenAmount);
             emit MarketTokenWithdrew(_jobId, _now(), _to, _tokenAmount);
         }
 
         if (_amount > _tokenAmount) {
             uint64 _creditAmount = _amount - _tokenAmount;
-            creditBalances[_jobId] -= _creditAmount;
-            creditToken.safeTransfer(_to, _creditAmount);
+            $.creditBalances[_jobId] -= _creditAmount;
+            $.creditToken.safeTransfer(_to, _creditAmount);
             emit MarketCreditTokenWithdrew(_jobId, _now(), _to, _creditAmount);
         }
     }
 
     function _withdrawAllCredit(uint64 _jobId, address _to) internal returns (uint64 _creditAmount) {
-        _creditAmount = creditBalances[_jobId];
-        creditBalances[_jobId] = 0;
-        creditToken.safeTransfer(_to, _creditAmount);
+        PaymentsStorage storage $ = _getPaymentsStorage();
+
+        _creditAmount = $.creditBalances[_jobId];
+        $.creditBalances[_jobId] = 0;
+        $.creditToken.safeTransfer(_to, _creditAmount);
         emit MarketCreditTokenWithdrew(_jobId, _now(), _to, _creditAmount);
     }
 
