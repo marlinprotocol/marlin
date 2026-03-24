@@ -28,9 +28,6 @@ contract Market is
     using SafeERC20 for IERC20;
     using SafeERC20 for ICredit;
 
-    // in case we add more contracts in the inheritance chain
-    uint256[500] private __gap_0; // forge-lint: disable-line(mixed-case-variable)
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     // disable all initializers and reinitializers
     // safeguard against takeover of the logic contract
@@ -67,8 +64,6 @@ contract Market is
     /*---- Overrides end ----*/
 
     /*---- Initializer start ----*/
-
-    uint256[50] private __gap_initializer; // forge-lint: disable-line(mixed-case-variable)
 
     /// @notice Initializes the Market contract
     /// @param _admin Address of the contract admin
@@ -201,7 +196,8 @@ contract Market is
         uint64 lastSettled;
         uint64 maxRate;
     }
-    /// @custom:storage-location ERC7201:marlin.storage.Market.jobs
+
+    /// @custom:storage-location erc7201:marlin.storage.Market.jobs
     struct JobsStorage {
         /// @notice Mapping of job ID to Job struct
         mapping(uint64 => Job) jobs;
@@ -212,33 +208,29 @@ contract Market is
     }
 
     // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.jobs")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant JobsStorageLocation = 0x0199c48c8402fa9d072a25f85aebfe76427010391da1ff3e04557cd15bf94300;
+    bytes32 private constant JOBS_STORAGE_LOCATION = 0x0199c48c8402fa9d072a25f85aebfe76427010391da1ff3e04557cd15bf94300;
 
     function _getJobsStorage() private pure returns (JobsStorage storage $) {
         assembly {
-            $.slot := JobsStorageLocation
+            $.slot := JOBS_STORAGE_LOCATION
         }
     }
 
-    function jobs(uint64 _jobId) public view returns (
-        string memory metadata,
-        address owner,
-        address provider,
-        uint64 rate,
-        uint64 balance,
-        uint64 lastSettled,
-        uint64 maxRate
-    ) {
+    function jobs(uint64 _jobId)
+        public
+        view
+        returns (
+            string memory metadata,
+            address owner,
+            address provider,
+            uint64 rate,
+            uint64 balance,
+            uint64 lastSettled,
+            uint64 maxRate
+        )
+    {
         Job storage job = _getJobsStorage().jobs[_jobId];
-        return (
-            job.metadata,
-            job.owner,
-            job.provider,
-            job.rate,
-            job.balance,
-            job.lastSettled,
-            job.maxRate
-        );
+        return (job.metadata, job.owner, job.provider, job.rate, job.balance, job.lastSettled, job.maxRate);
     }
 
     function jobIndex() public view returns (uint64) {
@@ -300,7 +292,8 @@ contract Market is
         JobsStorage storage $ = _getJobsStorage();
         require(
             (_now() <= $.jobs[_jobId].lastSettled)
-                || (_calcAmountUsed($.jobs[_jobId].rate, _now() - $.jobs[_jobId].lastSettled) <= $.jobs[_jobId].balance),
+                || (_calcAmountUsed($.jobs[_jobId].rate, _now() - $.jobs[_jobId].lastSettled)
+                        <= $.jobs[_jobId].balance),
             MarketJobInactive()
         );
     }
@@ -548,7 +541,8 @@ contract Market is
     }
 
     // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.payments")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant PAYMENTS_STORAGE_LOCATION = 0x5cd1c8e8b1239ead80978bc175ad8c8fc2d879d20628a10b31ed3a0d1dbdb200;
+    bytes32 private constant PAYMENTS_STORAGE_LOCATION =
+        0x5cd1c8e8b1239ead80978bc175ad8c8fc2d879d20628a10b31ed3a0d1dbdb200;
 
     function _getPaymentsStorage() private pure returns (PaymentsStorage storage $) {
         assembly {
