@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.26;
+pragma solidity ^0.8.0;
 
 /* Libraries */
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -9,24 +9,21 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
-import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 /* Interfaces */
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 
-/**
- * @title   Credit
- * @notice  To transfer Credit tokens, either the sender or the recipient must have `TRANSFER_ALLOWED_ROLE`.
- * @dev     Admin must track the balance of USDC in the contract compared to the total supply of Credit.
- */
-
+/// @title   Credit
+/// @notice  To transfer Credit tokens, either the sender or the recipient must have `TRANSFER_ALLOWED_ROLE`.
+/// @dev     Admin must track the balance of USDC in the contract compared to the total supply of Credit.
 contract Credit is
     ContextUpgradeable,  // _msgSender, _msgData
-    AccessControlEnumerableUpgradeable,  // RBAC enumeration
+    AccessControlUpgradeable,  // RBAC enumeration
     ERC20Upgradeable,  // token
     UUPSUpgradeable,  // public upgrade
     PausableUpgradeable  // pause/unpause
@@ -35,10 +32,10 @@ contract Credit is
 
     uint256[500] private __gap0;
 
-    error NoAdminExists();
-    error OnlyAdmin();
-    error OnlyToEmergencyWithdrawRole();
-    error OnlyTransferAllowedRole();
+    error CreditNoAdminExists();
+    error CreditOnlyAdmin();
+    error CreditOnlyToEmergencyWithdrawRole();
+    error CreditOnlyTransferAllowedRole();
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE"); // 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE"); // 0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848
@@ -48,7 +45,7 @@ contract Credit is
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE"); // 0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a
     
     modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), OnlyAdmin());
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), CreditOnlyAdmin());
         _;
     }
 
@@ -66,15 +63,15 @@ contract Credit is
         super._revokeRole(role, account);
 
         // protect against accidentally removing all admins
-        require(getRoleMemberCount(DEFAULT_ADMIN_ROLE) != 0, NoAdminExists());
+        require(getRoleMemberCount(DEFAULT_ADMIN_ROLE) != 0, CreditNoAdminExists());
     }
 
     function _beforeTokenTransfer(address from, address to, uint256 /* amount */) internal virtual override {
-        require(hasRole(TRANSFER_ALLOWED_ROLE, from) || hasRole(TRANSFER_ALLOWED_ROLE, to), OnlyTransferAllowedRole());
+        require(hasRole(TRANSFER_ALLOWED_ROLE, from) || hasRole(TRANSFER_ALLOWED_ROLE, to), CreditOnlyTransferAllowedRole());
     }
 
     function _authorizeUpgrade(address /*account*/) internal view override {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), OnlyAdmin());
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), CreditOnlyAdmin());
     }
 
     //-------------------------------- Overrides end --------------------------------//
@@ -168,7 +165,7 @@ contract Credit is
      * @param   _amount Amount of tokens to withdraw.
      */
     function emergencyWithdraw(address _token, address _to, uint256 _amount) external onlyAdmin {
-        require(hasRole(EMERGENCY_WITHDRAW_ROLE, _to), OnlyToEmergencyWithdrawRole());
+        require(hasRole(EMERGENCY_WITHDRAW_ROLE, _to), CreditOnlyToEmergencyWithdrawRole());
         IERC20(_token).safeTransfer(_to, _amount);
     }
 
