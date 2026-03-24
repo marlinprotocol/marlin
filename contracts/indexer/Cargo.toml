@@ -1,11 +1,11 @@
 [package]
-name = "oyster-indexer"
+name = "market-indexer"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [lib]
-name = "oyster_indexer"
+name = "market_indexer"
 path = "src/lib.rs"
 
 [dependencies]
