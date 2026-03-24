@@ -154,14 +154,15 @@ contract Market is
         address provider;
         uint64 rate;
         uint64 balance;
-        uint64 lastSettled; // payment has been settled up to this timestamp
-        uint64 maxRate; // max rate for the job
+        uint64 lastSettled;
+        uint64 maxRate;
     }
+    // job id -> job
     mapping(uint64 => Job) public jobs;
     uint64 public jobIndex;
     uint64 public noticePeriod;
 
-    uint256[47] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
+    uint256[48] private __gap_jobs; // forge-lint: disable-line(mixed-case-variable)
 
     error MarketJobNotFound();
     error MarketJobOnlyOwner();
