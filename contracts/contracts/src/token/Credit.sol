@@ -16,21 +16,22 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 
 /* Interfaces */
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
+import {ICredit} from "./ICredit.sol";
 
 /// @title   Credit
 /// @notice  To transfer Credit tokens, either the sender or the recipient must have `TRANSFER_ALLOWED_ROLE`.
 /// @dev     Admin must track the balance of USDC in the contract compared to the total supply of Credit.
 contract Credit is
-    ContextUpgradeable,  // _msgSender, _msgData
-    AccessControlUpgradeable,  // RBAC enumeration
-    ERC20Upgradeable,  // token
-    UUPSUpgradeable,  // public upgrade
-    PausableUpgradeable  // pause/unpause
-{   
+    Initializable, // initializer
+    ContextUpgradeable, // _msgSender, _msgData
+    ERC165Upgradeable, // supportsInterface
+    AccessControlUpgradeable, // RBAC
+    UUPSUpgradeable, // public upgrade
+    ERC20Upgradeable, // token
+    PausableUpgradeable, // pause/unpause
+    ICredit
+{
     using SafeERC20 for IERC20;
-
-    uint256[500] private __gap0;
 
     error CreditNoAdminExists();
     error CreditOnlyAdmin();
@@ -43,65 +44,70 @@ contract Credit is
     bytes32 public constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE"); // 0x44ac9762eec3a11893fefb11d028bb3102560094137c3ed4518712475b2577cc
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE"); // 0x66f144ecd65ad16d38ecdba8687842af4bc05fde66fe3d999569a3006349785f
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE"); // 0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a
-    
+
     modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), CreditOnlyAdmin());
+        _onlyAdmin();
         _;
     }
 
-    //-------------------------------- Overrides start --------------------------------/
-
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return super.supportsInterface(interfaceId);
-    }
-
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-
-    function _revokeRole(bytes32 role, address account) internal override {
-        super._revokeRole(role, account);
-
-        // protect against accidentally removing all admins
-        require(getRoleMemberCount(DEFAULT_ADMIN_ROLE) != 0, CreditNoAdminExists());
-    }
-
-    function _beforeTokenTransfer(address from, address to, uint256 /* amount */) internal virtual override {
-        require(hasRole(TRANSFER_ALLOWED_ROLE, from) || hasRole(TRANSFER_ALLOWED_ROLE, to), CreditOnlyTransferAllowedRole());
-    }
-
-    function _authorizeUpgrade(address /*account*/) internal view override {
+    function _onlyAdmin() internal view {
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), CreditOnlyAdmin());
     }
 
-    //-------------------------------- Overrides end --------------------------------//
+    /*---- Overrides start ----*/
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC165Upgradeable, AccessControlUpgradeable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function _authorizeUpgrade(address) internal view override onlyAdmin {}
+
+    function decimals() public pure override(ERC20Upgradeable) returns (uint8) {
+        return 6;
+    }
+
+    function _update(address from, address to, uint256 amount) internal virtual override(ERC20Upgradeable) {
+        require(
+            hasRole(TRANSFER_ALLOWED_ROLE, from) || hasRole(TRANSFER_ALLOWED_ROLE, to), CreditOnlyTransferAllowedRole()
+        );
+        return super._update(from, to, amount);
+    }
+
+    /*---- Overrides end ----*/
+
+    /*---- Initializer start ----*/
 
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     address public immutable USDC;
 
-    uint256[500] private __gap1;
-
-    //-------------------------------- Initializer start --------------------------------/
-
     /// @custom:oz-upgrades-unsafe-allow constructor
+    // disable all initializers and reinitializers
+    // safeguard against takeover of the logic contract
     constructor(address _usdc) {
+        _disableInitializers();
+
         USDC = _usdc;
     }
 
     function initialize(address _admin) public initializer {
         __Context_init_unchained();
         __ERC165_init_unchained();
-        __AccessControlEnumerable_init_unchained();
-        __ERC20_init_unchained("Oyster Credit", "CREDIT");
-        __UUPSUpgradeable_init_unchained();
+        __AccessControl_init_unchained();
+        __ERC20_init_unchained("Marlin Credit", "CREDIT");
         __Pausable_init_unchained();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
-    //-------------------------------- Initializer end --------------------------------/
+    /*---- Initializer end ----*/
 
-    //-------------------------------- Token Mint/Burn start --------------------------------/
+    /*---- Mint/Burn start ----*/
 
     /**
      * @notice  Mint Credit tokens.
@@ -123,9 +129,9 @@ contract Credit is
         _burn(_from, _amount);
     }
 
-    //-------------------------------- Token Mint/Burn end --------------------------------//
-    
-    //-------------------------------- Oyster Market start --------------------------------//
+    /*---- Mint/Burn end ----*/
+
+    /*---- ICredit start ----*/
 
     /**
      * @notice  Burn Credit tokens and receive USDC.
@@ -136,13 +142,13 @@ contract Credit is
      * @param   _amount  Amount of tokens to redeem.
      */
     function redeemAndBurn(address _to, uint256 _amount) external whenNotPaused onlyRole(REDEEMER_ROLE) {
-        _burn(_msgSender(), _amount); 
+        _burn(_msgSender(), _amount);
         IERC20(USDC).safeTransfer(_to, _amount);
     }
 
-    //-------------------------------- Oyster Market end --------------------------------//
+    /*---- ICredit end ----*/
 
-    //-------------------------------- Pause/Unpause start --------------------------------//
+    /*---- Pause/Unpause start ----*/
 
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
@@ -152,9 +158,9 @@ contract Credit is
         _unpause();
     }
 
-    //-------------------------------- Pause/Unpause end --------------------------------//
+    /*---- Pause/Unpause end ----*/
 
-    //-------------------------------- Emergency Withdraw start --------------------------------//
+    /*---- Emergency Withdraw start ----*/
 
     /**
      * @notice  Emergency withdraw tokens from the contract.
@@ -169,5 +175,5 @@ contract Credit is
         IERC20(_token).safeTransfer(_to, _amount);
     }
 
-    //-------------------------------- Emergency Withdraw end --------------------------------//
+    /*---- Emergency Withdraw end ----*/
 }
