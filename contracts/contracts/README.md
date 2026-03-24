@@ -1,6 +1,6 @@
-# Oyster contracts
+# Marlin contracts
 
-This project contains contracts associated with the Oyster platform. It uses [Foundry](https://getfoundry.sh/) for development and testing.
+This project contains contracts associated with the Marlin platform. It uses [Foundry](https://getfoundry.sh/) for development and testing.
 
 ## Setup
 
