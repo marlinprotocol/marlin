@@ -100,10 +100,21 @@ contract Market is
 
     /*---- Providers start ----*/
 
-    /// @notice Mapping of provider address to control plane endpoint url
-    mapping(address => string) public providers;
+    /// @custom:storage-location ERC7201:marlin.storage.Market.providers
+    struct ProvidersStorage {
+        /// @notice Mapping of provider address to control plane endpoint url
+        mapping(address => string) providers;
+    }
 
-    uint256[49] private __gap_providers; // forge-lint: disable-line(mixed-case-variable)
+    // keccak256(abi.encode(uint256(keccak256("marlin.storage.Market.providers")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant PROVIDERS_STORAGE_LOCATION =
+        0x84127d05d3686c1ef79b9015b6c3f0823997e8a0ac6ae09b6d4a6930c2de9200;
+
+    function _getProvidersStorage() private pure returns (ProvidersStorage storage $) {
+        assembly {
+            $.slot := PROVIDERS_STORAGE_LOCATION
+        }
+    }
 
     /// @notice Thrown when provider already exists
     error MarketProviderAlreadyExists();
@@ -119,30 +130,42 @@ contract Market is
     /// @notice Emitted when a provider is updated
     event MarketProviderUpdated(address indexed provider, string oldCp, string newCp);
 
+    function providers(address _provider) public view returns (string memory) {
+        ProvidersStorage storage $ = _getProvidersStorage();
+
+        return $.providers[_provider];
+    }
+
     function _providerAdd(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider]).length == 0, MarketProviderAlreadyExists());
+        ProvidersStorage storage $ = _getProvidersStorage();
+
+        require(bytes($.providers[_provider]).length == 0, MarketProviderAlreadyExists());
         require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
-        providers[_provider] = _cp;
+        $.providers[_provider] = _cp;
 
         emit MarketProviderAdded(_provider, _cp);
     }
 
     function _providerRemove(address _provider) internal {
-        require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
+        ProvidersStorage storage $ = _getProvidersStorage();
 
-        delete providers[_provider];
+        require(bytes($.providers[_provider]).length != 0, MarketProviderNotFound());
+
+        delete $.providers[_provider];
 
         emit MarketProviderRemoved(_provider);
     }
 
     function _providerUpdate(address _provider, string memory _cp) internal {
-        require(bytes(providers[_provider]).length != 0, MarketProviderNotFound());
+        ProvidersStorage storage $ = _getProvidersStorage();
+
+        require(bytes($.providers[_provider]).length != 0, MarketProviderNotFound());
         require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
-        emit MarketProviderUpdated(_provider, providers[_provider], _cp);
+        emit MarketProviderUpdated(_provider, $.providers[_provider], _cp);
 
-        providers[_provider] = _cp;
+        $.providers[_provider] = _cp;
     }
 
     /// @notice Adds a provider

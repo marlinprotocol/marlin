@@ -1774,7 +1774,7 @@ contract MarketTestJobClose is MarketTest {
 
     function test_JobClose_Overflow() public {
         vm.startPrank(user);
-        skip(2**62);
+        skip(2 ** 62);
 
         vm.expectRevert(Market.MarketOutOfRange.selector);
         market.jobClose(jobId);
