@@ -2,7 +2,7 @@ mod constants;
 mod handlers;
 mod schema;
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use alloy::primitives::Address;
 use alloy::providers::Provider;
@@ -18,13 +18,13 @@ use tracing::{info, instrument};
 pub trait LogsProvider {
     fn latest_block(&mut self) -> Result<u64>;
     fn logs(&self, start_block: u64, end_block: u64) -> Result<impl IntoIterator<Item = Log>>;
-    fn block_timestamp(&self, block_number: u64) -> Result<u64>;
 }
 
 #[derive(Clone)]
 pub struct AlloyProvider {
     pub url: Url,
     pub contract: Address,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl LogsProvider for AlloyProvider {
@@ -34,18 +34,17 @@ impl LogsProvider for AlloyProvider {
             .build()?;
         Ok(rt.block_on(
             alloy::providers::ProviderBuilder::new()
-                .on_http(self.url.clone())
+                .disable_recommended_fillers()
+                .connect_http(self.url.clone())
                 .get_block_number(),
         )?)
     }
 
     fn logs(&self, start_block: u64, end_block: u64) -> Result<impl IntoIterator<Item = Log>> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        Ok(rt.block_on(
+        Ok(self.rt.block_on(
             alloy::providers::ProviderBuilder::new()
-                .on_http(self.url.clone())
+                .disable_recommended_fillers()
+                .connect_http(self.url.clone())
                 .get_logs(
                     &Filter::new()
                         .from_block(start_block)
@@ -53,21 +52,6 @@ impl LogsProvider for AlloyProvider {
                         .address(self.contract),
                 ),
         )?)
-    }
-
-    fn block_timestamp(&self, block_number: u64) -> Result<u64> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        Ok(rt
-            .block_on(
-                alloy::providers::ProviderBuilder::new()
-                    .on_http(self.url.clone())
-                    .get_block_by_number(block_number.into(), false),
-            )?
-            .map(|b| b.header.timestamp)
-            .unwrap_or(0)
-            .into())
     }
 }
 
