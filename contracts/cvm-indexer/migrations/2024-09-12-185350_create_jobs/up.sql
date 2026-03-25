@@ -13,5 +13,5 @@ CREATE TABLE jobs (
 
 CREATE INDEX jobs_owner_idx ON jobs (owner);
 CREATE INDEX jobs_provider_idx ON jobs (provider);
-CREATE INDEX jobs_created_idx ON jobs (created_at);
+CREATE INDEX jobs_created_at_idx ON jobs (created_at);
 CREATE INDEX jobs_is_closed_idx ON jobs (is_closed);
