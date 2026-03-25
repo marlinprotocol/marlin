@@ -18,6 +18,7 @@ diesel_migrations = { version = "2.3.1", features = ["postgres"] }
 dotenvy = "0.15.7"
 ethp = "0.1.0"
 openssl = { version = "0.10", features = ["vendored"] }
+pq-sys = { version = "0.7", features = ["bundled"] }
 tokio = { version = "1.50.0", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
