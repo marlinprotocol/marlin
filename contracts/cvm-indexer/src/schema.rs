@@ -1,61 +1,92 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    jobs (id) {
+    _sqlx_migrations (version) {
+        version -> Int8,
+        description -> Text,
+        installed_on -> Timestamptz,
+        success -> Bool,
+        checksum -> Bytea,
+        execution_time -> Int8,
+    }
+}
+
+diesel::table! {
+    indexer_state (id) {
+        id -> Int4,
+        last_processed_block -> Int8,
+        updated_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    job_events (id) {
+        id -> Int8,
         #[max_length = 66]
-        id -> Bpchar,
+        job_id -> Varchar,
+        #[max_length = 255]
+        event_name -> Varchar,
+        event_data -> Jsonb,
+        indexer_process_time -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    job_transactions (block, idx) {
+        job -> Int8,
+        amount -> Int8,
+        is_deposit -> Bool,
+        timestamp -> Timestamp,
+        #[max_length = 66]
+        tx_hash -> Bpchar,
+        block -> Int8,
+        idx -> Int8,
+    }
+}
+
+diesel::table! {
+    jobs (id) {
+        id -> Int8,
         metadata -> Text,
         #[max_length = 42]
         owner -> Bpchar,
         #[max_length = 42]
         provider -> Bpchar,
-        rate -> Numeric,
-        balance -> Numeric,
-        last_settled -> Timestamp,
-        created -> Timestamp,
+        rate -> Int8,
+        balance -> Int8,
+        last_settled_at -> Timestamp,
+        expires_at -> Timestamp,
+        created_at -> Timestamp,
         is_closed -> Bool,
-        end_epoch -> Numeric,
     }
 }
 
 diesel::table! {
     providers (id) {
-        #[max_length = 42]
-        id -> Bpchar,
+        id -> Int8,
         cp -> Text,
-        block -> Int8,
-        #[max_length = 66]
-        tx_hash -> Bpchar,
         is_active -> Bool,
+        registered_at -> Timestamp,
     }
 }
 
 diesel::table! {
-    rate_revisions (job_id, block) {
-        #[max_length = 66]
-        job_id -> Bpchar,
-        value -> Numeric,
+    rate_revisions (block, idx) {
+        job -> Nullable<Int8>,
+        value -> Int8,
+        timestamp -> Timestamp,
         block -> Int8,
-        timestamp -> Numeric,
+        idx -> Int8,
     }
 }
 
 diesel::table! {
-    revise_rate_requests (id) {
-        #[max_length = 66]
-        id -> Bpchar,
-        value -> Numeric,
-        updates_at -> Timestamp,
-    }
-}
-
-diesel::table! {
-    settlement_history (id, block) {
-        #[max_length = 66]
-        id -> Bpchar,
-        amount -> Numeric,
-        timestamp -> Numeric,
+    settlements (block, idx) {
+        job -> Nullable<Int8>,
+        amount -> Int8,
+        timestamp -> Timestamp,
         block -> Int8,
+        idx -> Int8,
     }
 }
 
@@ -65,30 +96,18 @@ diesel::table! {
     }
 }
 
-diesel::table! {
-    transactions (block, idx) {
-        block -> Int8,
-        idx -> Int8,
-        #[max_length = 66]
-        tx_hash -> Bpchar,
-        #[max_length = 66]
-        job -> Bpchar,
-        amount -> Numeric,
-        is_deposit -> Bool,
-    }
-}
-
-diesel::joinable!(rate_revisions -> jobs (job_id));
-diesel::joinable!(revise_rate_requests -> jobs (id));
-diesel::joinable!(settlement_history -> jobs (id));
-diesel::joinable!(transactions -> jobs (job));
+diesel::joinable!(job_transactions -> jobs (job));
+diesel::joinable!(rate_revisions -> jobs (job));
+diesel::joinable!(settlements -> jobs (job));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    _sqlx_migrations,
+    indexer_state,
+    job_events,
+    job_transactions,
     jobs,
     providers,
     rate_revisions,
-    revise_rate_requests,
-    settlement_history,
+    settlements,
     sync,
-    transactions,
 );
