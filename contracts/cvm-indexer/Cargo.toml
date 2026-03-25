@@ -5,7 +5,7 @@ edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [lib]
-name = "market_indexer"
+name = "cvm_indexer"
 path = "src/lib.rs"
 
 [dependencies]
