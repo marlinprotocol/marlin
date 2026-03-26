@@ -63,10 +63,11 @@ diesel::table! {
 
 diesel::table! {
     providers (id) {
-        id -> Int8,
+        #[max_length = 42]
+        id -> Bpchar,
         cp -> Text,
-        is_active -> Bool,
         registered_at -> Timestamp,
+        is_active -> Bool,
     }
 }
 
