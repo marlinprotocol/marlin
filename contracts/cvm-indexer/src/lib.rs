@@ -24,7 +24,7 @@ pub trait LogsProvider {
 pub struct AlloyProvider {
     pub url: Url,
     pub contract: Address,
-    rt: Arc<tokio::runtime::Runtime>,
+    pub rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl LogsProvider for AlloyProvider {

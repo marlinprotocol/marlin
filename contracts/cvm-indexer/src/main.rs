@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::Parser;
-use clap::command;
 use diesel::Connection;
 use diesel::PgConnection;
 use diesel_migrations::EmbeddedMigrations;
@@ -55,6 +54,10 @@ fn run() -> Result<()> {
     let mut provider = AlloyProvider {
         url: args.rpc.parse()?,
         contract: args.contract.parse()?,
+        rt: tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .into(),
     };
     let is_start_set = start_from(&mut conn, args.start_block)?;
     debug!("is_start_set: {}", is_start_set);
