@@ -19,7 +19,7 @@ pub fn handle_provider_added(conn: &mut PgConnection, log: Log) -> Result<()> {
     info!(?log, "processing");
 
     let provider = Address::from_word(log.topics()[1]).to_checksum(None);
-    let (cp, registered_at) = <(String, u64)>::abi_decode_sequence(&log.data().data)?;
+    let (registered_at, cp) = <(u64, String)>::abi_decode_sequence(&log.data().data)?;
     let registered_at = SystemTime::UNIX_EPOCH + Duration::from_secs(registered_at);
 
     // we want to insert if provider does not exist

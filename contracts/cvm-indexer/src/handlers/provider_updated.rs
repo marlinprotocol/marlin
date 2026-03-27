@@ -15,7 +15,7 @@ pub fn handle_provider_updated(conn: &mut PgConnection, log: Log) -> Result<()> 
     info!(?log, "processing");
 
     let provider = Address::from_word(log.topics()[1]).to_checksum(None);
-    let (cp, _) = <(String, u64)>::abi_decode_sequence(&log.data().data)?;
+    let (_, cp) = <(u64, String)>::abi_decode_sequence(&log.data().data)?;
 
     // we want to update if provider is active
     // we want to error out if provider does not exist or is not active
