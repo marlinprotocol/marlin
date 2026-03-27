@@ -175,12 +175,12 @@ mod tests {
                 "some metadata".to_owned(),
                 "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB".to_owned(),
                 "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
-                100i64,
-                800i64, // 1000 - 200
+                0i64,
+                1000i64,
                 other_st,
-                other_st - std::time::Duration::from_secs(2), // 200 amount / 100 rate = 2 seconds removed
+                now_st,
                 other_st,
-                false,
+                true,
             ))
         );
 
@@ -234,10 +234,7 @@ mod tests {
 
         let res = handle_log(conn, log);
 
-        assert_eq!(
-            format!("{:?}", res.unwrap_err()),
-            "failed to find rate for job"
-        );
+        assert_eq!(format!("{:?}", res.unwrap_err()), "could not find job");
         assert_eq!(jobs::table.count().get_result(conn), Ok(0));
         assert_eq!(rate_revisions::table.count().get_result(conn), Ok(0));
 
@@ -316,10 +313,7 @@ mod tests {
 
         let res = handle_log(conn, log);
 
-        assert_eq!(
-            format!("{:?}", res.unwrap_err()),
-            "failed to find rate for job"
-        );
+        assert_eq!(format!("{:?}", res.unwrap_err()), "could not find job");
         assert_eq!(jobs::table.count().get_result(conn), Ok(1));
         assert_eq!(
             jobs::table.select(jobs::all_columns).first(conn),
