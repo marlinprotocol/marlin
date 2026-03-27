@@ -28,12 +28,12 @@ pub fn handle_provider_updated(conn: &mut PgConnection, log: Log) -> Result<()> 
     // WHERE id = "<id>"
     // AND is_active = true;
     let count = diesel::update(providers::table)
+        .set(providers::cp.eq(cp))
         .filter(providers::id.eq(&provider))
         // we want to detect if provider is inactive
         // we do it by only updating rows where is_active is true
         // and later checking if any rows were updated
         .filter(providers::is_active.eq(true))
-        .set(providers::cp.eq(cp))
         .execute(conn)
         .context("failed to update provider")?;
 

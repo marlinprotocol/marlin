@@ -26,12 +26,12 @@ pub fn handle_provider_removed(conn: &mut PgConnection, log: Log) -> Result<()> 
     // WHERE id = "<id>"
     // AND is_active = true;
     let count = diesel::update(providers::table)
+        .set(providers::is_active.eq(false))
         .filter(providers::id.eq(&provider))
         // we want to detect if provider is already inactive
         // we do it by only updating rows where is_active is true
         // and later checking if any rows were updated
         .filter(providers::is_active.eq(true))
-        .set(providers::is_active.eq(false))
         .execute(conn)
         .context("failed to remove provider")?;
 
