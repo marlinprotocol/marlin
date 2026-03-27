@@ -198,7 +198,7 @@ mod tests {
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
                 providers::registered_at.eq(now_st),
-                providers::is_active.eq(false),
+                providers::is_active.eq(true),
             ))
             .execute(conn)?;
 
@@ -219,7 +219,7 @@ mod tests {
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
                     now_st,
-                    false,
+                    true,
                 )
             ])
         );
