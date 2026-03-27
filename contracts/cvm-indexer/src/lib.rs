@@ -113,7 +113,7 @@ pub fn event_loop(
         // using a temporary tokio runtime is a possibility
         conn.transaction(|conn| {
             for log in logs {
-                handle_log(conn, log, provider).context("failed to handle log")?;
+                handle_log(conn, log).context("failed to handle log")?;
             }
             diesel::update(schema::sync::table)
                 .set(schema::sync::block.eq(end_block as i64))

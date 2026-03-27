@@ -6,8 +6,6 @@ use ethp::event;
 use tracing::warn;
 use tracing::{info, instrument};
 
-use crate::LogsProvider;
-
 mod provider_added;
 use provider_added::handle_provider_added;
 
@@ -89,7 +87,7 @@ static CREDIT_TOKEN_UPDATED: [u8; 32] = event!("MarketCreditTokenUpdated(address
     parent = None,
     fields(block = log.block_number, idx = log.log_index, tx = ?log.transaction_hash)
 )]
-pub fn handle_log(conn: &mut PgConnection, log: Log, provider: &impl LogsProvider) -> Result<()> {
+pub fn handle_log(conn: &mut PgConnection, log: Log) -> Result<()> {
     info!(?log, "processing");
 
     let log_type = log
