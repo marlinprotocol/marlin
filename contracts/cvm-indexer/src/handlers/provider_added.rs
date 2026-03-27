@@ -1,11 +1,12 @@
+use std::time::Duration;
+use std::time::SystemTime;
+
 use crate::schema::providers;
-use alloy::hex::ToHexExt;
 use alloy::primitives::Address;
 use alloy::rpc::types::Log;
 use alloy::sol_types::SolValue;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use diesel::ExpressionMethods;
 use diesel::PgConnection;
 use diesel::RunQueryDsl;
@@ -18,25 +19,18 @@ pub fn handle_provider_added(conn: &mut PgConnection, log: Log) -> Result<()> {
     info!(?log, "processing");
 
     let provider = Address::from_word(log.topics()[1]).to_checksum(None);
-    let cp = String::abi_decode(&log.data().data, true)?;
-
-    let block = log
-        .block_number
-        .ok_or(anyhow!("did not get block from log"))?;
-    let tx_hash = log
-        .transaction_hash
-        .ok_or(anyhow!("did not get tx hash from log"))?
-        .encode_hex_with_prefix();
+    let (cp, registered_at) = <(String, u64)>::abi_decode_sequence(&log.data().data)?;
+    let registered_at = SystemTime::UNIX_EPOCH + Duration::from_secs(registered_at);
 
     // we want to insert if provider does not exist
     // we want to error out if provider exists and is_active is true
     // we want to update only if is_active is false
 
-    info!(provider, cp, ?block, ?tx_hash, "inserting provider");
+    info!(provider, cp, ?registered_at, "inserting provider");
 
     // target sql:
-    // INSERT INTO providers (id, cp, is_active)
-    // VALUES("<provider>", "<cp>", true)
+    // INSERT INTO providers (id, cp, registered_at, is_active)
+    // VALUES("<provider>", "<cp>", <registered_at>, true)
     // ON CONFLICT (id)
     // DO UPDATE SET
     //     is_active = true
@@ -46,18 +40,12 @@ pub fn handle_provider_added(conn: &mut PgConnection, log: Log) -> Result<()> {
         .values((
             providers::id.eq(&provider),
             providers::cp.eq(&cp),
+            providers::registered_at.eq(registered_at),
             providers::is_active.eq(true),
-            providers::block.eq(block as i64),
-            providers::tx_hash.eq(&tx_hash),
         ))
         .on_conflict(providers::id)
         .do_update()
-        .set((
-            providers::is_active.eq(true),
-            providers::cp.eq(&cp),
-            providers::block.eq(block as i64),
-            providers::tx_hash.eq(&tx_hash),
-        ))
+        .set((providers::is_active.eq(true), providers::cp.eq(&cp)))
         // we want to detect if we update any rows
         // we do it by only updating rows where is_active is false
         // and later checking if any rows were updated
@@ -80,13 +68,15 @@ pub fn handle_provider_added(conn: &mut PgConnection, log: Log) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::UNIX_EPOCH;
+
     use alloy::{primitives::LogData, rpc::types::Log};
     use anyhow::Result;
     use diesel::QueryDsl;
-    use ethp::{event, keccak256};
+    use ethp::keccak256;
 
+    use crate::handlers::PROVIDER_ADDED;
     use crate::handlers::handle_log;
-    use crate::handlers::test_utils::MockProvider;
     use crate::handlers::test_utils::TestDb;
 
     use super::*;
@@ -101,6 +91,10 @@ mod tests {
 
         assert_eq!(providers::table.count().get_result(conn), Ok(0));
 
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_ts = now_duration.as_secs();
+        let now_st = UNIX_EPOCH + now_duration;
+
         // log under test
         let log = Log {
             block_hash: Some(keccak256!("some block").into()),
@@ -114,21 +108,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderAdded(address,string)").into(),
+                        PROVIDER_ADDED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some cp".abi_encode().into(),
+                    (now_ts, "some cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        handle_log(conn, log, &provider)?;
+        handle_log(conn, log)?;
 
         // checks
         assert_eq!(providers::table.count().get_result(conn), Ok(1));
@@ -137,8 +129,7 @@ mod tests {
             Ok((
                 "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                 "some cp".to_owned(),
-                42,
-                (&keccak256!("some tx")).encode_hex_with_prefix().to_owned(),
+                now_st,
                 true
             ))
         );
@@ -154,14 +145,14 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(43i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -172,11 +163,14 @@ mod tests {
             Ok((
                 "0x7777777777777777777777777777777777777777".to_owned(),
                 "some other cp".to_owned(),
-                43,
-                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                other_st,
                 true
             ))
         );
+
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_ts = now_duration.as_secs();
+        let now_st = UNIX_EPOCH + now_duration;
 
         // log under test
         let log = Log {
@@ -191,21 +185,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderAdded(address,string)").into(),
+                        PROVIDER_ADDED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some cp".abi_encode().into(),
+                    (now_ts, "some cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        handle_log(conn, log, &provider)?;
+        handle_log(conn, log)?;
 
         // checks
         assert_eq!(providers::table.count().get_result(conn), Ok(2));
@@ -218,15 +210,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    43,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    (&keccak256!("some tx")).encode_hex_with_prefix().to_owned(),
+                    now_st,
                     true,
                 )
             ])
@@ -243,14 +233,17 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_ts = now_duration.as_secs();
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(43i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -258,10 +251,7 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(now_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -276,15 +266,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    43,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     true,
                 )
             ])
@@ -303,21 +291,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderAdded(address,string)").into(),
+                        PROVIDER_ADDED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some cp".abi_encode().into(),
+                    (now_ts, "some cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        let res = handle_log(conn, log, &provider);
+        let res = handle_log(conn, log);
 
         // checks
         assert_eq!(
@@ -334,15 +320,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    43,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     true,
                 )
             ])
@@ -359,14 +343,16 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(43i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -374,10 +360,7 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(now_st),
                 providers::is_active.eq(false),
             ))
             .execute(conn)?;
@@ -392,19 +375,20 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    43,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     false,
                 )
             ])
         );
+
+        let new_duration = SystemTime::now().duration_since(UNIX_EPOCH)? * 2;
+        let new_ts = new_duration.as_secs();
 
         // log under test
         let log = Log {
@@ -419,21 +403,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderAdded(address,string)").into(),
+                        PROVIDER_ADDED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some random cp".abi_encode().into(),
+                    (new_ts, "some random cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        handle_log(conn, log, &provider)?;
+        handle_log(conn, log)?;
 
         // checks
         assert_eq!(providers::table.count().get_result(conn), Ok(2));
@@ -446,15 +428,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    43,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some random cp".to_owned(),
-                    42,
-                    (&keccak256!("some tx")).encode_hex_with_prefix().to_owned(),
+                    now_st,
                     true,
                 )
             ])
