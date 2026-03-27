@@ -53,7 +53,7 @@ pub fn handle_job_opened(conn: &mut PgConnection, log: Log) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use alloy::primitives::U256;
     use alloy::{primitives::LogData, rpc::types::Log};
@@ -77,9 +77,8 @@ mod tests {
 
         assert_eq!(jobs::table.count().get_result(conn), Ok(0));
 
-        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
-        let now_ts = now_duration.as_secs();
-        let now_st = UNIX_EPOCH + now_duration;
+        let now_ts = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        let now_st = UNIX_EPOCH + Duration::from_secs(now_ts);
 
         // log under test
         let log = Log {
@@ -143,8 +142,8 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
-        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
-        let other_st = UNIX_EPOCH + other_duration;
+        let other_ts = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / 2;
+        let other_st = UNIX_EPOCH + Duration::from_secs(other_ts);
 
         diesel::insert_into(jobs::table)
             .values((
@@ -163,9 +162,8 @@ mod tests {
 
         assert_eq!(jobs::table.count().get_result(conn), Ok(1));
 
-        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
-        let now_ts = now_duration.as_secs();
-        let now_st = UNIX_EPOCH + now_duration;
+        let now_ts = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        let now_st = UNIX_EPOCH + Duration::from_secs(now_ts);
 
         // log under test
         let log = Log {
@@ -246,9 +244,8 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
-        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
-        let now_ts = now_duration.as_secs();
-        let now_st = UNIX_EPOCH + now_duration;
+        let now_ts = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        let now_st = UNIX_EPOCH + Duration::from_secs(now_ts);
 
         diesel::insert_into(jobs::table)
             .values((
