@@ -12,8 +12,8 @@ use provider_added::handle_provider_added;
 mod provider_removed;
 use provider_removed::handle_provider_removed;
 
-mod provider_updated_with_cp;
-use provider_updated_with_cp::handle_provider_updated_with_cp;
+mod provider_updated;
+use provider_updated::handle_provider_updated;
 
 mod job_opened;
 use job_opened::handle_job_opened;
@@ -98,8 +98,8 @@ pub fn handle_log(conn: &mut PgConnection, log: Log) -> Result<()> {
         handle_provider_added(conn, log)
     } else if log_type == PROVIDER_REMOVED {
         handle_provider_removed(conn, log)
-    } else if log_type == PROVIDER_UPDATED_WITH_CP {
-        handle_provider_updated_with_cp(conn, log)
+    } else if log_type == PROVIDER_UPDATED {
+        handle_provider_updated(conn, log)
     } else if log_type == JOB_OPENED {
         handle_job_opened(conn, log)
     } else if log_type == JOB_SETTLED {

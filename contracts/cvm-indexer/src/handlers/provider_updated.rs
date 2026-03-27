@@ -11,11 +11,11 @@ use tracing::warn;
 use tracing::{info, instrument};
 
 #[instrument(level = "info", skip_all, parent = None, fields(block = log.block_number, idx = log.log_index))]
-pub fn handle_provider_updated_with_cp(conn: &mut PgConnection, log: Log) -> Result<()> {
+pub fn handle_provider_updated(conn: &mut PgConnection, log: Log) -> Result<()> {
     info!(?log, "processing");
 
     let provider = Address::from_word(log.topics()[1]).to_checksum(None);
-    let cp = String::abi_decode(&log.data().data, true)?;
+    let (cp, _) = <(String, u64)>::abi_decode_sequence(&log.data().data)?;
 
     // we want to update if provider is active
     // we want to error out if provider does not exist or is not active
@@ -53,14 +53,15 @@ pub fn handle_provider_updated_with_cp(conn: &mut PgConnection, log: Log) -> Res
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use alloy::{primitives::LogData, rpc::types::Log};
     use anyhow::Result;
     use diesel::QueryDsl;
-    use ethp::{event, keccak256};
+    use ethp::keccak256;
 
-    use crate::handlers::handle_log;
-    use crate::handlers::test_utils::MockProvider;
     use crate::handlers::test_utils::TestDb;
+    use crate::handlers::{PROVIDER_UPDATED, handle_log};
 
     use super::*;
 
@@ -72,14 +73,16 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -87,10 +90,7 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(now_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -105,19 +105,20 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     true,
                 )
             ])
         );
+
+        let new_duration = SystemTime::now().duration_since(UNIX_EPOCH)? * 2;
+        let new_ts = new_duration.as_secs();
 
         // log under test
         let log = Log {
@@ -132,21 +133,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderUpdatedWithCp(address,string)").into(),
+                        PROVIDER_UPDATED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some random cp".abi_encode().into(),
+                    (new_ts, "some random cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        handle_log(conn, log, &provider)?;
+        handle_log(conn, log)?;
 
         // checks
         assert_eq!(providers::table.count().get_result(conn), Ok(2));
@@ -159,15 +158,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some random cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     true,
                 )
             ])
@@ -184,14 +181,16 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -199,11 +198,8 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
-                providers::is_active.eq(true),
+                providers::registered_at.eq(now_st),
+                providers::is_active.eq(false),
             ))
             .execute(conn)?;
 
@@ -217,19 +213,20 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                    true,
+                    now_st,
+                    false,
                 )
             ])
         );
+
+        let new_duration = SystemTime::now().duration_since(UNIX_EPOCH)? * 2;
+        let new_ts = new_duration.as_secs();
 
         // log under test
         let log = Log {
@@ -244,21 +241,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderUpdatedWithCp(address,string)").into(),
+                        PROVIDER_UPDATED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some cp".abi_encode().into(),
+                    (new_ts, "some cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        handle_log(conn, log, &provider)?;
+        handle_log(conn, log)?;
 
         // checks
         assert_eq!(providers::table.count().get_result(conn), Ok(2));
@@ -271,15 +266,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     true,
                 )
             ])
@@ -296,14 +289,14 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -314,11 +307,13 @@ mod tests {
             Ok((
                 "0x7777777777777777777777777777777777777777".to_owned(),
                 "some other cp".to_owned(),
-                42,
-                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                other_st,
                 true
             ))
         );
+
+        let new_duration = SystemTime::now().duration_since(UNIX_EPOCH)? * 2;
+        let new_ts = new_duration.as_secs();
 
         // log under test
         let log = Log {
@@ -333,21 +328,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderUpdatedWithCp(address,string)").into(),
+                        PROVIDER_UPDATED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some random cp".abi_encode().into(),
+                    (new_ts, "some random cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        let res = handle_log(conn, log, &provider);
+        let res = handle_log(conn, log);
 
         // checks
         assert_eq!(
@@ -360,8 +353,7 @@ mod tests {
             Ok((
                 "0x7777777777777777777777777777777777777777".to_owned(),
                 "some other cp".to_owned(),
-                42,
-                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                other_st,
                 true,
             ))
         );
@@ -377,14 +369,16 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -392,10 +386,7 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(now_st),
                 providers::is_active.eq(false),
             ))
             .execute(conn)?;
@@ -410,19 +401,20 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     false,
                 )
             ])
         );
+
+        let new_duration = SystemTime::now().duration_since(UNIX_EPOCH)? * 2;
+        let new_ts = new_duration.as_secs();
 
         // log under test
         let log = Log {
@@ -437,21 +429,19 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderUpdatedWithCp(address,string)").into(),
+                        PROVIDER_UPDATED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
                     ],
-                    "some random cp".abi_encode().into(),
+                    (new_ts, "some random cp").abi_encode_sequence().into(),
                 )
                 .unwrap(),
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        let res = handle_log(conn, log, &provider);
+        let res = handle_log(conn, log);
 
         // checks
         assert_eq!(
@@ -468,15 +458,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     false,
                 )
             ])
