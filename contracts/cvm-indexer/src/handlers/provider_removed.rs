@@ -51,15 +51,16 @@ pub fn handle_provider_removed(conn: &mut PgConnection, log: Log) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use alloy::primitives::Bytes;
     use alloy::{primitives::LogData, rpc::types::Log};
     use anyhow::Result;
     use diesel::QueryDsl;
-    use ethp::{event, keccak256};
+    use ethp::keccak256;
 
-    use crate::handlers::handle_log;
-    use crate::handlers::test_utils::MockProvider;
     use crate::handlers::test_utils::TestDb;
+    use crate::handlers::{PROVIDER_REMOVED, handle_log};
 
     use super::*;
 
@@ -71,14 +72,16 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -86,10 +89,7 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(now_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -104,15 +104,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     true,
                 )
             ])
@@ -131,7 +129,7 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderRemoved(address)").into(),
+                        PROVIDER_REMOVED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
@@ -142,10 +140,8 @@ mod tests {
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        handle_log(conn, log, &provider)?;
+        handle_log(conn, log)?;
 
         // checks
         assert_eq!(providers::table.count().get_result(conn), Ok(2));
@@ -158,15 +154,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     false,
                 )
             ])
@@ -183,14 +177,14 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -201,8 +195,7 @@ mod tests {
             Ok((
                 "0x7777777777777777777777777777777777777777".to_owned(),
                 "some other cp".to_owned(),
-                42,
-                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                other_st,
                 true,
             ))
         );
@@ -220,7 +213,7 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderRemoved(address)").into(),
+                        PROVIDER_REMOVED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
@@ -231,10 +224,8 @@ mod tests {
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        let res = handle_log(conn, log, &provider);
+        let res = handle_log(conn, log);
 
         // checks
         assert_eq!(
@@ -247,8 +238,7 @@ mod tests {
             Ok((
                 "0x7777777777777777777777777777777777777777".to_owned(),
                 "some other cp".to_owned(),
-                42,
-                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                other_st,
                 true,
             ))
         );
@@ -264,14 +254,16 @@ mod tests {
 
         let contract = "0x1111111111111111111111111111111111111111".parse()?;
 
+        let other_duration = SystemTime::now().duration_since(UNIX_EPOCH)? / 2;
+        let other_st = UNIX_EPOCH + other_duration;
+        let now_duration = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let now_st = UNIX_EPOCH + now_duration;
+
         diesel::insert_into(providers::table)
             .values((
                 providers::id.eq("0x7777777777777777777777777777777777777777"),
                 providers::cp.eq("some other cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(other_st),
                 providers::is_active.eq(true),
             ))
             .execute(conn)?;
@@ -279,10 +271,7 @@ mod tests {
             .values((
                 providers::id.eq("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"),
                 providers::cp.eq("some cp"),
-                providers::block.eq(42i64),
-                providers::tx_hash.eq(
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
-                ),
+                providers::registered_at.eq(now_st),
                 providers::is_active.eq(false),
             ))
             .execute(conn)?;
@@ -297,15 +286,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     false,
                 )
             ])
@@ -324,7 +311,7 @@ mod tests {
                 address: contract,
                 data: LogData::new(
                     vec![
-                        event!("ProviderRemoved(address)").into(),
+                        PROVIDER_REMOVED.into(),
                         "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
                             .parse::<Address>()?
                             .into_word(),
@@ -335,10 +322,8 @@ mod tests {
             },
         };
 
-        // using timestamp 0 because we don't care about it
-        let provider = MockProvider::new(0);
         // use handle_log instead of concrete handler to test dispatch
-        let res = handle_log(conn, log, &provider);
+        let res = handle_log(conn, log);
 
         // checks
         assert_eq!(
@@ -355,15 +340,13 @@ mod tests {
                 (
                     "0x7777777777777777777777777777777777777777".to_owned(),
                     "some other cp".to_owned(),
-                    42,
-                    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    other_st,
                     true,
                 ),
                 (
                     "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa".to_owned(),
                     "some cp".to_owned(),
-                    42,
-                    "0x999999999999999999999999999bcdef1234567890abcdef1234567890abcdef".to_owned(),
+                    now_st,
                     false,
                 )
             ])
