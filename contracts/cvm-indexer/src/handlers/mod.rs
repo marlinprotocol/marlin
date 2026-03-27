@@ -30,23 +30,11 @@ use job_deposited::handle_job_deposited;
 mod job_withdrew;
 use job_withdrew::handle_job_withdrew;
 
-mod job_revise_rate_initiated;
-use job_revise_rate_initiated::handle_job_revise_rate_initiated;
-
-mod job_revise_rate_cancelled;
-use job_revise_rate_cancelled::handle_job_revise_rate_cancelled;
-
-mod job_revise_rate_finalized;
-use job_revise_rate_finalized::handle_job_revise_rate_finalized;
+mod job_rate_revised;
+use job_rate_revised::handle_job_rate_revised;
 
 mod job_metadata_updated;
 use job_metadata_updated::handle_job_metadata_updated;
-
-mod lock_created;
-use lock_created::handle_lock_created;
-
-mod lock_deleted;
-use lock_deleted::handle_lock_deleted;
 
 // provider logs
 static PROVIDER_ADDED: [u8; 32] = event!("MarketProviderAdded(address,uint64,string)");
@@ -105,28 +93,27 @@ pub fn handle_log(conn: &mut PgConnection, log: Log) -> Result<()> {
     } else if log_type == JOB_SETTLED {
         handle_job_settled(conn, log)
     } else if log_type == JOB_CLOSED {
-        handle_job_closed(conn, log, provider)
+        handle_job_closed(conn, log)
     } else if log_type == JOB_DEPOSITED {
         handle_job_deposited(conn, log)
     } else if log_type == JOB_WITHDREW {
         handle_job_withdrew(conn, log)
-    } else if log_type == JOB_REVISE_RATE_INITIATED {
-        handle_job_revise_rate_initiated(conn, log)
-    } else if log_type == JOB_REVISE_RATE_CANCELLED {
-        handle_job_revise_rate_cancelled(conn, log)
-    } else if log_type == JOB_REVISE_RATE_FINALIZED {
-        handle_job_revise_rate_finalized(conn, log, provider)
+    } else if log_type == JOB_RATE_REVISED {
+        handle_job_rate_revised(conn, log)
     } else if log_type == JOB_METADATA_UPDATED {
         handle_job_metadata_updated(conn, log)
-    } else if log_type == LOCK_CREATED {
-        handle_lock_created(conn, log)
-    } else if log_type == LOCK_DELETED {
-        handle_lock_deleted(conn, log)
-    } else if log_type == UPGRADED
-        || log_type == LOCK_WAIT_TIME_UPDATED
+    } else if log_type == INITIALIZED
+        || log_type == UPGRADED
         || log_type == ROLE_GRANTED
+        || log_type == NOTICE_PERIOD_UPDATED
         || log_type == TOKEN_UPDATED
-        || log_type == INITIALIZED
+        || log_type == CREDIT_TOKEN_UPDATED
+        || log_type == TOKEN_DEPOSITED
+        || log_type == CREDIT_TOKEN_DEPOSITED
+        || log_type == TOKEN_WITHDREW
+        || log_type == CREDIT_TOKEN_WITHDREW
+        || log_type == TOKEN_SETTLED
+        || log_type == CREDIT_TOKEN_SETTLED
     {
         info!(?log_type, "ignoring log type");
         Ok(())
