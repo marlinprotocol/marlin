@@ -27,10 +27,7 @@ contract CreditErc165Test is Erc165Test {
         return IERC165(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (vm.randomAddress())
-                ),
+                abi.encodeCall(Credit.initialize, (vm.randomAddress())),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -48,10 +45,7 @@ contract CreditRbacAdminTest is RbacAdminTest {
         return IAccessControl(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -63,10 +57,7 @@ contract CreditMinterRoleTest is RbacRoleTest {
         Credit credit = Credit(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -79,10 +70,7 @@ contract CreditBurnerRoleTest is RbacRoleTest {
         Credit credit = Credit(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -95,10 +83,7 @@ contract CreditRedeemerRoleTest is RbacRoleTest {
         Credit credit = Credit(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -111,10 +96,7 @@ contract CreditTransferAllowedRoleTest is RbacRoleTest {
         Credit credit = Credit(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -127,10 +109,7 @@ contract CreditPauserRoleTest is RbacRoleTest {
         Credit credit = Credit(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -143,10 +122,7 @@ contract CreditEmergencyWithdrawRoleTest is RbacRoleTest {
         Credit credit = Credit(
             Upgrades.deployUUPSProxy(
                 "Credit.sol",
-                abi.encodeCall(
-                    Credit.initialize,
-                    (_admin)
-                ),
+                abi.encodeCall(Credit.initialize, (_admin)),
                 upgradeOptions(abi.encode(vm.randomAddress()))
             )
         );
@@ -172,9 +148,7 @@ contract CreditTestDeploy is Test {
         emit IAccessControl.RoleGranted(bytes32(0), _admin, address(this));
         Credit _credit = Credit(
             Upgrades.deployUUPSProxy(
-                "Credit.sol",
-                abi.encodeCall(Credit.initialize, (_admin)),
-                upgradeOptions(abi.encode(_usdc))
+                "Credit.sol", abi.encodeCall(Credit.initialize, (_admin)), upgradeOptions(abi.encode(_usdc))
             )
         );
 
@@ -184,12 +158,13 @@ contract CreditTestDeploy is Test {
         assertEq(_credit.decimals(), 6);
     }
 
-    function test_Deploy_AdminCanUpgrade(address _admin, address _usdc) public assumeNotEqualAddress(address(this), _admin) {
+    function test_Deploy_AdminCanUpgrade(address _admin, address _usdc)
+        public
+        assumeNotEqualAddress(address(this), _admin)
+    {
         Credit _credit = Credit(
             Upgrades.deployUUPSProxy(
-                "Credit.sol",
-                abi.encodeCall(Credit.initialize, (_admin)),
-                upgradeOptions(abi.encode(_usdc))
+                "Credit.sol", abi.encodeCall(Credit.initialize, (_admin)), upgradeOptions(abi.encode(_usdc))
             )
         );
 
@@ -200,12 +175,13 @@ contract CreditTestDeploy is Test {
         assertTrue(_credit.hasRole(_credit.DEFAULT_ADMIN_ROLE(), _admin));
     }
 
-    function test_Deploy_NonAdminCannotUpgrade(address _admin, address _usdc) public assumeNotEqualAddress(address(this), _admin) {
+    function test_Deploy_NonAdminCannotUpgrade(address _admin, address _usdc)
+        public
+        assumeNotEqualAddress(address(this), _admin)
+    {
         Credit _credit = Credit(
             Upgrades.deployUUPSProxy(
-                "Credit.sol",
-                abi.encodeCall(Credit.initialize, (_admin)),
-                upgradeOptions(abi.encode(_usdc))
+                "Credit.sol", abi.encodeCall(Credit.initialize, (_admin)), upgradeOptions(abi.encode(_usdc))
             )
         );
 
@@ -224,9 +200,7 @@ contract CreditTest is Test {
         usdc = new ERC20Mock("USDC", "USDC");
         credit = Credit(
             Upgrades.deployUUPSProxy(
-                "Credit.sol",
-                abi.encodeCall(Credit.initialize, (admin)),
-                upgradeOptions(abi.encode(address(usdc)))
+                "Credit.sol", abi.encodeCall(Credit.initialize, (admin)), upgradeOptions(abi.encode(address(usdc)))
             )
         );
     }
@@ -253,7 +227,9 @@ contract CreditTestMint is CreditTest {
     }
 
     function test_Mint_NotMinter(uint256 amount) public {
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.MINTER_ROLE()));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.MINTER_ROLE())
+        );
         vm.prank(user);
         credit.mint(user, amount);
     }
@@ -304,7 +280,9 @@ contract CreditTestBurn is CreditTest {
     }
 
     function test_Burn_NotBurner() public {
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.BURNER_ROLE()));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.BURNER_ROLE())
+        );
         vm.prank(user);
         credit.burn(user, 500);
     }
@@ -348,7 +326,7 @@ contract CreditTestRedeemAndBurn is CreditTest {
 
         vm.prank(minter);
         credit.mint(redeemer, 1000); // Redeemer has the tokens
-        
+
         usdc.mint(address(credit), 1000);
     }
 
@@ -360,7 +338,11 @@ contract CreditTestRedeemAndBurn is CreditTest {
     }
 
     function test_RedeemAndBurn_NotRedeemer() public {
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.REDEEMER_ROLE()));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.REDEEMER_ROLE()
+            )
+        );
         vm.prank(user);
         credit.redeemAndBurn(to, 500);
     }
@@ -431,7 +413,9 @@ contract CreditTestPauseUnpause is CreditTest {
     }
 
     function test_Pause_NotPauser() public {
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.PAUSER_ROLE()));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.PAUSER_ROLE())
+        );
         vm.prank(user);
         credit.pause();
     }
@@ -451,7 +435,9 @@ contract CreditTestPauseUnpause is CreditTest {
         credit.pause();
         assertTrue(credit.paused());
 
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.PAUSER_ROLE()));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, credit.PAUSER_ROLE())
+        );
         vm.prank(user);
         credit.unpause();
     }
@@ -489,7 +475,7 @@ contract CreditTestTransfer is CreditTest {
     function test_Transfer_RecipientAllowed() public {
         vm.prank(userA);
         credit.transfer(userC, 500); // C has 500, A has 500. C is not allowed but can receive because A is allowed.
-        
+
         vm.prank(userC);
         credit.transfer(userB, 200); // C is not allowed, but B is allowed.
         assertEq(credit.balanceOf(userC), 300);

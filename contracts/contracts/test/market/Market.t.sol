@@ -235,7 +235,7 @@ contract MarketTestProviderAdd is Test {
 
     function test_ProviderAdd_Valid(address _provider, string memory _cp) public assumeNonEmptyString(_cp) {
         vm.expectEmit();
-        emit Market.MarketProviderAdded(_provider, _cp);
+        emit Market.MarketProviderAdded(_provider, uint64(block.timestamp), _cp);
         vm.prank(_provider);
         market.providerAdd(_cp);
 
@@ -286,7 +286,7 @@ contract MarketTestProviderRemove is Test {
         assertEq(market.providers(_provider), _cp);
 
         vm.expectEmit();
-        emit Market.MarketProviderRemoved(_provider);
+        emit Market.MarketProviderRemoved(_provider, uint64(block.timestamp));
         vm.prank(_provider);
         market.providerRemove();
 
@@ -345,7 +345,7 @@ contract MarketTestProviderUpdate is Test {
         assertEq(market.providers(_provider), _cp);
 
         vm.expectEmit();
-        emit Market.MarketProviderUpdated(_provider, _cp, _newCp);
+        emit Market.MarketProviderUpdated(_provider, uint64(block.timestamp), _cp, _newCp);
         vm.prank(_provider);
         market.providerUpdate(_newCp);
 

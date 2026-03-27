@@ -119,11 +119,11 @@ contract Market is
     error MarketProviderInvalidCp();
 
     /// @notice Emitted when a provider is added
-    event MarketProviderAdded(address indexed provider, string cp);
+    event MarketProviderAdded(address indexed provider, uint64 timestamp, string cp);
     /// @notice Emitted when a provider is removed
-    event MarketProviderRemoved(address indexed provider);
+    event MarketProviderRemoved(address indexed provider, uint64 timestamp);
     /// @notice Emitted when a provider is updated
-    event MarketProviderUpdated(address indexed provider, string oldCp, string newCp);
+    event MarketProviderUpdated(address indexed provider, uint64 timestamp, string oldCp, string newCp);
 
     function providers(address _provider) public view returns (string memory) {
         ProvidersStorage storage $ = _getProvidersStorage();
@@ -139,7 +139,7 @@ contract Market is
 
         $.providers[_provider] = _cp;
 
-        emit MarketProviderAdded(_provider, _cp);
+        emit MarketProviderAdded(_provider, _now(), _cp);
     }
 
     function _providerRemove(address _provider) internal {
@@ -149,7 +149,7 @@ contract Market is
 
         delete $.providers[_provider];
 
-        emit MarketProviderRemoved(_provider);
+        emit MarketProviderRemoved(_provider, _now());
     }
 
     function _providerUpdate(address _provider, string memory _cp) internal {
@@ -158,7 +158,7 @@ contract Market is
         require(bytes($.providers[_provider]).length != 0, MarketProviderNotFound());
         require(bytes(_cp).length != 0, MarketProviderInvalidCp());
 
-        emit MarketProviderUpdated(_provider, $.providers[_provider], _cp);
+        emit MarketProviderUpdated(_provider, _now(), $.providers[_provider], _cp);
 
         $.providers[_provider] = _cp;
     }
