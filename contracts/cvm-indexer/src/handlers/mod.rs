@@ -51,39 +51,37 @@ mod lock_deleted;
 use lock_deleted::handle_lock_deleted;
 
 // provider logs
-static PROVIDER_ADDED: [u8; 32] = event!("ProviderAdded(address,string)");
-static PROVIDER_REMOVED: [u8; 32] = event!("ProviderRemoved(address)");
-static PROVIDER_UPDATED_WITH_CP: [u8; 32] = event!("ProviderUpdatedWithCp(address,string)");
+static PROVIDER_ADDED: [u8; 32] = event!("MarketProviderAdded(address,uint64,string)");
+static PROVIDER_REMOVED: [u8; 32] = event!("MarketProviderRemoved(address,uint64)");
+static PROVIDER_UPDATED: [u8; 32] = event!("MarketProviderUpdated(address,uint64,string,string)");
 
 // job logs
-static JOB_OPENED: [u8; 32] =
-    event!("JobOpened(bytes32,string,address,address,uint256,uint256,uint256)");
-static JOB_SETTLED: [u8; 32] = event!("JobSettled(bytes32,uint256,uint256)");
-static JOB_CLOSED: [u8; 32] = event!("JobClosed(bytes32)");
-static JOB_DEPOSITED: [u8; 32] = event!("JobDeposited(bytes32,address,uint256)");
-static JOB_WITHDREW: [u8; 32] = event!("JobWithdrew(bytes32,address,uint256)");
-static JOB_REVISE_RATE_INITIATED: [u8; 32] = event!("JobReviseRateInitiated(bytes32,uint256)");
-static JOB_REVISE_RATE_CANCELLED: [u8; 32] = event!("JobReviseRateCancelled(bytes32)");
-static JOB_REVISE_RATE_FINALIZED: [u8; 32] = event!("JobReviseRateFinalized(bytes32,uint256)");
-static JOB_METADATA_UPDATED: [u8; 32] = event!("JobMetadataUpdated(bytes32,string)");
+static JOB_OPENED: [u8; 32] = event!("MarketJobOpened(uint64,uint64,string,address,address)");
+static JOB_SETTLED: [u8; 32] = event!("MarketJobSettled(uint64,uint64,uint64,address)");
+static JOB_CLOSED: [u8; 32] = event!("MarketJobClosed(uint64,uint64)");
+static JOB_DEPOSITED: [u8; 32] = event!("MarketJobDeposited(uint64,uint64,uint64,address)");
+static JOB_WITHDREW: [u8; 32] = event!("MarketJobWithdrew(uint64,uint64,uint64,address)");
+static JOB_RATE_REVISED: [u8; 32] = event!("MarketJobRateRevised(uint64,uint64,uint64)");
+static JOB_METADATA_UPDATED: [u8; 32] = event!("MarketJobMetadataUpdated(uint64,uint64,string)");
 
-// we need the unlock time for JobReviseRateInitiated, use LockCreated directly instead
-// blergh
-static LOCK_CREATED: [u8; 32] = event!("LockCreated(bytes32,bytes32,uint256,uint256)");
-
-// need to set revise rate requests to completed on both JobReviseRateFinalized and JobClosed
-// but not if JobClosed is emitted after a rate change is already finalized
-// or job is closed when rate is zero without any rate changes
-// way simpler to just use the lock event
-// blergh
-static LOCK_DELETED: [u8; 32] = event!("LockDeleted(bytes32,bytes32,uint256)");
+// token logs
+static TOKEN_DEPOSITED: [u8; 32] = event!("MarketTokenDeposited(uint64,uint64,address,uint64)");
+static CREDIT_TOKEN_DEPOSITED: [u8; 32] =
+    event!("MarketCreditTokenDeposited(uint64,uint64,address,uint64)");
+static TOKEN_WITHDREW: [u8; 32] = event!("MarketTokenWithdrew(uint64,uint64,address,uint64)");
+static CREDIT_TOKEN_WITHDREW: [u8; 32] =
+    event!("MarketCreditTokenWithdrew(uint64,uint64,address,uint64)");
+static TOKEN_SETTLED: [u8; 32] = event!("MarketTokenSettled(uint64,uint64,address,uint64)");
+static CREDIT_TOKEN_SETTLED: [u8; 32] =
+    event!("MarketCreditTokenSettled(uint64,uint64,address,uint64)");
 
 // ignored logs
-static UPGRADED: [u8; 32] = event!("Upgraded(address)");
-static LOCK_WAIT_TIME_UPDATED: [u8; 32] = event!("LockWaitTimeUpdated(bytes32,uint256,uint256)");
-static ROLE_GRANTED: [u8; 32] = event!("RoleGranted(bytes32,address,address)");
-static TOKEN_UPDATED: [u8; 32] = event!("TokenUpdated(address,address)");
 static INITIALIZED: [u8; 32] = event!("Initialized(uint8)");
+static UPGRADED: [u8; 32] = event!("Upgraded(address)");
+static ROLE_GRANTED: [u8; 32] = event!("RoleGranted(bytes32,address,address)");
+static NOTICE_PERIOD_UPDATED: [u8; 32] = event!("MarketNoticePeriodUpdated(uint64,uint64)");
+static TOKEN_UPDATED: [u8; 32] = event!("MarketTokenUpdated(address,address)");
+static CREDIT_TOKEN_UPDATED: [u8; 32] = event!("MarketCreditTokenUpdated(address,address)");
 
 #[instrument(
     level = "info",
