@@ -28,10 +28,7 @@ pub struct AlloyProvider {
 
 impl LogsProvider for AlloyProvider {
     fn latest_block(&mut self) -> Result<u64> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        Ok(rt.block_on(
+        Ok(self.rt.block_on(
             alloy::providers::ProviderBuilder::new()
                 .disable_recommended_fillers()
                 .connect_http(self.url.clone())
