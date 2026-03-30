@@ -5,7 +5,6 @@ use diesel::PgConnection;
 use diesel_migrations::EmbeddedMigrations;
 use diesel_migrations::MigrationHarness;
 use diesel_migrations::embed_migrations;
-use dotenvy::dotenv;
 
 use cvm_indexer::AlloyProvider;
 use cvm_indexer::event_loop;
@@ -65,8 +64,6 @@ fn run() -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    dotenv().ok();
-
     // seems messy, see if there is a better way
     let mut filter = EnvFilter::new("info");
     if let Ok(var) = std::env::var("RUST_LOG") {

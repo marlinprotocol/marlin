@@ -15,8 +15,6 @@ pub struct TestDb {
 
 impl TestDb {
     pub fn new() -> Self {
-        dotenvy::dotenv().ok();
-
         let db_name = format!("market_indexer_test_{}", id().to_string());
         let admin_url = std::env::var("TEST_DATABASE_URL").unwrap();
         let test_url = admin_url[..=admin_url.rfind('/').unwrap()].to_owned() + &db_name;
@@ -46,8 +44,6 @@ impl TestDb {
 
 impl Drop for TestDb {
     fn drop(&mut self) {
-        dotenvy::dotenv().ok();
-
         let admin_url = std::env::var("TEST_DATABASE_URL").unwrap();
 
         self.conn = PgConnection::establish(&admin_url)
