@@ -18,6 +18,9 @@
       attestation.server = import ./attestation/server {
         inherit nixpkgs systemConfig crane;
       };
+      contracts.cvm-indexer = import ./contracts/cvm-indexer {
+        inherit nixpkgs systemConfig crane;
+      };
       enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig crane;
       };
