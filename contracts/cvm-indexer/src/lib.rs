@@ -7,6 +7,7 @@ use alloy::primitives::Address;
 use alloy::providers::Provider;
 use alloy::rpc::types::Filter;
 use alloy::rpc::types::eth::Log;
+use alloy::transports::http::reqwest;
 use alloy::transports::http::reqwest::Url;
 use anyhow::{Context, Result, anyhow};
 use diesel::prelude::*;
@@ -31,7 +32,12 @@ impl LogsProvider for AlloyProvider {
         Ok(self.rt.block_on(
             alloy::providers::ProviderBuilder::new()
                 .disable_recommended_fillers()
-                .connect_http(self.url.clone())
+                .connect_reqwest(
+                    reqwest::Client::builder()
+                        .timeout(Duration::from_secs(10))
+                        .build()?,
+                    self.url.clone(),
+                )
                 .get_block_number(),
         )?)
     }
@@ -40,7 +46,12 @@ impl LogsProvider for AlloyProvider {
         Ok(self.rt.block_on(
             alloy::providers::ProviderBuilder::new()
                 .disable_recommended_fillers()
-                .connect_http(self.url.clone())
+                .connect_reqwest(
+                    reqwest::Client::builder()
+                        .timeout(Duration::from_secs(10))
+                        .build()?,
+                    self.url.clone(),
+                )
                 .get_logs(
                     &Filter::new()
                         .from_block(start_block)
