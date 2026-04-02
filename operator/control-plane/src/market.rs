@@ -60,7 +60,12 @@ pub trait InfraProvider {
         init_params: &[u8],
     ) -> impl Future<Output = Result<()>> + Send;
 
-    fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> impl Future<Output = Result<()>> + Send;
+    fn spin_down(
+        &mut self,
+        job: &JobId,
+        region: &str,
+        bandwidth: u64,
+    ) -> impl Future<Output = Result<()>> + Send;
 
     fn get_job_ip(&self, job: &JobId, region: &str) -> impl Future<Output = Result<String>> + Send;
 
@@ -242,6 +247,8 @@ enum JobResult {
     Internal,
 }
 
+static EXTRA_DECIMALS: usize = 6;
+
 pub async fn run(
     infra_provider: impl InfraProvider + Send + Sync + Clone + 'static,
     db_url: String,
@@ -250,7 +257,6 @@ pub async fn run(
     gb_rates: &'static [GBRateCard],
     address_whitelist: &'static [String],
     address_blacklist: &'static [String],
-    extra_decimals: i64,
     // without job_id.id set
     job_id: JobId,
     job_registry: JobRegistry,
@@ -357,7 +363,6 @@ pub async fn run(
                                 gb_rates,
                                 address_whitelist,
                                 address_blacklist,
-                                extra_decimals,
                                 job_registry.clone(),
                             )
                             .instrument(info_span!(parent: None, "job", ?event.job_id)),
@@ -420,7 +425,6 @@ async fn job_manager(
     gb_rates: &[GBRateCard],
     address_whitelist: &[String],
     address_blacklist: &[String],
-    extra_decimals: i64,
     job_registry: JobRegistry,
 ) -> JobResult {
     let mut state = JobState::new(
@@ -446,7 +450,7 @@ async fn job_manager(
     // Insolvency and heartbeats only matter when job is not already scheduled for termination
     'event: loop {
         // compute time to insolvency
-        let insolvency_duration = state.insolvency_duration(extra_decimals);
+        let insolvency_duration = state.insolvency_duration();
         info!(duration = insolvency_duration.as_secs(), "Insolvency after");
 
         let aws_delay_timeout = state
@@ -639,7 +643,7 @@ impl<'a> JobState<'a> {
         }
     }
 
-    fn insolvency_duration(&self, extra_decimals: i64) -> Duration {
+    fn insolvency_duration(&self) -> Duration {
         let now_ts = self.context.now_timestamp();
 
         if self.rate == U256::ZERO {
@@ -647,7 +651,7 @@ impl<'a> JobState<'a> {
         } else {
             // solvent for balance / rate seconds from last_settled with 300s as margin
             Duration::from_secs(
-                (self.balance * U256::from(10).pow(U256::from(extra_decimals)) / self.rate)
+                (self.balance * U256::from(10).pow(U256::from(EXTRA_DECIMALS)) / self.rate)
                     .saturating_to::<u64>()
                     .saturating_sub(300),
             )
@@ -733,7 +737,9 @@ impl<'a> JobState<'a> {
             true
         } else {
             // terminate mode
-            let res = infra_provider.spin_down(&self.job_id, &self.region, self.bandwidth).await;
+            let res = infra_provider
+                .spin_down(&self.job_id, &self.region, self.bandwidth)
+                .await;
             if let Err(err) = res {
                 error!(?err, "Failed to terminate instance");
                 return false;
@@ -1065,7 +1071,6 @@ impl<'a> JobState<'a> {
             info!(self.req_vcpus, "Required vcpu");
         }
 
-
         let Some(url) = metadata_json["url"].as_str() else {
             return Err(anyhow!("EIF url not found! Exiting job"));
         };
@@ -1274,7 +1279,6 @@ mod tests {
             &test::get_gb_rates(),
             &job_manager_params.address_whitelist,
             &job_manager_params.address_blacklist,
-            12,
             job_registry,
         )
         .await;
