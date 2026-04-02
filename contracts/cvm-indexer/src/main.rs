@@ -77,8 +77,7 @@ fn run() -> Result<()> {
         contract: args.contract.parse()?,
         rt: tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .build()?
-            .into(),
+            .build()?,
     };
     let is_start_set = start_from(&mut conn, args.start_block)?;
     debug!("is_start_set: {}", is_start_set);
