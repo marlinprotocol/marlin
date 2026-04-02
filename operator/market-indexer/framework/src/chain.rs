@@ -4,7 +4,7 @@ use std::future::Future;
 use anyhow::{Context, Result};
 
 use crate::events::JobEvent;
-use crate::schema::{JobEventName, JobEventRecord};
+use crate::models::{JobEventName, JobEventRecord};
 
 // Define trait for conversion from raw log to structured JobEvent
 pub trait FromLog: Sized {

@@ -1,5 +1,6 @@
 pub mod chain;
 pub mod events;
+pub(crate) mod models;
 pub(crate) mod repository;
 pub(crate) mod schema;
 
@@ -87,7 +88,7 @@ pub async fn run(
                 block, last_processed_block_id
             );
             start_block = None;
-        }else {
+        } else {
             last_processed_block_id = block - 1;
         }
     }
