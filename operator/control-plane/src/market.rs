@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use alloy_primitives::U256;
 use anyhow::{anyhow, Context, Result};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -119,7 +118,7 @@ where
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RateCard {
     pub instance: String,
-    pub min_rate: U256,
+    pub min_rate: u64,
     pub cpu: u32,
     pub memory: u32,
     pub arch: String,
@@ -135,7 +134,7 @@ pub struct RegionalRates {
 pub struct GBRateCard {
     pub region: String,
     pub region_code: String,
-    pub rate: U256,
+    pub rate: u64,
 }
 
 #[derive(PartialEq, Debug)]
@@ -514,11 +513,11 @@ struct JobState<'a> {
     launch_delay: u64,
     allowed_regions: &'a [String],
 
-    balance: U256,
+    balance: u64,
     last_settled: Duration,
-    rate: U256,
-    original_rate: U256,
-    min_rate: U256,
+    rate: u64,
+    original_rate: u64,
+    min_rate: u64,
     bandwidth: u64,
     eif_url: String, // [Update Note] TODO: Change name of eif
     instance_type: String,
@@ -549,11 +548,11 @@ impl<'a> JobState<'a> {
             job_id,
             launch_delay,
             allowed_regions,
-            balance: U256::from(360),
+            balance: 60,
             last_settled: context.now_timestamp(),
-            rate: U256::from(1),
-            original_rate: U256::from(1),
-            min_rate: U256::MAX,
+            rate: 1,
+            original_rate: 1,
+            min_rate: u64::MAX,
             bandwidth: 0,
             eif_url: String::new(),
             instance_type: "c6a.xlarge".to_string(),
@@ -570,7 +569,7 @@ impl<'a> JobState<'a> {
     fn insolvency_duration(&self) -> Duration {
         let now_ts = self.context.now_timestamp();
 
-        if self.rate == U256::ZERO {
+        if self.rate == 0 {
             Duration::from_secs(0)
         } else {
             // solvent for balance / rate seconds from last_settled with 300s as margin
