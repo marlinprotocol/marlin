@@ -1,4 +1,3 @@
-use alloy_primitives::U256;
 use serde::Serialize;
 
 /// Define the event structs we want to capture and store in the database
@@ -8,9 +7,9 @@ pub struct JobOpened {
     pub owner: String,
     pub provider: String,
     pub metadata: String,
-    pub rate: U256,
-    pub balance: U256,
-    pub timestamp: i64,
+    pub rate: u64,
+    pub balance: u64,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -22,14 +21,14 @@ pub struct JobClosed {
 pub struct JobDeposited {
     pub job_id: u64,
     pub from: String,
-    pub amount: U256,
+    pub amount: u64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobSettled {
     pub job_id: u64,
-    pub amount: U256,
-    pub timestamp: i64,
+    pub amount: u64,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -42,13 +41,13 @@ pub struct JobMetadataUpdated {
 pub struct JobWithdrew {
     pub job_id: u64,
     pub to: String,
-    pub amount: U256,
+    pub amount: u64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobReviseRateInitiated {
     pub job_id: u64,
-    pub new_rate: U256,
+    pub new_rate: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,7 +58,7 @@ pub struct JobReviseRateCancelled {
 #[derive(Debug, Serialize)]
 pub struct JobReviseRateFinalized {
     pub job_id: u64,
-    pub new_rate: U256,
+    pub new_rate: u64,
 }
 
 #[derive(Debug)]
