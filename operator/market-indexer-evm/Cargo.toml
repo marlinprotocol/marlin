@@ -9,7 +9,7 @@ alloy = { version = "1.8.3", features = ["full"] }
 anyhow = "1.0.102"
 clap = { version = "4.6.0", features = ["derive"] }
 diesel = { version = "2.3.7", features = ["postgres"] }
-indexer-framework = { version = "0.1.0", path = "../framework" }
+indexer-framework = { version = "0.1.0", path = "../indexer-framework" }
 tokio = { version = "1.50.0", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

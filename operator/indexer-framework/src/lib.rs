@@ -17,7 +17,7 @@ use crate::{
     models::{JobEventName, JobEventRecord},
 };
 
-const MIGRATIONS: EmbeddedMigrations = embed_migrations!("../framework/migrations");
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
 
 // TODO: add custom errors
 #[instrument(level = "info", skip_all, parent = None)]
