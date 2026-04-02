@@ -25,9 +25,9 @@ sol!(
 );
 
 #[derive(Debug, Clone)]
-pub struct ArbLog(pub Log);
+pub struct EvmLog(pub Log);
 
-impl FromLog for ArbLog {
+impl FromLog for EvmLog {
     fn to_job_event(&self) -> Result<Option<JobEvent>> {
         match self.0.topic0() {
             Some(&Market::JobOpened::SIGNATURE_HASH) => {
@@ -88,10 +88,9 @@ impl FromLog for ArbLog {
                 })))
             }
             Some(&Market::JobReviseRateInitiated::SIGNATURE_HASH) => {
-                let decoded_data =
-                    Market::JobReviseRateInitiated::decode_log(&self.0.inner)
-                        .context("Failed to abi decode JobReviseRateInitiated event data")?
-                        .data;
+                let decoded_data = Market::JobReviseRateInitiated::decode_log(&self.0.inner)
+                    .context("Failed to abi decode JobReviseRateInitiated event data")?
+                    .data;
 
                 Ok(Some(JobEvent::ReviseRateInitiated(
                     JobReviseRateInitiated {
@@ -101,10 +100,9 @@ impl FromLog for ArbLog {
                 )))
             }
             Some(&Market::JobReviseRateCancelled::SIGNATURE_HASH) => {
-                let decoded_data =
-                    Market::JobReviseRateCancelled::decode_log(&self.0.inner)
-                        .context("Failed to abi decode JobReviseRateCancelled event data")?
-                        .data;
+                let decoded_data = Market::JobReviseRateCancelled::decode_log(&self.0.inner)
+                    .context("Failed to abi decode JobReviseRateCancelled event data")?
+                    .data;
 
                 Ok(Some(JobEvent::ReviseRateCancelled(
                     JobReviseRateCancelled {
@@ -113,10 +111,9 @@ impl FromLog for ArbLog {
                 )))
             }
             Some(&Market::JobReviseRateFinalized::SIGNATURE_HASH) => {
-                let decoded_data =
-                    Market::JobReviseRateFinalized::decode_log(&self.0.inner)
-                        .context("Failed to abi decode JobReviseRateFinalized event data")?
-                        .data;
+                let decoded_data = Market::JobReviseRateFinalized::decode_log(&self.0.inner)
+                    .context("Failed to abi decode JobReviseRateFinalized event data")?
+                    .data;
 
                 Ok(Some(JobEvent::ReviseRateFinalized(
                     JobReviseRateFinalized {
@@ -141,14 +138,14 @@ impl FromLog for ArbLog {
 }
 
 #[derive(Clone)]
-pub struct ArbProvider {
+pub struct EvmProvider {
     pub rpc_url: Url,
     pub contract: Address,
     pub rt: Arc<tokio::runtime::Runtime>,
 }
 
-impl ChainHandler for ArbProvider {
-    type RawLog = ArbLog;
+impl ChainHandler for EvmProvider {
+    type RawLog = EvmLog;
 
     fn fetch_chain_id(&mut self) -> Result<String> {
         self.rt.block_on(async {
@@ -184,7 +181,7 @@ impl ChainHandler for ArbProvider {
         &self,
         start_block: u64,
         end_block: u64,
-    ) -> Result<BTreeMap<u64, Vec<ArbLog>>> {
+    ) -> Result<BTreeMap<u64, Vec<EvmLog>>> {
         self.rt.block_on(async {
             let provider = Arc::new(RootProvider::<Ethereum>::new_http(self.rpc_url.clone()));
             let logs = Retry::spawn(
@@ -219,13 +216,13 @@ impl ChainHandler for ArbProvider {
                 start_block, end_block
             ))?;
 
-            let mut block_logs: BTreeMap<u64, Vec<ArbLog>> = BTreeMap::new();
+            let mut block_logs: BTreeMap<u64, Vec<EvmLog>> = BTreeMap::new();
             for log in logs {
                 if let Some(block_number) = log.block_number {
                     block_logs
                         .entry(block_number)
                         .or_default()
-                        .push(ArbLog(log));
+                        .push(EvmLog(log));
                 }
             }
 

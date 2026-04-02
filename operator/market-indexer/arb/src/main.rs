@@ -1,19 +1,19 @@
-mod arb;
+mod evm;
 
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use clap::{Parser, command};
-use diesel::PgConnection;
 use diesel::Connection;
+use diesel::PgConnection;
 use dotenvy::dotenv;
 use std::thread::sleep;
-use tracing::{error, warn, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
-use arb::ArbProvider;
+use evm::EvmProvider;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -46,7 +46,7 @@ fn run() -> Result<()> {
     let mut conn = PgConnection::establish(&database_url)
         .map_err(|_| anyhow!("Error connecting to {}", database_url))?;
 
-    let mut rpc_client = ArbProvider {
+    let mut rpc_client = EvmProvider {
         rpc_url: args
             .rpc
             .parse()
