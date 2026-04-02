@@ -1,23 +1,17 @@
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hasher};
 
-use alloy_primitives::hex::ToHexExt;
-#[cfg(test)]
-use alloy_primitives::B256;
-use alloy_primitives::{FixedBytes, U256};
+use alloy_primitives::{hex::ToHexExt, FixedBytes, B256, U256};
 use anyhow::{anyhow, Result};
-#[cfg(test)]
+use indexer_framework::models::{JobEventName, JobEventRecord};
 use tokio::time::Instant;
 
 use crate::market::{GBRateCard, InfraProvider, JobId, RateCard, RegionalRates};
-#[cfg(test)]
-use crate::market::{JobEvent, JobEventName};
 
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpinUpOutcome {
     pub time: Instant,
-    pub job: String,
+    pub job: u64,
     pub instance_type: String,
     pub region: String,
     pub req_mem: i64,
@@ -30,15 +24,13 @@ pub struct SpinUpOutcome {
     pub instance_id: String,
 }
 
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpinDownOutcome {
     pub time: Instant,
-    pub job: String,
+    pub job: u64,
     pub region: String,
 }
 
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum TestAwsOutcome {
     SpinUp(SpinUpOutcome),
@@ -79,14 +71,12 @@ pub fn compute_address_word(salt: &str) -> String {
     FixedBytes::<32>::from_slice(hash.to_le_bytes().repeat(4).as_slice()).encode_hex_with_prefix()
 }
 
-#[cfg(test)]
 #[derive(Clone, Debug)]
 pub struct InstanceMetadata {
     pub instance_id: String,
     pub ip_address: String,
 }
 
-#[cfg(test)]
 impl InstanceMetadata {
     pub async fn new(counter: u64) -> Self {
         let instance_id = compute_instance_id(counter);
@@ -99,7 +89,6 @@ impl InstanceMetadata {
     }
 }
 
-#[cfg(test)]
 #[derive(Clone, Default)]
 pub struct TestAws {
     pub outcomes: Vec<TestAwsOutcome>,
@@ -110,7 +99,6 @@ pub struct TestAws {
     counter: u64,
 }
 
-#[cfg(test)]
 impl InfraProvider for TestAws {
     async fn spin_up(
         &mut self,
@@ -167,7 +155,7 @@ impl InfraProvider for TestAws {
         Ok(())
     }
 
-    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
+    async fn spin_down(&mut self, job: &JobId, region: &str, _bandwidth: u64) -> Result<()> {
         self.outcomes
             .push(TestAwsOutcome::SpinDown(SpinDownOutcome {
                 time: Instant::now(),
@@ -192,7 +180,6 @@ impl InfraProvider for TestAws {
     }
 }
 
-#[cfg(test)]
 #[derive(Clone)]
 pub enum Action {
     Open(String, u64, u64, i64),
@@ -200,13 +187,10 @@ pub enum Action {
     Settle(u64, i64),
     Deposit(u64),
     Withdraw(u64),
-    ReviseRateInitiated(u64),
-    ReviseRateCancelled,
-    ReviseRateFinalized(u64),
+    RateRevised(u64),
     MetadataUpdated(String),
 }
 
-#[cfg(test)]
 pub fn get_rates() -> Vec<RegionalRates> {
     vec![RegionalRates {
         region: "ap-south-1".to_owned(),
@@ -220,7 +204,6 @@ pub fn get_rates() -> Vec<RegionalRates> {
     }]
 }
 
-#[cfg(test)]
 pub fn get_gb_rates() -> Vec<GBRateCard> {
     vec![GBRateCard {
         region: "Asia South (Mumbai)".to_owned(),
@@ -229,96 +212,74 @@ pub fn get_gb_rates() -> Vec<GBRateCard> {
     }]
 }
 
-#[cfg(test)]
-pub fn get_event(topic: Action, id: i64, job_idx: B256) -> JobEvent {
-    use alloy_primitives::hex::ToHexExt;
-
+pub fn get_event(topic: Action, id: i64, job_idx: B256) -> JobEventRecord {
     match topic {
-        Action::Open(metadata, rate, balance, timestamp) => JobEvent {
+        Action::Open(metadata, _rate, _balance, timestamp) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
             event_name: JobEventName::Opened,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
+                "job_id": 1,
                 "owner": compute_address_word("owner"),
                 "provider": compute_address_word("provider"),
                 "metadata": metadata,
-                "rate": rate,
-                "balance": balance,
                 "timestamp": timestamp,
             }),
         },
-        Action::Close => JobEvent {
+        Action::Close => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
             event_name: JobEventName::Closed,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
+                "job_id": 1,
             }),
         },
-        Action::Settle(amount, timestamp) => JobEvent {
+        Action::Settle(amount, timestamp) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
             event_name: JobEventName::Settled,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
+                "job_id": 1,
                 "amount": amount,
                 "timestamp": timestamp,
             }),
         },
-        Action::Deposit(amount) => JobEvent {
+        Action::Deposit(amount) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
             event_name: JobEventName::Deposited,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
+                "job_id": 1,
                 "from": compute_address_word("depositor"),
                 "amount": amount,
             }),
         },
-        Action::Withdraw(amount) => JobEvent {
+        Action::Withdraw(amount) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
             event_name: JobEventName::Withdrew,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
+                "job_id": 1,
                 "to": compute_address_word("withdrawer"),
                 "amount": amount,
             }),
         },
-        Action::ReviseRateInitiated(rate) => JobEvent {
+        Action::RateRevised(rate) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
-            event_name: JobEventName::ReviseRateInitiated,
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            event_name: JobEventName::RateRevised,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
+                "job_id": 1,
                 "new_rate": rate,
             }),
         },
-        Action::ReviseRateCancelled => JobEvent {
+        Action::MetadataUpdated(metadata) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
-            event_name: JobEventName::ReviseRateCancelled,
-            event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
-            }),
-        },
-        Action::ReviseRateFinalized(rate) => JobEvent {
-            id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
-            event_name: JobEventName::ReviseRateFinalized,
-            event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
-                "new_rate": rate,
-            }),
-        },
-        Action::MetadataUpdated(metadata) => JobEvent {
-            id: id,
-            job_id: job_idx.encode_hex_with_prefix(),
+            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
             event_name: JobEventName::MetadataUpdated,
             event_data: serde_json::json!({
-                "job_id": job_idx.encode_hex_with_prefix(),
-                "new_metadata": metadata,
+                "job_id": 1,
+                "metadata": metadata,
             }),
         },
     }
