@@ -1,21 +1,9 @@
 // @generated automatically by Diesel CLI.
 
 pub mod sql_types {
-    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "event_name"))]
     pub struct EventName;
-}
-
-diesel::table! {
-    use diesel::sql_types::*;
-    use super::sql_types::EventName;
-
-    indexer_state (id) {
-        id -> Int4,
-        #[max_length = 66]
-        chain_id -> Nullable<Varchar>,
-        last_processed_block -> Int8,
-    }
 }
 
 diesel::table! {
@@ -32,10 +20,16 @@ diesel::table! {
 }
 
 diesel::table! {
+    sync (block) {
+        block -> Int8,
+    }
+}
+
+diesel::table! {
     terminated_jobs (job_id) {
         #[max_length = 66]
         job_id -> Varchar,
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(indexer_state, job_events, terminated_jobs,);
+diesel::allow_tables_to_appear_in_same_query!(job_events, sync, terminated_jobs,);
