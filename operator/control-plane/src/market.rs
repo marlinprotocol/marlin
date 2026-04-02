@@ -5,6 +5,10 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Context, Result};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
+use indexer_framework::events::JobEvent;
+use indexer_framework::models::{JobEventName, JobEventRecord};
+use indexer_framework::schema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc::{self, Sender};
@@ -246,7 +250,7 @@ pub async fn run(
                             continue;
                         }
 
-                        let (tx, rx) = mpsc::channel::<JobEvent>(100);
+                        let (tx, rx) = mpsc::channel::<JobEventRecord>(100);
                         job_registry
                             .active_jobs
                             .lock()
@@ -311,7 +315,7 @@ async fn fetch_job_events(
 // manage the complete lifecycle of a job
 async fn job_manager(
     context: impl SystemContext + Send + Sync,
-    mut events_stream: mpsc::Receiver<JobEvent>,
+    mut events_stream: mpsc::Receiver<JobEventRecord>,
     mut infra_provider: impl InfraProvider + Send + Sync,
     job_id: JobId,
     allowed_regions: &[String],
@@ -679,7 +683,7 @@ impl<'a> JobState<'a> {
     // JobResult::Internal on internal errors, usually bugs
     pub fn process_event(
         &mut self,
-        event: DecodedJobEvent,
+        event: JobEvent,
         rates: &[RegionalRates],
         gb_rates: &[GBRateCard],
         address_whitelist: &[String],
@@ -693,7 +697,7 @@ impl<'a> JobState<'a> {
         // e.g. do not spin up if job goes below min_rate and then goes above min_rate
 
         match event {
-            DecodedJobEvent::Opened(event) => {
+            JobEvent::Opened(event) => {
                 info!(
                     id = event.job_id,
                     event.metadata,
@@ -784,7 +788,7 @@ impl<'a> JobState<'a> {
                     JobResult::Done
                 }
             }
-            DecodedJobEvent::Settled(event) => {
+            JobEvent::Settled(event) => {
                 info!(
                     id = event.job_id,
                     amount = event.amount.to_string(),
@@ -811,8 +815,8 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            DecodedJobEvent::Closed(_) => JobResult::Done,
-            DecodedJobEvent::Deposited(event) => {
+            JobEvent::Closed(_) => JobResult::Done,
+            JobEvent::Deposited(event) => {
                 info!(
                     id = event.job_id,
                     amount = event.amount.to_string(),
@@ -834,7 +838,7 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            DecodedJobEvent::Withdrew(event) => {
+            JobEvent::Withdrew(event) => {
                 info!(
                     id = event.job_id,
                     amount = event.amount.to_string(),
@@ -856,7 +860,7 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            DecodedJobEvent::ReviseRateInitiated(event) => {
+            JobEvent::ReviseRateInitiated(event) => {
                 info!(
                     id = event.job_id,
                     self.original_rate = self.original_rate.to_string(),
@@ -885,7 +889,7 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            DecodedJobEvent::ReviseRateCancelled(event) => {
+            JobEvent::ReviseRateCancelled(event) => {
                 info!(
                     id = event.job_id,
                     rate = self.rate.to_string(),
@@ -904,7 +908,7 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            DecodedJobEvent::ReviseRateFinalized(event) => {
+            JobEvent::ReviseRateFinalized(event) => {
                 info!(
                     id = event.job_id,
                     self.original_rate = self.original_rate.to_string(),
@@ -932,7 +936,7 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            DecodedJobEvent::MetadataUpdated(event) => {
+            JobEvent::MetadataUpdated(event) => {
                 info!(id = event.job_id, event.new_metadata, "METADATA_UPDATED");
 
                 if let Err(err) = self.decode_metadata(event.new_metadata, true) {
