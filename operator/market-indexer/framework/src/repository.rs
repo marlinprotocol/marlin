@@ -13,27 +13,23 @@ pub fn update_indexer_state(
     start_block: Option<i64>,
 ) -> Result<u64> {
     let rows_affected = match start_block {
-        Some(block) => {
-            diesel::update(indexer_state::table.find(1))
-                .set((
-                    indexer_state::chain_id.eq(chain_id_val),
-                    indexer_state::extra_decimals.eq(extra_decimals_val),
-                    indexer_state::last_processed_block.eq(block - 1),
-                    indexer_state::updated_at.eq(diesel::dsl::now),
-                ))
-                .execute(conn)
-                .context("Failed to execute update query in 'indexer state' table")?
-        }
-        None => {
-            diesel::update(indexer_state::table.find(1))
-                .set((
-                    indexer_state::chain_id.eq(chain_id_val),
-                    indexer_state::extra_decimals.eq(extra_decimals_val),
-                    indexer_state::updated_at.eq(diesel::dsl::now),
-                ))
-                .execute(conn)
-                .context("Failed to execute update query in 'indexer state' table")?
-        }
+        Some(block) => diesel::update(indexer_state::table.find(1))
+            .set((
+                indexer_state::chain_id.eq(chain_id_val),
+                indexer_state::extra_decimals.eq(extra_decimals_val),
+                indexer_state::last_processed_block.eq(block - 1),
+                indexer_state::updated_at.eq(diesel::dsl::now),
+            ))
+            .execute(conn)
+            .context("Failed to execute update query in 'indexer state' table")?,
+        None => diesel::update(indexer_state::table.find(1))
+            .set((
+                indexer_state::chain_id.eq(chain_id_val),
+                indexer_state::extra_decimals.eq(extra_decimals_val),
+                indexer_state::updated_at.eq(diesel::dsl::now),
+            ))
+            .execute(conn)
+            .context("Failed to execute update query in 'indexer state' table")?,
     };
 
     Ok(rows_affected as u64)
@@ -45,19 +41,19 @@ pub fn get_last_processed_block(conn: &mut PgConnection) -> Result<i64> {
         .filter(indexer_state::id.eq(1))
         .first::<i64>(conn)
         .context("Failed to query last processed block from 'indexer_state' table")?;
-        
+
     Ok(last_processed_block)
 }
 
 pub fn get_active_jobs(conn: &mut PgConnection) -> Result<HashSet<String>> {
     use crate::models::JobEventName;
-    
+
     let opened_jobs: Vec<String> = job_events::table
         .select(job_events::job_id)
         .filter(job_events::event_name.eq(JobEventName::Opened))
         .load(conn)
         .context("Failed to query opened jobs")?;
-        
+
     let closed_jobs: Vec<String> = job_events::table
         .select(job_events::job_id)
         .filter(job_events::event_name.eq(JobEventName::Closed))

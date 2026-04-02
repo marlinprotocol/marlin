@@ -1,7 +1,5 @@
-use serde_json::Value;
 use diesel::prelude::*;
-
-
+use serde_json::Value;
 
 #[derive(Clone, Debug, diesel_derive_enum::DbEnum)]
 #[ExistingTypePath = "crate::schema::sql_types::EventName"]

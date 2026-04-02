@@ -86,8 +86,9 @@ pub fn run(
         .fetch_extra_decimals()
         .context("Market EXTRA_DECIMALS fetch failed")?;
 
-    let updated = repository::update_indexer_state(conn, chain_id.clone(), extra_decimals, start_block)
-        .context("Failed to update indexer state in the DB")?;
+    let updated =
+        repository::update_indexer_state(conn, chain_id.clone(), extra_decimals, start_block)
+            .context("Failed to update indexer state in the DB")?;
 
     info!("Indexer state updated: {}", updated == 1);
 
@@ -95,8 +96,8 @@ pub fn run(
         return Err(anyhow!("Range size must not be zero"));
     }
 
-    let mut active_job_ids = repository::get_active_jobs(conn)
-        .context("Failed to fetch active job IDs from the DB")?;
+    let mut active_job_ids =
+        repository::get_active_jobs(conn).context("Failed to fetch active job IDs from the DB")?;
 
     loop {
         let latest_block = rpc_client
@@ -153,8 +154,9 @@ pub fn run(
             batch_records.extend(records);
 
             if batch_records.len() >= BATCH_THRESHOLD {
-                let (inserted_batch, updated) = repository::insert_batch(conn, batch_records.clone(), end_block_num)
-                    .context("DB insert failed for block batch")?;
+                let (inserted_batch, updated) =
+                    repository::insert_batch(conn, batch_records.clone(), end_block_num)
+                        .context("DB insert failed for block batch")?;
 
                 debug!(end_block_num, inserted_batch, "Inserted block logs");
                 trace!("Last processed block updated: {}", updated == 1);
@@ -165,8 +167,9 @@ pub fn run(
         }
 
         if end_block_num > last_processed_block_id {
-            let (inserted_batch, updated) = repository::insert_batch(conn, batch_records.clone(), end_block_num)
-                .context("DB insert failed for block batch")?;
+            let (inserted_batch, updated) =
+                repository::insert_batch(conn, batch_records.clone(), end_block_num)
+                    .context("DB insert failed for block batch")?;
 
             debug!(end_block_num, inserted_batch, "Inserted block logs");
             trace!("Last processed block updated: {}", updated == 1);

@@ -45,8 +45,4 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(
-    indexer_state,
-    job_events,
-    terminated_jobs,
-);
+diesel::allow_tables_to_appear_in_same_query!(indexer_state, job_events, terminated_jobs,);
