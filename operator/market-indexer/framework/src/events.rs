@@ -4,60 +4,53 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 pub struct JobOpened {
     pub job_id: u64,
+    pub timestamp: u64,
+    pub metadata: String,
     pub owner: String,
     pub provider: String,
-    pub metadata: String,
-    pub rate: u64,
-    pub balance: u64,
-    pub timestamp: u64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobClosed {
     pub job_id: u64,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobDeposited {
     pub job_id: u64,
-    pub from: String,
+    pub timestamp: u64,
     pub amount: u64,
+    pub from: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobSettled {
     pub job_id: u64,
-    pub amount: u64,
     pub timestamp: u64,
+    pub amount: u64,
+    pub to: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobMetadataUpdated {
     pub job_id: u64,
-    pub new_metadata: String,
+    pub timestamp: u64,
+    pub metadata: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JobWithdrew {
     pub job_id: u64,
-    pub to: String,
+    pub timestamp: u64,
     pub amount: u64,
+    pub to: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct JobReviseRateInitiated {
+pub struct JobRateRevised {
     pub job_id: u64,
-    pub new_rate: u64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct JobReviseRateCancelled {
-    pub job_id: u64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct JobReviseRateFinalized {
-    pub job_id: u64,
+    pub timestamp: u64,
     pub new_rate: u64,
 }
 
@@ -68,8 +61,6 @@ pub enum JobEvent {
     Deposited(JobDeposited),
     Withdrew(JobWithdrew),
     Settled(JobSettled),
-    ReviseRateInitiated(JobReviseRateInitiated),
-    ReviseRateCancelled(JobReviseRateCancelled),
-    ReviseRateFinalized(JobReviseRateFinalized),
+    RateRevised(JobRateRevised),
     MetadataUpdated(JobMetadataUpdated),
 }

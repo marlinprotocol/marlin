@@ -5,9 +5,7 @@ CREATE TYPE event_name AS ENUM (
     'Settled', 
     'MetadataUpdated', 
     'Withdrew', 
-    'ReviseRateInitiated',
-    'ReviseRateCancelled',
-    'ReviseRateFinalized'
+    'RateRevised'
 );
 
 CREATE TABLE job_events (

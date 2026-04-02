@@ -216,40 +216,16 @@ fn transform_events_into_records(
                         .context("Failed to JSON serialize JobWithdrew event data")?,
                 });
             }
-            JobEvent::ReviseRateInitiated(event) => {
+            JobEvent::RateRevised(event) => {
                 if !active_jobs.contains(&event.job_id) {
                     continue;
                 }
 
                 job_event_records.push(JobEventRecord {
                     job_id: event.job_id as i64,
-                    event_name: JobEventName::ReviseRateInitiated,
+                    event_name: JobEventName::RateRevised,
                     event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobReviseRateInitiated event data")?,
-                });
-            }
-            JobEvent::ReviseRateCancelled(event) => {
-                if !active_jobs.contains(&event.job_id) {
-                    continue;
-                }
-
-                job_event_records.push(JobEventRecord {
-                    job_id: event.job_id as i64,
-                    event_name: JobEventName::ReviseRateCancelled,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobReviseRateCancelled event data")?,
-                });
-            }
-            JobEvent::ReviseRateFinalized(event) => {
-                if !active_jobs.contains(&event.job_id) {
-                    continue;
-                }
-
-                job_event_records.push(JobEventRecord {
-                    job_id: event.job_id as i64,
-                    event_name: JobEventName::ReviseRateFinalized,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobReviseRateFinalized event data")?,
+                        .context("Failed to JSON serialize JobRateRevised event data")?,
                 });
             }
             JobEvent::MetadataUpdated(event) => {

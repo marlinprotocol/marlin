@@ -10,9 +10,7 @@ pub enum JobEventName {
     Settled,
     MetadataUpdated,
     Withdrew,
-    ReviseRateInitiated,
-    ReviseRateCancelled,
-    ReviseRateFinalized,
+    RateRevised,
 }
 
 /// A structured representation of the data to be inserted into the `job_events` table
