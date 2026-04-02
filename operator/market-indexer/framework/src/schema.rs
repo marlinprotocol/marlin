@@ -28,18 +28,13 @@ diesel::table! {
         job_id -> Varchar,
         event_name -> EventName,
         event_data -> Jsonb,
-        indexer_process_time -> Nullable<Timestamptz>,
     }
 }
 
 diesel::table! {
-    use diesel::sql_types::*;
-    use super::sql_types::EventName;
-
     terminated_jobs (job_id) {
         #[max_length = 66]
         job_id -> Varchar,
-        terminated_at -> Nullable<Timestamptz>,
     }
 }
 
