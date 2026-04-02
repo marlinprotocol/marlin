@@ -20,8 +20,8 @@ use tokio_retry::strategy::{ExponentialBackoff, jitter};
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    MarketV1Contract,
-    "./abi/MarketV1min.json"
+    Market,
+    "./abi/Market.json"
 );
 
 #[derive(Debug, Clone)]
@@ -30,8 +30,8 @@ pub struct ArbLog(pub Log);
 impl FromLog for ArbLog {
     fn to_job_event(&self) -> Result<Option<JobEvent>> {
         match self.0.topic0() {
-            Some(&MarketV1Contract::JobOpened::SIGNATURE_HASH) => {
-                let decoded_data = MarketV1Contract::JobOpened::decode_log(&self.0.inner)
+            Some(&Market::JobOpened::SIGNATURE_HASH) => {
+                let decoded_data = Market::JobOpened::decode_log(&self.0.inner)
                     .context("Failed to abi decode JobOpened event data")?
                     .data;
 
@@ -45,8 +45,8 @@ impl FromLog for ArbLog {
                     timestamp: decoded_data.timestamp.saturating_to(),
                 })))
             }
-            Some(&MarketV1Contract::JobClosed::SIGNATURE_HASH) => {
-                let decoded_data = MarketV1Contract::JobClosed::decode_log(&self.0.inner)
+            Some(&Market::JobClosed::SIGNATURE_HASH) => {
+                let decoded_data = Market::JobClosed::decode_log(&self.0.inner)
                     .context("Failed to abi decode JobClosed event data")?
                     .data;
 
@@ -54,8 +54,8 @@ impl FromLog for ArbLog {
                     job_id: decoded_data.job.encode_hex_with_prefix(),
                 })))
             }
-            Some(&MarketV1Contract::JobSettled::SIGNATURE_HASH) => {
-                let decoded_data = MarketV1Contract::JobSettled::decode_log(&self.0.inner)
+            Some(&Market::JobSettled::SIGNATURE_HASH) => {
+                let decoded_data = Market::JobSettled::decode_log(&self.0.inner)
                     .context("Failed to abi decode JobSettled event data")?
                     .data;
 
@@ -65,8 +65,8 @@ impl FromLog for ArbLog {
                     timestamp: decoded_data.timestamp.saturating_to(),
                 })))
             }
-            Some(&MarketV1Contract::JobDeposited::SIGNATURE_HASH) => {
-                let decoded_data = MarketV1Contract::JobDeposited::decode_log(&self.0.inner)
+            Some(&Market::JobDeposited::SIGNATURE_HASH) => {
+                let decoded_data = Market::JobDeposited::decode_log(&self.0.inner)
                     .context("Failed to abi decode JobDeposited event data")?
                     .data;
 
@@ -76,8 +76,8 @@ impl FromLog for ArbLog {
                     amount: decoded_data.amount,
                 })))
             }
-            Some(&MarketV1Contract::JobWithdrew::SIGNATURE_HASH) => {
-                let decoded_data = MarketV1Contract::JobWithdrew::decode_log(&self.0.inner)
+            Some(&Market::JobWithdrew::SIGNATURE_HASH) => {
+                let decoded_data = Market::JobWithdrew::decode_log(&self.0.inner)
                     .context("Failed to abi decode JobWithdrew event data")?
                     .data;
 
@@ -87,9 +87,9 @@ impl FromLog for ArbLog {
                     amount: decoded_data.amount,
                 })))
             }
-            Some(&MarketV1Contract::JobReviseRateInitiated::SIGNATURE_HASH) => {
+            Some(&Market::JobReviseRateInitiated::SIGNATURE_HASH) => {
                 let decoded_data =
-                    MarketV1Contract::JobReviseRateInitiated::decode_log(&self.0.inner)
+                    Market::JobReviseRateInitiated::decode_log(&self.0.inner)
                         .context("Failed to abi decode JobReviseRateInitiated event data")?
                         .data;
 
@@ -100,9 +100,9 @@ impl FromLog for ArbLog {
                     },
                 )))
             }
-            Some(&MarketV1Contract::JobReviseRateCancelled::SIGNATURE_HASH) => {
+            Some(&Market::JobReviseRateCancelled::SIGNATURE_HASH) => {
                 let decoded_data =
-                    MarketV1Contract::JobReviseRateCancelled::decode_log(&self.0.inner)
+                    Market::JobReviseRateCancelled::decode_log(&self.0.inner)
                         .context("Failed to abi decode JobReviseRateCancelled event data")?
                         .data;
 
@@ -112,9 +112,9 @@ impl FromLog for ArbLog {
                     },
                 )))
             }
-            Some(&MarketV1Contract::JobReviseRateFinalized::SIGNATURE_HASH) => {
+            Some(&Market::JobReviseRateFinalized::SIGNATURE_HASH) => {
                 let decoded_data =
-                    MarketV1Contract::JobReviseRateFinalized::decode_log(&self.0.inner)
+                    Market::JobReviseRateFinalized::decode_log(&self.0.inner)
                         .context("Failed to abi decode JobReviseRateFinalized event data")?
                         .data;
 
@@ -125,8 +125,8 @@ impl FromLog for ArbLog {
                     },
                 )))
             }
-            Some(&MarketV1Contract::JobMetadataUpdated::SIGNATURE_HASH) => {
-                let decoded_data = MarketV1Contract::JobMetadataUpdated::decode_log(&self.0.inner)
+            Some(&Market::JobMetadataUpdated::SIGNATURE_HASH) => {
+                let decoded_data = Market::JobMetadataUpdated::decode_log(&self.0.inner)
                     .context("Failed to abi decode JobMetadataUpdated event data")?
                     .data;
 
@@ -196,15 +196,15 @@ impl ChainHandler for ArbProvider {
                         .get_logs(
                             &Filter::new()
                                 .events(vec![
-                                    MarketV1Contract::JobOpened::SIGNATURE,
-                                    MarketV1Contract::JobSettled::SIGNATURE,
-                                    MarketV1Contract::JobClosed::SIGNATURE,
-                                    MarketV1Contract::JobDeposited::SIGNATURE,
-                                    MarketV1Contract::JobWithdrew::SIGNATURE,
-                                    MarketV1Contract::JobReviseRateInitiated::SIGNATURE,
-                                    MarketV1Contract::JobReviseRateCancelled::SIGNATURE,
-                                    MarketV1Contract::JobReviseRateFinalized::SIGNATURE,
-                                    MarketV1Contract::JobMetadataUpdated::SIGNATURE,
+                                    Market::JobOpened::SIGNATURE,
+                                    Market::JobSettled::SIGNATURE,
+                                    Market::JobClosed::SIGNATURE,
+                                    Market::JobDeposited::SIGNATURE,
+                                    Market::JobWithdrew::SIGNATURE,
+                                    Market::JobReviseRateInitiated::SIGNATURE,
+                                    Market::JobReviseRateCancelled::SIGNATURE,
+                                    Market::JobReviseRateFinalized::SIGNATURE,
+                                    Market::JobMetadataUpdated::SIGNATURE,
                                 ])
                                 .from_block(start_block)
                                 .to_block(end_block)
