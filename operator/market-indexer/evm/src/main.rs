@@ -1,15 +1,13 @@
 mod evm;
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use clap::{Parser, command};
+use clap::Parser;
 use diesel::Connection;
 use diesel::PgConnection;
-use dotenvy::dotenv;
 use std::thread::sleep;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -32,7 +30,7 @@ struct Args {
 
     /// Start block for log parsing
     #[arg(short, long)]
-    start_block: Option<i64>,
+    start_block: Option<u64>,
 
     /// Size of block range for fetching logs
     #[arg(long, default_value = "500")]
@@ -81,8 +79,6 @@ fn run() -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    dotenv().ok();
-
     let mut filter = EnvFilter::new("info");
     if let Ok(var) = std::env::var("RUST_LOG") {
         filter = filter.add_directive(

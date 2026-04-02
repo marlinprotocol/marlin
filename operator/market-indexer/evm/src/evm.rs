@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,12 +6,11 @@ use alloy::network::Ethereum;
 use alloy::primitives::Address;
 use alloy::providers::{Provider, RootProvider};
 use alloy::rpc::types::Filter;
-use alloy::rpc::types::eth::Log;
 use alloy::sol;
 use alloy::sol_types::SolEvent;
 use alloy::transports::http::reqwest::Url;
 use anyhow::{Context, Result};
-use indexer_framework::chain::{ChainHandler, FromLog};
+use indexer_framework::chain::ChainHandler;
 use indexer_framework::events::*;
 use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
@@ -24,119 +22,6 @@ sol!(
     "./abi/Market.json"
 );
 
-#[derive(Debug, Clone)]
-pub struct EvmLog(pub Log);
-
-impl FromLog for EvmLog {
-    fn to_job_event(&self) -> Result<Option<JobEvent>> {
-        match self.0.topic0() {
-            Some(&Market::JobOpened::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobOpened::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobOpened event data")?
-                    .data;
-
-                Ok(Some(JobEvent::Opened(JobOpened {
-                    job_id: decoded_data.job.encode_hex_with_prefix(),
-                    owner: decoded_data.owner.encode_hex_with_prefix(),
-                    provider: decoded_data.provider.encode_hex_with_prefix(),
-                    metadata: decoded_data.metadata,
-                    rate: decoded_data.rate,
-                    balance: decoded_data.balance,
-                    timestamp: decoded_data.timestamp.saturating_to(),
-                })))
-            }
-            Some(&Market::JobClosed::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobClosed::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobClosed event data")?
-                    .data;
-
-                Ok(Some(JobEvent::Closed(JobClosed {
-                    job_id: decoded_data.job.encode_hex_with_prefix(),
-                })))
-            }
-            Some(&Market::JobSettled::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobSettled::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobSettled event data")?
-                    .data;
-
-                Ok(Some(JobEvent::Settled(JobSettled {
-                    job_id: decoded_data.job.encode_hex_with_prefix(),
-                    amount: decoded_data.amount,
-                    timestamp: decoded_data.timestamp.saturating_to(),
-                })))
-            }
-            Some(&Market::JobDeposited::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobDeposited::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobDeposited event data")?
-                    .data;
-
-                Ok(Some(JobEvent::Deposited(JobDeposited {
-                    job_id: decoded_data.job.encode_hex_with_prefix(),
-                    from: decoded_data.from.encode_hex_with_prefix(),
-                    amount: decoded_data.amount,
-                })))
-            }
-            Some(&Market::JobWithdrew::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobWithdrew::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobWithdrew event data")?
-                    .data;
-
-                Ok(Some(JobEvent::Withdrew(JobWithdrew {
-                    job_id: decoded_data.job.encode_hex_with_prefix(),
-                    to: decoded_data.to.encode_hex_with_prefix(),
-                    amount: decoded_data.amount,
-                })))
-            }
-            Some(&Market::JobReviseRateInitiated::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobReviseRateInitiated::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobReviseRateInitiated event data")?
-                    .data;
-
-                Ok(Some(JobEvent::ReviseRateInitiated(
-                    JobReviseRateInitiated {
-                        job_id: decoded_data.job.encode_hex_with_prefix(),
-                        new_rate: decoded_data.newRate,
-                    },
-                )))
-            }
-            Some(&Market::JobReviseRateCancelled::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobReviseRateCancelled::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobReviseRateCancelled event data")?
-                    .data;
-
-                Ok(Some(JobEvent::ReviseRateCancelled(
-                    JobReviseRateCancelled {
-                        job_id: decoded_data.job.encode_hex_with_prefix(),
-                    },
-                )))
-            }
-            Some(&Market::JobReviseRateFinalized::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobReviseRateFinalized::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobReviseRateFinalized event data")?
-                    .data;
-
-                Ok(Some(JobEvent::ReviseRateFinalized(
-                    JobReviseRateFinalized {
-                        job_id: decoded_data.job.encode_hex_with_prefix(),
-                        new_rate: decoded_data.newRate,
-                    },
-                )))
-            }
-            Some(&Market::JobMetadataUpdated::SIGNATURE_HASH) => {
-                let decoded_data = Market::JobMetadataUpdated::decode_log(&self.0.inner)
-                    .context("Failed to abi decode JobMetadataUpdated event data")?
-                    .data;
-
-                Ok(Some(JobEvent::MetadataUpdated(JobMetadataUpdated {
-                    job_id: decoded_data.job.encode_hex_with_prefix(),
-                    new_metadata: decoded_data.metadata,
-                })))
-            }
-            _ => Ok(None), // unknown event, skip
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct EvmProvider {
     pub rpc_url: Url,
@@ -145,23 +30,6 @@ pub struct EvmProvider {
 }
 
 impl ChainHandler for EvmProvider {
-    type RawLog = EvmLog;
-
-    fn fetch_chain_id(&mut self) -> Result<String> {
-        self.rt.block_on(async {
-            let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-            let chain_id = Retry::spawn(
-                ExponentialBackoff::from_millis(500)
-                    .max_delay(Duration::from_secs(10))
-                    .map(jitter),
-                || async { provider.get_chain_id().await },
-            )
-            .await
-            .context("Failed to fetch chain ID from the RPC")?;
-            Ok(chain_id.to_string())
-        })
-    }
-
     fn fetch_latest_block(&mut self) -> Result<u64> {
         self.rt.block_on(async {
             let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
@@ -177,13 +45,9 @@ impl ChainHandler for EvmProvider {
         })
     }
 
-    fn fetch_logs_and_group_by_block(
-        &self,
-        start_block: u64,
-        end_block: u64,
-    ) -> Result<BTreeMap<u64, Vec<EvmLog>>> {
+    fn fetch_logs(&self, start_block: u64, end_block: u64) -> Result<Vec<JobEvent>> {
         self.rt.block_on(async {
-            let provider = Arc::new(RootProvider::<Ethereum>::new_http(self.rpc_url.clone()));
+            let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
             let logs = Retry::spawn(
                 ExponentialBackoff::from_millis(500)
                     .max_delay(Duration::from_secs(10))
@@ -193,15 +57,13 @@ impl ChainHandler for EvmProvider {
                         .get_logs(
                             &Filter::new()
                                 .events(vec![
-                                    Market::JobOpened::SIGNATURE,
-                                    Market::JobSettled::SIGNATURE,
-                                    Market::JobClosed::SIGNATURE,
-                                    Market::JobDeposited::SIGNATURE,
-                                    Market::JobWithdrew::SIGNATURE,
-                                    Market::JobReviseRateInitiated::SIGNATURE,
-                                    Market::JobReviseRateCancelled::SIGNATURE,
-                                    Market::JobReviseRateFinalized::SIGNATURE,
-                                    Market::JobMetadataUpdated::SIGNATURE,
+                                    Market::MarketJobOpened::SIGNATURE,
+                                    Market::MarketJobSettled::SIGNATURE,
+                                    Market::MarketJobClosed::SIGNATURE,
+                                    Market::MarketJobDeposited::SIGNATURE,
+                                    Market::MarketJobWithdrew::SIGNATURE,
+                                    Market::MarketJobRateRevised::SIGNATURE,
+                                    Market::MarketJobMetadataUpdated::SIGNATURE,
                                 ])
                                 .from_block(start_block)
                                 .to_block(end_block)
@@ -216,17 +78,88 @@ impl ChainHandler for EvmProvider {
                 start_block, end_block
             ))?;
 
-            let mut block_logs: BTreeMap<u64, Vec<EvmLog>> = BTreeMap::new();
+            let mut events = Vec::new();
+
             for log in logs {
-                if let Some(block_number) = log.block_number {
-                    block_logs
-                        .entry(block_number)
-                        .or_default()
-                        .push(EvmLog(log));
+                match log.topic0() {
+                    Some(&Market::MarketJobOpened::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobOpened::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobOpened")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::Opened(JobOpened {
+                            job_id: data.jobId,
+                            owner: data.owner.encode_hex_with_prefix(),
+                            provider: data.provider.encode_hex_with_prefix(),
+                            metadata: data.metadata,
+                            timestamp: data.timestamp,
+                        }));
+                    }
+                    Some(&Market::MarketJobClosed::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobClosed::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobClosed")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::Closed(JobClosed {
+                            job_id: data.jobId,
+                            timestamp: data.timestamp,
+                        }));
+                    }
+                    Some(&Market::MarketJobSettled::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobSettled::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobSettled")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::Settled(JobSettled {
+                            job_id: data.jobId,
+                            amount: data.amount,
+                            timestamp: data.timestamp,
+                            to: data.to.encode_hex_with_prefix(),
+                        }));
+                    }
+                    Some(&Market::MarketJobDeposited::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobDeposited::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobDeposited")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::Deposited(JobDeposited {
+                            job_id: data.jobId,
+                            from: data.from.encode_hex_with_prefix(),
+                            amount: data.amount,
+                            timestamp: data.timestamp,
+                        }));
+                    }
+                    Some(&Market::MarketJobWithdrew::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobWithdrew::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobWithdrew")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::Withdrew(JobWithdrew {
+                            job_id: data.jobId,
+                            to: data.to.encode_hex_with_prefix(),
+                            amount: data.amount,
+                            timestamp: data.timestamp,
+                        }));
+                    }
+                    Some(&Market::MarketJobRateRevised::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobRateRevised::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobRateRevised")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::RateRevised(JobRateRevised {
+                            job_id: data.jobId,
+                            new_rate: data.newRate,
+                            timestamp: data.timestamp,
+                        }));
+                    }
+                    Some(&Market::MarketJobMetadataUpdated::SIGNATURE_HASH) => {
+                        let decoded = Market::MarketJobMetadataUpdated::decode_log(&log.inner)
+                            .context("Failed to decode MarketJobMetadataUpdated")?;
+                        let data = decoded.data;
+                        events.push(JobEvent::MetadataUpdated(JobMetadataUpdated {
+                            job_id: data.jobId,
+                            metadata: data.metadata,
+                            timestamp: data.timestamp,
+                        }));
+                    }
+                    _ => {}
                 }
             }
-
-            Ok(block_logs)
+            Ok(events)
         })
     }
 }
