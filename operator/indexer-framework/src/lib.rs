@@ -1,7 +1,7 @@
 pub mod chain;
 pub mod events;
-pub(crate) mod models;
-pub(crate) mod schema;
+pub mod models;
+pub mod schema;
 
 use std::collections::HashSet;
 
