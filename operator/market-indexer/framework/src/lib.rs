@@ -82,9 +82,8 @@ pub fn run(
         .fetch_chain_id()
         .context("RPC chain ID fetch failed")?;
 
-    let updated =
-        repository::update_indexer_state(conn, chain_id.clone(), start_block)
-            .context("Failed to update indexer state in the DB")?;
+    let updated = repository::update_indexer_state(conn, chain_id.clone(), start_block)
+        .context("Failed to update indexer state in the DB")?;
 
     info!("Indexer state updated: {}", updated == 1);
 
