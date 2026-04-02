@@ -19,7 +19,7 @@ pub enum JobEventName {
 #[derive(Clone, Debug, Insertable, Queryable)]
 #[diesel(table_name = crate::schema::job_events)]
 pub struct JobEventRecord {
-    pub job_id: String,
+    pub job_id: i64,
     pub event_name: JobEventName,
     pub event_data: Value,
 }
