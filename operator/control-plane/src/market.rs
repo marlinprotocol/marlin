@@ -297,23 +297,16 @@ pub async fn run(
 }
 
 async fn fetch_job_events(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     last_processed_id: i64,
-) -> Result<Vec<JobEvent>, sqlx::Error> {
-    let events = sqlx::query_as::<_, JobEvent>(
-        r#"
-        SELECT id, job_id, event_name, event_data
-        FROM job_events
-        WHERE id > $1
-        ORDER BY id ASC
-        LIMIT 1000
-        "#,
-    )
-    .bind(last_processed_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(events)
+) -> Result<Vec<JobEventRecord>> {
+    schema::job_events::table
+        .select(schema::job_events::all_columns)
+        .filter(schema::job_events::id.gt(last_processed_id))
+        .order_by(schema::job_events::id.asc())
+        .limit(1000)
+        .load::<JobEventRecord>(conn)
+        .context("failed to load events")
 }
 
 // manage the complete lifecycle of a job
