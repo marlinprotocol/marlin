@@ -12,8 +12,7 @@ diesel::table! {
 
     job_events (id) {
         id -> Int8,
-        #[max_length = 66]
-        job_id -> Varchar,
+        job_id -> Int8,
         event_name -> EventName,
         event_data -> Jsonb,
     }
@@ -27,8 +26,7 @@ diesel::table! {
 
 diesel::table! {
     terminated_jobs (job_id) {
-        #[max_length = 66]
-        job_id -> Varchar,
+        job_id -> Int8,
     }
 }
 
