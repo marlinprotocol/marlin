@@ -14,7 +14,7 @@ use chain::ChainHandler;
 
 use crate::{
     events::JobEvent,
-    models::{JobEventName, JobEventRecord},
+    models::{JobEventName, NewJobEventRecord},
 };
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
@@ -148,7 +148,7 @@ fn transform_events_into_records(
     provider: &str,
     job_events: &[JobEvent],
     active_jobs: &mut HashSet<u64>,
-) -> Result<Vec<JobEventRecord>> {
+) -> Result<Vec<NewJobEventRecord>> {
     let mut job_event_records = vec![];
 
     for job_event in job_events.iter() {
@@ -160,7 +160,7 @@ fn transform_events_into_records(
                 }
 
                 active_jobs.insert(event.job_id);
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Opened,
                     event_data: serde_json::to_value(event)
@@ -173,7 +173,7 @@ fn transform_events_into_records(
                 }
 
                 active_jobs.remove(&event.job_id);
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Closed,
                     event_data: serde_json::to_value(event)
@@ -185,7 +185,7 @@ fn transform_events_into_records(
                     continue;
                 }
 
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Settled,
                     event_data: serde_json::to_value(event)
@@ -197,7 +197,7 @@ fn transform_events_into_records(
                     continue;
                 }
 
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Deposited,
                     event_data: serde_json::to_value(event)
@@ -209,7 +209,7 @@ fn transform_events_into_records(
                     continue;
                 }
 
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Withdrew,
                     event_data: serde_json::to_value(event)
@@ -221,7 +221,7 @@ fn transform_events_into_records(
                     continue;
                 }
 
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::RateRevised,
                     event_data: serde_json::to_value(event)
@@ -233,7 +233,7 @@ fn transform_events_into_records(
                     continue;
                 }
 
-                job_event_records.push(JobEventRecord {
+                job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::MetadataUpdated,
                     event_data: serde_json::to_value(event)
