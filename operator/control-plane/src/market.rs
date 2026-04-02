@@ -520,9 +520,9 @@ struct JobState<'a> {
     balance: u64,
     last_settled: Duration,
     rate: u64,
-    original_rate: u64,
     min_rate: u64,
     bandwidth: u64,
+
     eif_url: String, // [Update Note] TODO: Change name of eif
     instance_type: String,
     region: String,
@@ -546,16 +546,15 @@ impl<'a> JobState<'a> {
         allowed_regions: &'a [String],
     ) -> JobState<'a> {
         // solvency metrics
-        // default of 60s
+        // default of 5s
         JobState {
             context,
             job_id,
             launch_delay,
             allowed_regions,
-            balance: 60,
+            balance: 5,
             last_settled: context.now_timestamp(),
             rate: 1,
-            original_rate: 1,
             min_rate: u64::MAX,
             bandwidth: 0,
             eif_url: String::new(),
