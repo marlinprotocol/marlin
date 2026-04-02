@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use alloy::hex::ToHexExt;
 use alloy::network::Ethereum;
 use alloy::primitives::Address;
 use alloy::providers::{Provider, RootProvider};
@@ -73,8 +72,8 @@ impl ChainHandler for EvmProvider {
                         let data = decoded.data;
                         events.push(JobEvent::Opened(JobOpened {
                             job_id: data.jobId,
-                            owner: data.owner.encode_hex_with_prefix(),
-                            provider: data.provider.encode_hex_with_prefix(),
+                            owner: data.owner.to_checksum(None),
+                            provider: data.provider.to_checksum(None),
                             metadata: data.metadata,
                             timestamp: data.timestamp,
                         }));
@@ -96,7 +95,7 @@ impl ChainHandler for EvmProvider {
                             job_id: data.jobId,
                             amount: data.amount,
                             timestamp: data.timestamp,
-                            to: data.to.encode_hex_with_prefix(),
+                            to: data.to.to_checksum(None),
                         }));
                     }
                     Some(&Market::MarketJobDeposited::SIGNATURE_HASH) => {
@@ -105,7 +104,7 @@ impl ChainHandler for EvmProvider {
                         let data = decoded.data;
                         events.push(JobEvent::Deposited(JobDeposited {
                             job_id: data.jobId,
-                            from: data.from.encode_hex_with_prefix(),
+                            from: data.from.to_checksum(None),
                             amount: data.amount,
                             timestamp: data.timestamp,
                         }));
@@ -116,7 +115,7 @@ impl ChainHandler for EvmProvider {
                         let data = decoded.data;
                         events.push(JobEvent::Withdrew(JobWithdrew {
                             job_id: data.jobId,
-                            to: data.to.encode_hex_with_prefix(),
+                            to: data.to.to_checksum(None),
                             amount: data.amount,
                             timestamp: data.timestamp,
                         }));
