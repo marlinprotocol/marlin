@@ -8,8 +8,6 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::{FromRow, PgPool, Type};
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::sleep;
 use tokio::time::{Duration, Instant};

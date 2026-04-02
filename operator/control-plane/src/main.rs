@@ -3,10 +3,8 @@ use std::net::SocketAddr;
 
 use alloy_primitives::hex::ToHexExt;
 use alloy_primitives::B256;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::Row;
 use tracing::Instrument;
 use tracing::{error, info, info_span};
 use tracing_subscriber::EnvFilter;
