@@ -434,17 +434,45 @@ async fn job_manager(
     job_result
 }
 
-fn parse_event(event_name: JobEventName, event_data: Value) -> Result<DecodedJobEvent, JobResult> {
+fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, JobResult> {
     match event_name {
-        JobEventName::Opened => Ok(DecodedJobEvent::Opened(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "OPENED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::Closed => Ok(DecodedJobEvent::Closed(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "CLOSED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::Deposited => Ok(DecodedJobEvent::Deposited(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "DEPOSITED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::Settled => Ok(DecodedJobEvent::Settled(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "SETTLED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::MetadataUpdated => Ok(DecodedJobEvent::MetadataUpdated(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "METADATA_UPDATED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::Withdrew => Ok(DecodedJobEvent::Withdrew(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "WITHDREW: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::ReviseRateInitiated => Ok(DecodedJobEvent::ReviseRateInitiated(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "JOB_REVISE_RATE_INITIATED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::ReviseRateCancelled => Ok(DecodedJobEvent::ReviseRateCancelled(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "JOB_REVISE_RATE_CANCELLED: Decode failure")).map_err(|_| JobResult::Internal)?)),
-        JobEventName::ReviseRateFinalized => Ok(DecodedJobEvent::ReviseRateFinalized(serde_json::from_value(event_data.clone()).inspect_err(|err| error!(?err, data = ?event_data, "JOB_REVISE_RATE_FINALIZED: Decode failure")).map_err(|_| JobResult::Internal)?)),
+        JobEventName::Opened => Ok(JobEvent::Opened(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "OPENED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Closed => Ok(JobEvent::Closed(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "CLOSED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Deposited => Ok(JobEvent::Deposited(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "DEPOSITED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Settled => Ok(JobEvent::Settled(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "SETTLED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::MetadataUpdated => Ok(JobEvent::MetadataUpdated(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(
+                    |err| error!(?err, data = ?event_data, "METADATA_UPDATED: Decode failure"),
+                )
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Withdrew => Ok(JobEvent::Withdrew(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "WITHDREW: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::RateRevised => Ok(JobEvent::RateRevised(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "RATE_REVISED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
     }
 }
 
