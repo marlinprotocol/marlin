@@ -8,13 +8,10 @@ use std::cmp::min;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use tokio::time::sleep;
-use tokio_retry::Retry;
-use tokio_retry::strategy::{ExponentialBackoff, jitter};
+use diesel::PgConnection;
 use tracing::{debug, info, instrument, trace, warn};
 
 use chain::{ChainHandler, transform_block_logs_into_records};
-use repository::Repository;
 
 // Define generic trait for safe integer conversions
 pub trait SaturatingConvert<T> {
@@ -54,32 +51,15 @@ const BATCH_THRESHOLD: usize = 100;
 
 // TODO: add custom errors
 #[instrument(level = "info", skip_all, parent = None)]
-pub async fn run(
-    db_url: String,
-    rpc_client: impl ChainHandler,
+pub fn run(
+    conn: &mut PgConnection,
+    rpc_client: &mut impl ChainHandler,
     provider: String,
     mut start_block: Option<i64>,
     range_size: u64,
 ) -> Result<()> {
-    let repo = Repository::new(db_url)
-        .await
-        .context("Failed to initialize the Repository from the provided URL")?;
-
-    info!("Applying pending migrations");
-    repo.apply_migrations()
-        .await
-        .context("Failed to apply pending migrations to the DB")?;
-    info!("Migrations applied");
-
-    let retry_strategy = ExponentialBackoff::from_millis(500)
-        .max_delay(Duration::from_secs(10))
-        .map(jitter);
-
-    let mut last_processed_block_id = Retry::spawn(retry_strategy.clone(), || async {
-        repo.get_last_processed_block().await
-    })
-    .await
-    .context("Missing last processed block (possible DB corruption)")?;
+    let mut last_processed_block_id = repository::get_last_processed_block(conn)
+        .context("Missing last processed block (possible DB corruption)")?;
 
     if let Some(block) = start_block {
         if block <= last_processed_block_id {
@@ -100,20 +80,14 @@ pub async fn run(
 
     let chain_id = rpc_client
         .fetch_chain_id()
-        .await
         .context("RPC chain ID fetch failed")?;
 
     let extra_decimals = rpc_client
         .fetch_extra_decimals()
-        .await
         .context("Market EXTRA_DECIMALS fetch failed")?;
 
-    let updated = Retry::spawn(retry_strategy.clone(), || async {
-        repo.update_indexer_state(chain_id.clone(), extra_decimals, start_block)
-            .await
-    })
-    .await
-    .context("Failed to update indexer state in the DB")?;
+    let updated = repository::update_indexer_state(conn, chain_id.clone(), extra_decimals, start_block)
+        .context("Failed to update indexer state in the DB")?;
 
     info!("Indexer state updated: {}", updated == 1);
 
@@ -121,16 +95,12 @@ pub async fn run(
         return Err(anyhow!("Range size must not be zero"));
     }
 
-    let mut active_job_ids = Retry::spawn(retry_strategy.clone(), || async {
-        repo.get_active_jobs().await
-    })
-    .await
-    .context("Failed to fetch active job IDs from the DB")?;
+    let mut active_job_ids = repository::get_active_jobs(conn)
+        .context("Failed to fetch active job IDs from the DB")?;
 
     loop {
         let latest_block = rpc_client
             .fetch_latest_block()
-            .await
             .context("RPC latest block fetch failed")?;
         let latest_block_i64: i64 = latest_block.saturating_to();
 
@@ -147,7 +117,7 @@ pub async fn run(
 
         if latest_block_i64 == last_processed_block_id {
             trace!("Up-to-date with RPC, sleeping 5s");
-            sleep(Duration::from_secs(5)).await;
+            std::thread::sleep(Duration::from_secs(5));
             continue;
         }
 
@@ -157,7 +127,6 @@ pub async fn run(
 
         let block_logs = rpc_client
             .fetch_logs_and_group_by_block(start_block, end_block)
-            .await
             .context("Failed to fetch logs from the chain")?;
         info!(start_block, end_block, "Processing block range");
 
@@ -184,18 +153,11 @@ pub async fn run(
             batch_records.extend(records);
 
             if batch_records.len() >= BATCH_THRESHOLD {
-                Retry::spawn(retry_strategy.clone(), || async {
-                    let (inserted_batch, updated) = repo
-                        .insert_batch(batch_records.clone(), end_block_num)
-                        .await?;
+                let (inserted_batch, updated) = repository::insert_batch(conn, batch_records.clone(), end_block_num)
+                    .context("DB insert failed for block batch")?;
 
-                    debug!(end_block_num, inserted_batch, "Inserted block logs");
-                    trace!("Last processed block updated: {}", updated == 1);
-
-                    Ok::<(), anyhow::Error>(())
-                })
-                .await
-                .context("DB insert failed for block batch")?;
+                debug!(end_block_num, inserted_batch, "Inserted block logs");
+                trace!("Last processed block updated: {}", updated == 1);
 
                 batch_records.clear();
                 last_processed_block_id = end_block_num;
@@ -203,18 +165,11 @@ pub async fn run(
         }
 
         if end_block_num > last_processed_block_id {
-            Retry::spawn(retry_strategy.clone(), || async {
-                let (inserted_batch, updated) = repo
-                    .insert_batch(batch_records.clone(), end_block_num)
-                    .await?;
+            let (inserted_batch, updated) = repository::insert_batch(conn, batch_records.clone(), end_block_num)
+                .context("DB insert failed for block batch")?;
 
-                debug!(end_block_num, inserted_batch, "Inserted block logs");
-                trace!("Last processed block updated: {}", updated == 1);
-
-                Ok::<(), anyhow::Error>(())
-            })
-            .await
-            .context("DB insert failed for block batch")?;
+            debug!(end_block_num, inserted_batch, "Inserted block logs");
+            trace!("Last processed block updated: {}", updated == 1);
         }
 
         last_processed_block_id = end_block_num;

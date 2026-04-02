@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashSet};
-use std::future::Future;
 
 use anyhow::{Context, Result};
 
@@ -16,20 +15,20 @@ pub trait ChainHandler {
     type RawLog: FromLog;
 
     /// Fetch chain ID from the RPC
-    fn fetch_chain_id(&self) -> impl Future<Output = Result<String>> + Send;
+    fn fetch_chain_id(&mut self) -> Result<String>;
 
     /// Fetch EXTRA_DECIMALS value from the Market contract
-    fn fetch_extra_decimals(&self) -> impl Future<Output = Result<i64>> + Send;
+    fn fetch_extra_decimals(&mut self) -> Result<i64>;
 
     /// Fetch latest block/checkpoint/slot for the chain
-    fn fetch_latest_block(&self) -> impl Future<Output = Result<u64>> + Send;
+    fn fetch_latest_block(&mut self) -> Result<u64>;
 
     /// Fetch raw logs for the oyster market on the chain between a range and group them by block/checkpoint/slot
     fn fetch_logs_and_group_by_block(
         &self,
         start_block: u64,
         end_block: u64,
-    ) -> impl Future<Output = Result<BTreeMap<u64, Vec<Self::RawLog>>>> + Send;
+    ) -> Result<BTreeMap<u64, Vec<Self::RawLog>>>;
 }
 
 // Transform raw logs from a block into suitable DB records

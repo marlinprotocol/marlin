@@ -1865,6 +1865,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "clap",
+ "diesel",
  "dotenvy",
  "indexer-framework",
  "reqwest",

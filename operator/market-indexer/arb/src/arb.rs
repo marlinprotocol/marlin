@@ -144,101 +144,110 @@ impl FromLog for ArbLog {
 pub struct ArbProvider {
     pub rpc_url: Url,
     pub contract: Address,
+    pub rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl ChainHandler for ArbProvider {
     type RawLog = ArbLog;
 
-    async fn fetch_chain_id(&self) -> Result<String> {
-        let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-        let chain_id = Retry::spawn(
-            ExponentialBackoff::from_millis(500)
-                .max_delay(Duration::from_secs(10))
-                .map(jitter),
-            || async { provider.get_chain_id().await },
-        )
-        .await
-        .context("Failed to fetch chain ID from the RPC")?;
-        Ok(chain_id.to_string())
+    fn fetch_chain_id(&mut self) -> Result<String> {
+        self.rt.block_on(async {
+            let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
+            let chain_id = Retry::spawn(
+                ExponentialBackoff::from_millis(500)
+                    .max_delay(Duration::from_secs(10))
+                    .map(jitter),
+                || async { provider.get_chain_id().await },
+            )
+            .await
+            .context("Failed to fetch chain ID from the RPC")?;
+            Ok(chain_id.to_string())
+        })
     }
 
-    async fn fetch_extra_decimals(&self) -> Result<i64> {
-        let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-        let market = MarketV1Contract::new(self.contract, &provider);
+    fn fetch_extra_decimals(&mut self) -> Result<i64> {
+        self.rt.block_on(async {
+            let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
+            let market = MarketV1Contract::new(self.contract, &provider);
 
-        let extra_decimals = Retry::spawn(
-            ExponentialBackoff::from_millis(500)
-                .max_delay(Duration::from_secs(10))
-                .map(jitter),
-            || async { market.EXTRA_DECIMALS().call().await },
-        )
-        .await
-        .context("Failed to fetch EXTRA_DECIMALS from the RPC")?;
+            let extra_decimals = Retry::spawn(
+                ExponentialBackoff::from_millis(500)
+                    .max_delay(Duration::from_secs(10))
+                    .map(jitter),
+                || async { market.EXTRA_DECIMALS().call().await },
+            )
+            .await
+            .context("Failed to fetch EXTRA_DECIMALS from the RPC")?;
 
-        Ok(extra_decimals.saturating_to::<i64>())
+            Ok(extra_decimals.saturating_to::<i64>())
+        })
     }
 
-    async fn fetch_latest_block(&self) -> Result<u64> {
-        let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-        let block_number = Retry::spawn(
-            ExponentialBackoff::from_millis(500)
-                .max_delay(Duration::from_secs(10))
-                .map(jitter),
-            || async { provider.get_block_number().await },
-        )
-        .await
-        .context("Failed to fetch latest block number from the RPC")?;
-        Ok(block_number)
+    fn fetch_latest_block(&mut self) -> Result<u64> {
+        self.rt.block_on(async {
+            let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
+            let block_number = Retry::spawn(
+                ExponentialBackoff::from_millis(500)
+                    .max_delay(Duration::from_secs(10))
+                    .map(jitter),
+                || async { provider.get_block_number().await },
+            )
+            .await
+            .context("Failed to fetch latest block number from the RPC")?;
+            Ok(block_number)
+        })
     }
 
-    async fn fetch_logs_and_group_by_block(
+    fn fetch_logs_and_group_by_block(
         &self,
         start_block: u64,
         end_block: u64,
     ) -> Result<BTreeMap<u64, Vec<ArbLog>>> {
-        let provider = Arc::new(RootProvider::<Ethereum>::new_http(self.rpc_url.clone()));
-        let logs = Retry::spawn(
-            ExponentialBackoff::from_millis(500)
-                .max_delay(Duration::from_secs(10))
-                .map(jitter),
-            || async {
-                provider
-                    .get_logs(
-                        &Filter::new()
-                            .events(vec![
-                                MarketV1Contract::JobOpened::SIGNATURE,
-                                MarketV1Contract::JobSettled::SIGNATURE,
-                                MarketV1Contract::JobClosed::SIGNATURE,
-                                MarketV1Contract::JobDeposited::SIGNATURE,
-                                MarketV1Contract::JobWithdrew::SIGNATURE,
-                                MarketV1Contract::JobReviseRateInitiated::SIGNATURE,
-                                MarketV1Contract::JobReviseRateCancelled::SIGNATURE,
-                                MarketV1Contract::JobReviseRateFinalized::SIGNATURE,
-                                MarketV1Contract::JobMetadataUpdated::SIGNATURE,
-                            ])
-                            .from_block(start_block)
-                            .to_block(end_block)
-                            .address(self.contract),
-                    )
-                    .await
-            },
-        )
-        .await
-        .context(format!(
-            "Failed to fetch logs for block range ({}, {}) from the RPC",
-            start_block, end_block
-        ))?;
+        self.rt.block_on(async {
+            let provider = Arc::new(RootProvider::<Ethereum>::new_http(self.rpc_url.clone()));
+            let logs = Retry::spawn(
+                ExponentialBackoff::from_millis(500)
+                    .max_delay(Duration::from_secs(10))
+                    .map(jitter),
+                || async {
+                    provider
+                        .get_logs(
+                            &Filter::new()
+                                .events(vec![
+                                    MarketV1Contract::JobOpened::SIGNATURE,
+                                    MarketV1Contract::JobSettled::SIGNATURE,
+                                    MarketV1Contract::JobClosed::SIGNATURE,
+                                    MarketV1Contract::JobDeposited::SIGNATURE,
+                                    MarketV1Contract::JobWithdrew::SIGNATURE,
+                                    MarketV1Contract::JobReviseRateInitiated::SIGNATURE,
+                                    MarketV1Contract::JobReviseRateCancelled::SIGNATURE,
+                                    MarketV1Contract::JobReviseRateFinalized::SIGNATURE,
+                                    MarketV1Contract::JobMetadataUpdated::SIGNATURE,
+                                ])
+                                .from_block(start_block)
+                                .to_block(end_block)
+                                .address(self.contract),
+                        )
+                        .await
+                },
+            )
+            .await
+            .context(format!(
+                "Failed to fetch logs for block range ({}, {}) from the RPC",
+                start_block, end_block
+            ))?;
 
-        let mut block_logs: BTreeMap<u64, Vec<ArbLog>> = BTreeMap::new();
-        for log in logs {
-            if let Some(block_number) = log.block_number {
-                block_logs
-                    .entry(block_number)
-                    .or_default()
-                    .push(ArbLog(log));
+            let mut block_logs: BTreeMap<u64, Vec<ArbLog>> = BTreeMap::new();
+            for log in logs {
+                if let Some(block_number) = log.block_number {
+                    block_logs
+                        .entry(block_number)
+                        .or_default()
+                        .push(ArbLog(log));
+                }
             }
-        }
 
-        Ok(block_logs)
+            Ok(block_logs)
+        })
     }
 }

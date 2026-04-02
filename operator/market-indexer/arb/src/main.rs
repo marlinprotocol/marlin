@@ -1,12 +1,15 @@
 mod arb;
 
 use std::time::Duration;
+use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::{Parser, command};
+use diesel::PgConnection;
+use diesel::Connection;
 use dotenvy::dotenv;
-use tokio::time::sleep;
-use tracing::{error, warn};
+use std::thread::sleep;
+use tracing::{error, warn, info};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -36,8 +39,48 @@ struct Args {
     range_size: u64,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn run() -> Result<()> {
+    let args = Args::parse();
+
+    let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+    let mut conn = PgConnection::establish(&database_url)
+        .map_err(|_| anyhow!("Error connecting to {}", database_url))?;
+
+    let mut rpc_client = ArbProvider {
+        rpc_url: args
+            .rpc
+            .parse()
+            .context("Failed to parse provided RPC URL")?,
+        contract: args
+            .contract
+            .parse()
+            .context("Failed to parse contract into ethereum address")?,
+        rt: tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .into(),
+    };
+
+    loop {
+        let res = indexer_framework::run(
+            &mut conn,
+            &mut rpc_client,
+            args.provider.clone(),
+            args.start_block,
+            args.range_size,
+        );
+
+        if let Err(e) = res {
+            error!(error = %e, "Indexer error, retrying after delay");
+            sleep(Duration::from_secs(30));
+        } else {
+            warn!("Indexer returned unexpectedly, restarting");
+            sleep(Duration::from_secs(5));
+        }
+    }
+}
+
+fn main() -> Result<()> {
     dotenv().ok();
 
     let mut filter = EnvFilter::new("info");
@@ -52,37 +95,7 @@ async fn main() -> Result<()> {
         .with_env_filter(filter)
         .init();
 
-    let args = Args::parse();
+    let _ = run().inspect_err(|e| error!(?e, "run error"));
 
-    let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
-
-    let rpc_client = ArbProvider {
-        rpc_url: args
-            .rpc
-            .parse()
-            .context("Failed to parse provided RPC URL")?,
-        contract: args
-            .contract
-            .parse()
-            .context("Failed to parse contract into ethereum address")?,
-    };
-
-    loop {
-        let res = indexer_framework::run(
-            database_url.clone(),
-            rpc_client.clone(),
-            args.provider.clone(),
-            args.start_block,
-            args.range_size,
-        )
-        .await;
-
-        if let Err(e) = res {
-            error!(error = %e, "Indexer error, retrying after delay");
-            sleep(Duration::from_secs(30)).await;
-        } else {
-            warn!("Indexer returned unexpectedly, restarting");
-            sleep(Duration::from_secs(5)).await;
-        }
-    }
+    Ok(())
 }

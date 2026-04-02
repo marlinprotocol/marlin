@@ -8,6 +8,7 @@ license = "AGPL-3.0-or-later"
 alloy = { version = "1.0.33", features = ["full"] }
 anyhow = "1.0.95"
 clap = { version = "4.5.23", features = ["derive"] }
+diesel = { version = "2.3.7", features = ["postgres"] }
 dotenvy = "0.15.7"
 indexer-framework = { version = "0.1.0", path = "../framework" }
 tokio = { version = "1.46.1", features = ["full"] }
