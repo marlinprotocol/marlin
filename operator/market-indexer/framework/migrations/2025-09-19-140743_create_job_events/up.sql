@@ -12,7 +12,7 @@ CREATE TYPE event_name AS ENUM (
 
 CREATE TABLE job_events (
     id BIGSERIAL PRIMARY KEY,
-    job_id VARCHAR(66) NOT NULL,
+    job_id BIGINT NOT NULL,
     event_name event_name NOT NULL,
     event_data JSONB NOT NULL
 );

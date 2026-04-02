@@ -1,3 +1,3 @@
 CREATE TABLE terminated_jobs (
-    job_id VARCHAR(66) PRIMARY KEY
+    job_id BIGINT PRIMARY KEY
 );
