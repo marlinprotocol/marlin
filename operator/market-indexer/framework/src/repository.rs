@@ -9,25 +9,18 @@ use crate::schema::{indexer_state, job_events};
 pub fn update_indexer_state(
     conn: &mut PgConnection,
     chain_id_val: String,
-    extra_decimals_val: i64,
     start_block: Option<i64>,
 ) -> Result<u64> {
     let rows_affected = match start_block {
         Some(block) => diesel::update(indexer_state::table.find(1))
             .set((
                 indexer_state::chain_id.eq(chain_id_val),
-                indexer_state::extra_decimals.eq(extra_decimals_val),
                 indexer_state::last_processed_block.eq(block - 1),
-                indexer_state::updated_at.eq(diesel::dsl::now),
             ))
             .execute(conn)
             .context("Failed to execute update query in 'indexer state' table")?,
         None => diesel::update(indexer_state::table.find(1))
-            .set((
-                indexer_state::chain_id.eq(chain_id_val),
-                indexer_state::extra_decimals.eq(extra_decimals_val),
-                indexer_state::updated_at.eq(diesel::dsl::now),
-            ))
+            .set(indexer_state::chain_id.eq(chain_id_val))
             .execute(conn)
             .context("Failed to execute update query in 'indexer state' table")?,
     };
@@ -79,10 +72,7 @@ pub fn insert_batch(
             .execute(conn)?;
 
         let updated = diesel::update(indexer_state::table.find(1))
-            .set((
-                indexer_state::last_processed_block.eq(block),
-                indexer_state::updated_at.eq(diesel::dsl::now),
-            ))
+            .set(indexer_state::last_processed_block.eq(block))
             .execute(conn)?;
 
         Ok((inserted_batch as u64, updated as u64))

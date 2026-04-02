@@ -14,9 +14,7 @@ diesel::table! {
         id -> Int4,
         #[max_length = 66]
         chain_id -> Nullable<Varchar>,
-        extra_decimals -> Nullable<Int8>,
         last_processed_block -> Int8,
-        updated_at -> Nullable<Timestamptz>,
     }
 }
 

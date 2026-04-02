@@ -82,12 +82,8 @@ pub fn run(
         .fetch_chain_id()
         .context("RPC chain ID fetch failed")?;
 
-    let extra_decimals = rpc_client
-        .fetch_extra_decimals()
-        .context("Market EXTRA_DECIMALS fetch failed")?;
-
     let updated =
-        repository::update_indexer_state(conn, chain_id.clone(), extra_decimals, start_block)
+        repository::update_indexer_state(conn, chain_id.clone(), start_block)
             .context("Failed to update indexer state in the DB")?;
 
     info!("Indexer state updated: {}", updated == 1);

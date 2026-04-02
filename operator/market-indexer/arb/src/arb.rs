@@ -165,24 +165,6 @@ impl ChainHandler for ArbProvider {
         })
     }
 
-    fn fetch_extra_decimals(&mut self) -> Result<i64> {
-        self.rt.block_on(async {
-            let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-            let market = MarketV1Contract::new(self.contract, &provider);
-
-            let extra_decimals = Retry::spawn(
-                ExponentialBackoff::from_millis(500)
-                    .max_delay(Duration::from_secs(10))
-                    .map(jitter),
-                || async { market.EXTRA_DECIMALS().call().await },
-            )
-            .await
-            .context("Failed to fetch EXTRA_DECIMALS from the RPC")?;
-
-            Ok(extra_decimals.saturating_to::<i64>())
-        })
-    }
-
     fn fetch_latest_block(&mut self) -> Result<u64> {
         self.rt.block_on(async {
             let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());

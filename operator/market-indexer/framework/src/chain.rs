@@ -17,9 +17,6 @@ pub trait ChainHandler {
     /// Fetch chain ID from the RPC
     fn fetch_chain_id(&mut self) -> Result<String>;
 
-    /// Fetch EXTRA_DECIMALS value from the Market contract
-    fn fetch_extra_decimals(&mut self) -> Result<i64>;
-
     /// Fetch latest block/checkpoint/slot for the chain
     fn fetch_latest_block(&mut self) -> Result<u64>;
 

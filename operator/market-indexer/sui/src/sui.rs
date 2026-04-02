@@ -12,8 +12,7 @@ use sui_rpc::client::Client;
 use sui_rpc::client::HeadersInterceptor;
 use sui_rpc::field::FieldMask;
 use sui_rpc::proto::sui::rpc::v2::{
-    Checkpoint, Command, GetCheckpointRequest, GetServiceInfoRequest, MoveCall,
-    ProgrammableTransaction, SimulateTransactionRequest, Transaction, TransactionKind,
+    Checkpoint, GetCheckpointRequest, GetServiceInfoRequest,
 };
 use sui_sdk_types::{Address, CheckpointData};
 use tokio::sync::Semaphore;
@@ -26,9 +25,6 @@ const GRPC_AUTH_TOKEN: &str = "x-token";
 
 const DEFAULT_FETCH_CONCURRENCY: usize = 200;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
-
-const MODULE_NAME: &str = "market";
-const EXTRA_DECIMALS_FUNCTION_NAME: &str = "extra_decimals";
 
 /// Sui oyster market program events
 #[derive(Debug, Deserialize)]
@@ -269,64 +265,6 @@ impl ChainHandler for SuiProvider {
             service_info
                 .chain_id
                 .ok_or(anyhow!("RPC returned empty chain ID"))
-        })
-    }
-
-    fn fetch_extra_decimals(&mut self) -> Result<i64> {
-        self.rt.block_on(async {
-            let provider = self
-                .get_client()
-                .context("Failed to initialize gRPC client from the provided url and credentials")?;
-            let move_call = MoveCall::const_default()
-                .with_package(self.package_id.clone())
-                .with_module(MODULE_NAME.to_string())
-                .with_function(EXTRA_DECIMALS_FUNCTION_NAME.to_string());
-            let transaction_kind = TransactionKind::const_default().with_programmable_transaction(
-                ProgrammableTransaction::const_default()
-                    .with_commands(vec![Command::default().with_move_call(move_call)]),
-            );
-
-            let response = Retry::spawn(
-                ExponentialBackoff::from_millis(500)
-                    .max_delay(Duration::from_secs(10))
-                    .map(jitter),
-                move || {
-                    let mut provider = provider.clone();
-                    let request = SimulateTransactionRequest::default().with_transaction(
-                        Transaction::default()
-                            .with_kind(transaction_kind.clone())
-                            .with_sender(Address::ZERO),
-                    );
-                    async move {
-                        timeout(
-                            DEFAULT_REQUEST_TIMEOUT,
-                            provider.execution_client().simulate_transaction(request),
-                        )
-                        .await
-                    }
-                },
-            )
-            .await
-            .context("Request timed out for fetching EXTRA_DECIMALS")?
-            .context("Request failed for fetching EXTRA_DECIMALS")?
-            .into_inner();
-
-            if response.command_outputs.is_empty() {
-                return Err(anyhow!(
-                    "EXTRA_DECIMALS value not found in the RPC response"
-                ));
-            }
-
-            let return_value = &response.command_outputs[0].return_values;
-
-            if return_value.is_empty() {
-                return Err(anyhow!(
-                    "EXTRA_DECIMALS value not found in the RPC response"
-                ));
-            }
-
-            Ok(bcs::from_bytes::<u8>(return_value[0].value().value())
-                .context("Failed to parse EXTRA_DECIMALS value")? as i64)
         })
     }
 

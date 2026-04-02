@@ -1,3 +1,15 @@
+CREATE TYPE event_name AS ENUM (
+    'Opened', 
+    'Closed', 
+    'Deposited', 
+    'Settled', 
+    'MetadataUpdated', 
+    'Withdrew', 
+    'ReviseRateInitiated',
+    'ReviseRateCancelled',
+    'ReviseRateFinalized'
+);
+
 CREATE TABLE job_events (
     id BIGSERIAL PRIMARY KEY,
     job_id VARCHAR(66) NOT NULL,
