@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use anyhow::{Context, Result, anyhow};
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-use tracing::{info, instrument, trace, warn};
+use tracing::{info, instrument, warn};
 
 use chain::ChainHandler;
 
@@ -16,8 +16,6 @@ use crate::{
     events::JobEvent,
     models::{JobEventName, JobEventRecord},
 };
-
-const BATCH_THRESHOLD: usize = 100;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("../framework/migrations");
 
@@ -155,7 +153,7 @@ fn transform_events_into_records(
                     continue;
                 }
 
-                active_jobs.insert(event.job_id.clone());
+                active_jobs.insert(event.job_id);
                 job_event_records.push(JobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Opened,
