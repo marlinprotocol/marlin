@@ -1,13 +1,10 @@
 mod evm;
 
-use std::time::Duration;
-
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use diesel::Connection;
 use diesel::PgConnection;
-use std::thread::sleep;
-use tracing::{error, warn};
+use tracing::error;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -59,23 +56,13 @@ fn run() -> Result<()> {
             .into(),
     };
 
-    loop {
-        let res = indexer_framework::run(
-            &mut conn,
-            &mut rpc_client,
-            args.provider.clone(),
-            args.start_block,
-            args.range_size,
-        );
-
-        if let Err(e) = res {
-            error!(error = %e, "Indexer error, retrying after delay");
-            sleep(Duration::from_secs(30));
-        } else {
-            warn!("Indexer returned unexpectedly, restarting");
-            sleep(Duration::from_secs(5));
-        }
-    }
+    indexer_framework::run(
+        &mut conn,
+        &mut rpc_client,
+        args.provider.clone(),
+        args.start_block,
+        args.range_size,
+    )
 }
 
 fn main() -> Result<()> {

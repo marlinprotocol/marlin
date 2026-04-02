@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use alloy::hex::ToHexExt;
 use alloy::network::Ethereum;
@@ -12,8 +11,6 @@ use alloy::transports::http::reqwest::Url;
 use anyhow::{Context, Result};
 use indexer_framework::chain::ChainHandler;
 use indexer_framework::events::*;
-use tokio_retry::Retry;
-use tokio_retry::strategy::{ExponentialBackoff, jitter};
 
 sol!(
     #[allow(missing_docs)]
@@ -33,14 +30,10 @@ impl ChainHandler for EvmProvider {
     fn fetch_latest_block(&mut self) -> Result<u64> {
         self.rt.block_on(async {
             let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-            let block_number = Retry::spawn(
-                ExponentialBackoff::from_millis(500)
-                    .max_delay(Duration::from_secs(10))
-                    .map(jitter),
-                || async { provider.get_block_number().await },
-            )
-            .await
-            .context("Failed to fetch latest block number from the RPC")?;
+            let block_number = provider
+                .get_block_number()
+                .await
+                .context("Failed to fetch latest block number from the RPC")?;
             Ok(block_number)
         })
     }
@@ -48,35 +41,27 @@ impl ChainHandler for EvmProvider {
     fn fetch_logs(&self, start_block: u64, end_block: u64) -> Result<Vec<JobEvent>> {
         self.rt.block_on(async {
             let provider = RootProvider::<Ethereum>::new_http(self.rpc_url.clone());
-            let logs = Retry::spawn(
-                ExponentialBackoff::from_millis(500)
-                    .max_delay(Duration::from_secs(10))
-                    .map(jitter),
-                || async {
-                    provider
-                        .get_logs(
-                            &Filter::new()
-                                .events(vec![
-                                    Market::MarketJobOpened::SIGNATURE,
-                                    Market::MarketJobSettled::SIGNATURE,
-                                    Market::MarketJobClosed::SIGNATURE,
-                                    Market::MarketJobDeposited::SIGNATURE,
-                                    Market::MarketJobWithdrew::SIGNATURE,
-                                    Market::MarketJobRateRevised::SIGNATURE,
-                                    Market::MarketJobMetadataUpdated::SIGNATURE,
-                                ])
-                                .from_block(start_block)
-                                .to_block(end_block)
-                                .address(self.contract),
-                        )
-                        .await
-                },
-            )
-            .await
-            .context(format!(
-                "Failed to fetch logs for block range ({}, {}) from the RPC",
-                start_block, end_block
-            ))?;
+            let logs = provider
+                .get_logs(
+                    &Filter::new()
+                        .events(vec![
+                            Market::MarketJobOpened::SIGNATURE,
+                            Market::MarketJobSettled::SIGNATURE,
+                            Market::MarketJobClosed::SIGNATURE,
+                            Market::MarketJobDeposited::SIGNATURE,
+                            Market::MarketJobWithdrew::SIGNATURE,
+                            Market::MarketJobRateRevised::SIGNATURE,
+                            Market::MarketJobMetadataUpdated::SIGNATURE,
+                        ])
+                        .from_block(start_block)
+                        .to_block(end_block)
+                        .address(self.contract),
+                )
+                .await
+                .context(format!(
+                    "Failed to fetch logs for block range ({}, {}) from the RPC",
+                    start_block, end_block
+                ))?;
 
             let mut events = Vec::new();
 
