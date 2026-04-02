@@ -28,9 +28,26 @@ pub fn run(
     start_block: Option<u64>,
     range_size: u64,
 ) -> Result<()> {
+    diesel::sql_query(
+        "
+        SET statement_timeout = '5s';
+        SET lock_timeout = '3s';
+        SET idle_in_transaction_session_timeout = '10s';
+        ",
+    )
+    .execute(conn)
+    .context("failed to set db timeouts")?;
+
     // apply migrations
+    info!("Applying pending migrations");
     conn.run_pending_migrations(MIGRATIONS)
         .map_err(|e| anyhow::anyhow!("Migrations failed: {}", e))?;
+    info!("Applied pending migrations");
+
+    // handle start block
+    if let Some(start_block) = start_block {
+        start_from(conn, start_block)?;
+    }
 
     // fetch last updated block from the db
     let mut last_updated = schema::sync::table
@@ -43,17 +60,6 @@ pub fn run(
         .ok_or(anyhow!(
             "no last updated block found, should never happen unless the database is corrupted"
         ))? as u64;
-
-    if let Some(block) = start_block {
-        if block <= last_updated {
-            warn!(
-                "Provided start block {} is behind the last processed block {}, starting from the latter!",
-                block, last_updated
-            );
-        } else {
-            last_updated = block - 1;
-        }
-    }
 
     info!(block = last_updated, "Resuming from last processed block");
 
@@ -262,4 +268,14 @@ fn transform_events_into_records(
     }
 
     Ok(job_event_records)
+}
+
+pub fn start_from(conn: &mut PgConnection, start: u64) -> Result<bool> {
+    // set start block if it is less than existing
+    diesel::update(schema::sync::table)
+        .filter(schema::sync::block.lt(start as i64 - 1))
+        .set(schema::sync::block.eq(start as i64 - 1))
+        .execute(conn)
+        .map(|x| x > 0)
+        .context("failed to set start block")
 }
