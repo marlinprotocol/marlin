@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Context, Result};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
+use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use indexer_framework::events::JobEvent;
 use indexer_framework::models::{JobEventName, JobEventRecord};
 use indexer_framework::schema;
@@ -14,6 +14,8 @@ use serde_json::Value;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::sleep;
 use tokio::time::{Duration, Instant};
+use tokio_retry::strategy::ExponentialBackoff;
+use tokio_retry::Retry;
 use tracing::{error, info, info_span, Instrument};
 
 // IMPORTANT: do not import SystemTime, use a SystemContext
@@ -26,6 +28,10 @@ use tracing::{error, info, info_span, Instrument};
 // The main task starts from scratch, processes all events and never exits
 // The job tasks exit only when done or on unrecoverable errors
 
+// Main task
+// Should never exit
+// Read events sequentially from the DB and send on the relevant channel
+// Never process the same event twice
 pub async fn main_task(
     infra_provider: impl InfraProvider + Send + Sync + Clone + 'static,
     db_url: String,
@@ -38,134 +44,109 @@ pub async fn main_task(
     job_id: JobId,
     job_registry: JobRegistry,
 ) {
-    let mut backoff = 1;
+    let mut last_processed_id = -1i64;
+    // Start from 1s, multiply by 2 each time, max of 64s
+    let backoff_policy = ExponentialBackoff::from_millis(2)
+        .factor(500)
+        .max_delay(Duration::from_secs(64));
 
-    // connection level loop
-    // start from scratch in case of connection errors
-    // trying to implicitly resume connections can cause issues
-
-    let mut last_processed_id: i64 = -1;
+    // main task loop, implements exponential backoff on errors
+    // the loop cannot error outside the retry section
     loop {
-        info!("Connecting to DB endpoint...");
-        let db_pool = match PgPoolOptions::new()
-            .connect(&db_url)
-            .await
-            .context("failed to connect to the provided db url")
-        {
-            Ok(pool) => pool,
-            Err(err) => {
-                error!(?err, "DB connection error");
-                // exponential backoff on connection errors
-                sleep(Duration::from_secs(backoff)).await;
-                backoff *= 2;
-                if backoff > 128 {
-                    backoff = 128;
-                }
-                continue;
-            }
+        let Ok(events) = Retry::spawn(backoff_policy.clone(), async || {
+            info!("Connecting to DB endpoint...");
+            let mut conn = PgConnection::establish(&db_url)
+                .context("failed to connect to the provided db url")?;
+            info!("Connected to DB endpoint");
+
+            info!(after = last_processed_id, "Fetching events...");
+            fetch_job_events(&mut conn, last_processed_id).await
+        })
+        .await
+        else {
+            // should never happen with our backoff policy, simply loop
+            error!("backoff policy exited, should never happen!!!");
+            continue;
         };
-        info!("Connected to DB endpoint");
 
-        'run: loop {
-            sleep(Duration::from_secs(5)).await;
+        for event in events {
+            // create job task on open
+            if event.event_name == JobEventName::Opened {
+                // create job task
+                info!(id = event.job_id as u64, "New job");
 
-            let mut attempts = 5;
-            let mut delay = 100;
+                // prepare with correct job id
+                let mut job_id = job_id.clone();
+                job_id.id = event.job_id as u64;
 
-            let job_events;
+                // skip if this job has already been terminated
+                if job_registry.is_job_terminated(job_id.id) {
+                    info!(job_id.id, "Skipping already terminated job");
+                    last_processed_id = event.id;
+                    continue;
+                }
 
-            loop {
-                match fetch_job_events(&db_pool, last_processed_id).await {
-                    Ok(events) => {
-                        job_events = events;
-                        break;
-                    }
-                    Err(err) => {
-                        error!(?err, "DB fetch error");
+                // job task already exists, should never happen!!!
+                // print error for now and continue
+                if job_registry
+                    .active_jobs
+                    .lock()
+                    .unwrap()
+                    .contains_key(&job_id.id)
+                {
+                    error!(job_id.id, "Encountered already running job");
+                    last_processed_id = event.id;
+                    continue;
+                }
 
-                        if attempts == 0 {
-                            break 'run;
-                        }
+                // create channel and store sender in registry
+                let (tx, rx) = mpsc::channel::<JobEventRecord>(100);
+                job_registry
+                    .active_jobs
+                    .lock()
+                    .unwrap()
+                    .insert(job_id.id, tx);
 
-                        sleep(Duration::from_millis(delay)).await;
-                        delay *= 2;
-                        attempts -= 1;
-                    }
+                // spawn job task with channel receiver
+                tokio::spawn(
+                    job_manager(
+                        RealSystemContext {},
+                        rx,
+                        infra_provider.clone(),
+                        job_id,
+                        regions,
+                        3,
+                        rates,
+                        gb_rates,
+                        address_whitelist,
+                        address_blacklist,
+                        job_registry.clone(),
+                    )
+                    .instrument(info_span!(parent: None, "job", id = event.job_id as u64)),
+                );
+            }
+
+            let sender = job_registry
+                .active_jobs
+                .lock()
+                .unwrap()
+                .get(&(event.job_id as u64))
+                .map(Clone::clone);
+
+            let event_id = event.id;
+
+            // might happen that job is inactive here while not on contract
+            // so events still come in without an active job
+            // just ignore for now
+            if let Some(sender) = sender {
+                if let Err(err) = sender.send(event).await {
+                    // might happen if job exits after we retrieved the channel
+                    // just ignore for now
+                    error!(?err, "Channel sender error");
                 }
             }
 
-            for event in job_events {
-                let sender = match event.event_name {
-                    JobEventName::Opened => {
-                        info!(?event.job_id, "New job");
-
-                        // prepare with correct job id
-                        let mut job_id = job_id.clone();
-                        job_id.id = event.job_id.clone();
-
-                        // Skip if this job has already been terminated
-                        if job_registry.is_job_terminated(&job_id.id) {
-                            info!("Skipping already terminated job: {}", job_id.id);
-                            last_processed_id = event.id;
-                            continue;
-                        }
-
-                        if job_registry
-                            .active_jobs
-                            .lock()
-                            .unwrap()
-                            .contains_key(&job_id.id)
-                        {
-                            info!("Skipping already running job: {}", job_id.id);
-                            last_processed_id = event.id;
-                            continue;
-                        }
-
-                        let (tx, rx) = mpsc::channel::<JobEventRecord>(100);
-                        job_registry
-                            .active_jobs
-                            .lock()
-                            .unwrap()
-                            .insert(job_id.id.clone(), tx.clone());
-
-                        tokio::spawn(
-                            job_manager(
-                                RealSystemContext {},
-                                rx,
-                                infra_provider.clone(),
-                                job_id,
-                                regions,
-                                3,
-                                rates,
-                                gb_rates,
-                                address_whitelist,
-                                address_blacklist,
-                                job_registry.clone(),
-                            )
-                            .instrument(info_span!(parent: None, "job", ?event.job_id)),
-                        );
-
-                        Some(tx)
-                    }
-                    _ => {
-                        let guard = job_registry.active_jobs.lock().unwrap();
-                        guard.get(&event.job_id).cloned()
-                    }
-                };
-
-                let event_id = event.id;
-
-                if let Some(sender) = sender {
-                    if let Err(err) = sender.send(event).await {
-                        // should not happen in reality
-                        // TODO: add handling (likely random panic in the job manager)
-                        error!(?err, "Channel sender error");
-                        break 'run;
-                    }
-                }
-
-                last_processed_id = event_id;
-            }
+            last_processed_id = event_id;
         }
     }
 }
@@ -941,7 +922,7 @@ impl<'a> JobState<'a> {
 // Registry to track jobs
 #[derive(Clone)]
 pub struct JobRegistry {
-    active_jobs: Arc<Mutex<HashMap<u64, Sender<JobEvent>>>>,
+    active_jobs: Arc<Mutex<HashMap<u64, Sender<JobEventRecord>>>>,
     terminated_jobs: Arc<Mutex<HashSet<u64>>>,
     db_url: String,
 }

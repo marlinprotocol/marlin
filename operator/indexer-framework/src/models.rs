@@ -1,7 +1,7 @@
 use diesel::prelude::*;
 use serde_json::Value;
 
-#[derive(Clone, Debug, diesel_derive_enum::DbEnum)]
+#[derive(Clone, Debug, diesel_derive_enum::DbEnum, PartialEq)]
 #[ExistingTypePath = "crate::schema::sql_types::EventName"]
 pub enum JobEventName {
     Opened,
