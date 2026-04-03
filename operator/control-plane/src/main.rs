@@ -1,8 +1,6 @@
 use std::fs;
 use std::net::SocketAddr;
 
-use alloy_primitives::hex::ToHexExt;
-use alloy_primitives::B256;
 use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::Instrument;

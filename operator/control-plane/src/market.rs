@@ -132,7 +132,7 @@ pub async fn main_task(
                 .lock()
                 .unwrap()
                 .get(&(event.job_id as u64))
-                .map(Clone::clone);
+                .cloned();
 
             let event_id = event.id;
 
@@ -270,7 +270,7 @@ async fn job_task(
     }
 
     if job_result == JobResult::Done || job_result == JobResult::Failed {
-        job_registry.add_terminated_job(job_id.id.clone());
+        job_registry.add_terminated_job(job_id.id);
     }
 
     job_registry.remove_active_job(job_id.id);

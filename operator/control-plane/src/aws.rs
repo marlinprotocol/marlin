@@ -669,7 +669,7 @@ impl Aws {
             {
                 None => (false, String::new(), String::new(), String::new()),
                 Some(addrs) => {
-                    if with_association == false {
+                    if !with_association {
                         // load private ip, eni id from tags
 
                         (
@@ -1445,7 +1445,7 @@ impl Aws {
         }
 
         if !rl_instance_id.is_empty() {
-            self.remove_rate_limiter_config(job, private_ip, &rl_instance_id, bandwidth, region)
+            self.remove_rate_limiter_config(job, private_ip, rl_instance_id, bandwidth, region)
                 .await
                 .context("could not remove rate limiter config")?;
         }
