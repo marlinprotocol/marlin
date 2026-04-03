@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hasher};
 
-use alloy_primitives::{hex::ToHexExt, FixedBytes, B256, U256};
 use anyhow::{anyhow, Result};
 use indexer_framework::models::{JobEventName, JobEventRecord};
 use tokio::time::Instant;
@@ -14,8 +13,6 @@ pub struct SpinUpOutcome {
     pub job: u64,
     pub instance_type: String,
     pub region: String,
-    pub req_mem: i64,
-    pub req_vcpu: i32,
     pub bandwidth: u64,
     pub image_url: String,
     pub init_params: Box<[u8]>,
@@ -68,7 +65,7 @@ pub fn compute_address_word(salt: &str) -> String {
 
     let hash = hasher.finish();
 
-    FixedBytes::<32>::from_slice(hash.to_le_bytes().repeat(4).as_slice()).encode_hex_with_prefix()
+    "0x".to_owned() + &hex::encode(hash.to_le_bytes().repeat(4).as_slice())
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +91,7 @@ pub struct TestAws {
     pub outcomes: Vec<TestAwsOutcome>,
 
     // HashMap format - (Job, InstanceMetadata)
-    pub instances: HashMap<String, InstanceMetadata>,
+    pub instances: HashMap<u64, InstanceMetadata>,
 
     counter: u64,
 }
@@ -105,8 +102,6 @@ impl InfraProvider for TestAws {
         job: &JobId,
         instance_type: &str,
         region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
         bandwidth: u64,
         image_url: &str,
         init_params: &[u8],
@@ -118,8 +113,6 @@ impl InfraProvider for TestAws {
                 job: job.id.clone(),
                 instance_type: instance_type.to_owned(),
                 region: region.to_owned(),
-                req_mem,
-                req_vcpu,
                 bandwidth,
                 image_url: image_url.to_owned(),
                 init_params: init_params.into(),
@@ -142,8 +135,6 @@ impl InfraProvider for TestAws {
             job: job.id.clone(),
             instance_type: instance_type.to_owned(),
             region: region.to_owned(),
-            req_mem,
-            req_vcpu,
             bandwidth,
             image_url: image_url.to_owned(),
             init_params: init_params.into(),
@@ -196,7 +187,7 @@ pub fn get_rates() -> Vec<RegionalRates> {
         region: "ap-south-1".to_owned(),
         rate_cards: vec![RateCard {
             instance: "c6a.xlarge".to_owned(),
-            min_rate: U256::from_str_radix("29997916666666", 10).unwrap(),
+            min_rate: 29997916,
             cpu: 4,
             memory: 8,
             arch: String::from("amd64"),
@@ -208,18 +199,18 @@ pub fn get_gb_rates() -> Vec<GBRateCard> {
     vec![GBRateCard {
         region: "Asia South (Mumbai)".to_owned(),
         region_code: "ap-south-1".to_owned(),
-        rate: U256::from_str_radix("109300000000000000", 10).unwrap(),
+        rate: 109300000000,
     }]
 }
 
-pub fn get_event(topic: Action, id: i64, job_idx: B256) -> JobEventRecord {
+pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
     match topic {
         Action::Open(metadata, _rate, _balance, timestamp) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::Opened,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
                 "owner": compute_address_word("owner"),
                 "provider": compute_address_word("provider"),
                 "metadata": metadata,
@@ -228,57 +219,57 @@ pub fn get_event(topic: Action, id: i64, job_idx: B256) -> JobEventRecord {
         },
         Action::Close => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::Closed,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
             }),
         },
         Action::Settle(amount, timestamp) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::Settled,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
                 "amount": amount,
                 "timestamp": timestamp,
             }),
         },
         Action::Deposit(amount) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::Deposited,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
                 "from": compute_address_word("depositor"),
                 "amount": amount,
             }),
         },
         Action::Withdraw(amount) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::Withdrew,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
                 "to": compute_address_word("withdrawer"),
                 "amount": amount,
             }),
         },
         Action::RateRevised(rate) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::RateRevised,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
                 "new_rate": rate,
             }),
         },
         Action::MetadataUpdated(metadata) => JobEventRecord {
             id: id,
-            job_id: job_idx.encode_hex_with_prefix().parse().unwrap_or(0),
+            job_id: job_idx as i64,
             event_name: JobEventName::MetadataUpdated,
             event_data: serde_json::json!({
-                "job_id": 1,
+                "job_id": job_idx,
                 "metadata": metadata,
             }),
         },

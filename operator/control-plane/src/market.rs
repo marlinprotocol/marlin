@@ -977,8 +977,6 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex};
 
-    use alloy_primitives::hex::FromHex;
-    use alloy_primitives::{B256, U256};
     use indexer_framework::models::JobEventRecord;
     use tokio::sync::mpsc;
     use tokio::time::{sleep, Duration, Instant};
@@ -1031,7 +1029,7 @@ mod tests {
     ) {
         let context = TestSystemContext { start: start_time };
 
-        let job_num = B256::from_hex(&job_manager_params.job_id.id).unwrap();
+        let job_num = job_manager_params.job_id.id;
         let job_logs: Vec<(u64, JobEventRecord)> = logs
             .into_iter()
             .enumerate()
@@ -1103,8 +1101,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1153,8 +1149,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
@@ -1203,8 +1197,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1253,8 +1245,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1306,62 +1296,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
-                    bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
-                    init_params: [].into(),
-                    contract_address: "xyz".into(),
-                    chain_id: "123".into(),
-                    instance_id: compute_instance_id(0),
-                }),
-                TestAwsOutcome::SpinDown(test::SpinDownOutcome {
-                    time: start_time + Duration::from_secs(505),
-                    job: job_id,
-                    region: "ap-south-1".into(),
-                }),
-            ],
-        };
-
-        run_test(start_time, logs, job_manager_params, test_results).await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_revise_rate_cancel() {
-        let start_time = Instant::now();
-        let job_id = 1;
-
-        let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (50, Action::ReviseRateInitiated(32000000000000u64)),
-            (100, Action::ReviseRateFinalized(32000000000000u64)),
-            (150, Action::ReviseRateInitiated(60000000000000u64)),
-            (200, Action::ReviseRateCancelled),
-            (505, Action::Close),
-        ];
-
-        let job_manager_params = JobManagerParams {
-            job_id: market::JobId {
-                id: job_id.clone(),
-                operator: "abc".into(),
-                contract: "xyz".into(),
-                chain: "123".into(),
-            },
-            allowed_regions: vec!["ap-south-1".to_owned()],
-            address_whitelist: vec![],
-            address_blacklist: vec![],
-        };
-
-        let test_results = TestResults {
-            res: JobResult::Done,
-            outcomes: vec![
-                TestAwsOutcome::SpinUp(test::SpinUpOutcome {
-                    time: start_time + Duration::from_secs(300),
-                    job: job_id.clone(),
-                    instance_type: "c6a.xlarge".into(),
-                    region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1651,8 +1585,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1678,10 +1610,8 @@ mod tests {
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (350, Action::ReviseRateInitiated(29000000000000u64)),
-            (400, Action::ReviseRateFinalized(29000000000000u64)),
-            (450, Action::ReviseRateInitiated(31000000000000u64)),
-            (500, Action::ReviseRateFinalized(31000000000000u64)),
+            (350, Action::RateRevised(29000000000000u64)),
+            (450, Action::RateRevised(31000000000000u64)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1704,8 +1634,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1757,8 +1685,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -1884,8 +1810,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2015,7 +1939,7 @@ mod tests {
 
     #[test]
     fn test_parse_compute_rates() {
-        let contents = "[{\"region\": \"ap-south-1\", \"rate_cards\": [{\"instance\": \"c6a.48xlarge\", \"min_rate\": \"2469600000000000000000\", \"cpu\": 192, \"memory\": 384, \"arch\": \"amd64\"}, {\"instance\": \"m7g.xlarge\", \"min_rate\": \"150000000\", \"cpu\": 4, \"memory\": 8, \"arch\": \"arm64\"}]}]";
+        let contents = "[{\"region\": \"ap-south-1\", \"rate_cards\": [{\"instance\": \"c6a.48xlarge\", \"min_rate\": \"2469600000000000\", \"cpu\": 192, \"memory\": 384, \"arch\": \"amd64\"}, {\"instance\": \"m7g.xlarge\", \"min_rate\": \"150000000\", \"cpu\": 4, \"memory\": 8, \"arch\": \"arm64\"}]}]";
         let rates: Vec<market::RegionalRates> = serde_json::from_str(contents).unwrap();
 
         assert_eq!(rates.len(), 1);
@@ -2026,14 +1950,14 @@ mod tests {
                 rate_cards: vec![
                     market::RateCard {
                         instance: "c6a.48xlarge".to_owned(),
-                        min_rate: U256::from_str_radix("2469600000000000000000", 10).unwrap(),
+                        min_rate: 2469600000000000,
                         cpu: 192,
                         memory: 384,
                         arch: String::from("amd64")
                     },
                     market::RateCard {
                         instance: "m7g.xlarge".to_owned(),
-                        min_rate: U256::from(150000000u64),
+                        min_rate: 150000000,
                         cpu: 4,
                         memory: 8,
                         arch: String::from("arm64")
@@ -2045,7 +1969,7 @@ mod tests {
 
     #[test]
     fn test_parse_bandwidth_rates() {
-        let contents = "[{\"region\": \"Asia South (Mumbai)\", \"region_code\": \"ap-south-1\", \"rate\": \"8264900000000000000000\"}, {\"region\": \"US East (N.Virginia)\", \"region_code\": \"us-east-1\", \"rate\": \"10000\"}]";
+        let contents = "[{\"region\": \"Asia South (Mumbai)\", \"region_code\": \"ap-south-1\", \"rate\": \"8264900000000000\"}, {\"region\": \"US East (N.Virginia)\", \"region_code\": \"us-east-1\", \"rate\": \"10000\"}]";
         let rates: Vec<market::GBRateCard> = serde_json::from_str(contents).unwrap();
 
         assert_eq!(rates.len(), 2);
@@ -2054,7 +1978,7 @@ mod tests {
             market::GBRateCard {
                 region: "Asia South (Mumbai)".to_owned(),
                 region_code: "ap-south-1".to_owned(),
-                rate: U256::from_str_radix("8264900000000000000000", 10).unwrap(),
+                rate: 8264900000000000,
             }
         );
         assert_eq!(
@@ -2062,7 +1986,7 @@ mod tests {
             market::GBRateCard {
                 region: "US East (N.Virginia)".to_owned(),
                 region_code: "us-east-1".to_owned(),
-                rate: U256::from(10000u16),
+                rate: 10000,
             }
         );
     }
@@ -2098,8 +2022,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/updated-enclave.eif".into(),
                     init_params: [].into(),
@@ -2149,8 +2071,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2236,8 +2156,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
@@ -2287,8 +2205,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2338,8 +2254,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2352,8 +2266,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/updated-enclave.eif".into(),
                     init_params: [].into(),
@@ -2404,8 +2316,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2455,8 +2365,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2469,8 +2377,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
@@ -2520,8 +2426,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
@@ -2534,8 +2438,6 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    req_mem: 4096,
-                    req_vcpu: 2,
                     bandwidth: 76,
                     image_url: "https://example.com/enclave.eif".into(),
                     init_params: [].into(),
