@@ -26,123 +26,6 @@ use tracing::{error, info, info_span, Instrument};
 // The main task starts from scratch, processes all events and never exits
 // The job tasks exit only when done or on unrecoverable errors
 
-// Identify jobs not only by the id, but also by the operator, contract and the chain
-// This is needed to cleanly support multiple operators/contracts/chains at the infra level
-#[derive(Clone)]
-pub struct JobId {
-    pub id: u64,
-    pub operator: String,
-    pub contract: String,
-    pub chain: String,
-}
-
-pub trait InfraProvider {
-    fn spin_up(
-        &mut self,
-        job: &JobId,
-        instance_type: &str,
-        region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
-        bandwidth: u64,
-        image_url: &str,
-        init_params: &[u8],
-    ) -> impl Future<Output = Result<()>> + Send;
-
-    fn spin_down(
-        &mut self,
-        job: &JobId,
-        region: &str,
-        bandwidth: u64,
-    ) -> impl Future<Output = Result<()>> + Send;
-
-    fn get_job_ip(&self, job: &JobId, region: &str) -> impl Future<Output = Result<String>> + Send;
-
-    fn check_enclave_running(
-        &mut self,
-        job: &JobId,
-        region: &str,
-    ) -> impl Future<Output = Result<bool>> + Send;
-}
-
-impl<T> InfraProvider for &mut T
-where
-    T: InfraProvider + Send + Sync,
-{
-    async fn spin_up(
-        &mut self,
-        job: &JobId,
-        instance_type: &str,
-        region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
-        bandwidth: u64,
-        image_url: &str,
-        init_params: &[u8],
-    ) -> Result<()> {
-        (**self)
-            .spin_up(
-                job,
-                instance_type,
-                region,
-                req_mem,
-                req_vcpu,
-                bandwidth,
-                image_url,
-                init_params,
-            )
-            .await
-    }
-
-    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
-        (**self).spin_down(job, region, bandwidth).await
-    }
-
-    async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
-        (**self).get_job_ip(job, region).await
-    }
-
-    async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        (**self).check_enclave_running(job, region).await
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct RateCard {
-    pub instance: String,
-    pub min_rate: u64,
-    pub cpu: u32,
-    pub memory: u32,
-    pub arch: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct RegionalRates {
-    pub region: String,
-    pub rate_cards: Vec<RateCard>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct GBRateCard {
-    pub region: String,
-    pub region_code: String,
-    pub rate: u64,
-}
-
-#[derive(PartialEq, Debug)]
-enum JobResult {
-    // success
-    Success,
-    // done, should still terminate instance, if any
-    Done,
-    // error, should terminate instance, if any
-    Failed,
-    // error, likely internal bug, exit but do not terminate instance
-    Internal,
-}
-
-static EXTRA_DECIMALS: u32 = 6;
-
 pub async fn main_task(
     infra_provider: impl InfraProvider + Send + Sync + Clone + 'static,
     db_url: String,
@@ -286,6 +169,123 @@ pub async fn main_task(
         }
     }
 }
+
+// Identify jobs not only by the id, but also by the operator, contract and the chain
+// This is needed to cleanly support multiple operators/contracts/chains at the infra level
+#[derive(Clone)]
+pub struct JobId {
+    pub id: u64,
+    pub operator: String,
+    pub contract: String,
+    pub chain: String,
+}
+
+pub trait InfraProvider {
+    fn spin_up(
+        &mut self,
+        job: &JobId,
+        instance_type: &str,
+        region: &str,
+        req_mem: i64,
+        req_vcpu: i32,
+        bandwidth: u64,
+        image_url: &str,
+        init_params: &[u8],
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn spin_down(
+        &mut self,
+        job: &JobId,
+        region: &str,
+        bandwidth: u64,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn get_job_ip(&self, job: &JobId, region: &str) -> impl Future<Output = Result<String>> + Send;
+
+    fn check_enclave_running(
+        &mut self,
+        job: &JobId,
+        region: &str,
+    ) -> impl Future<Output = Result<bool>> + Send;
+}
+
+impl<T> InfraProvider for &mut T
+where
+    T: InfraProvider + Send + Sync,
+{
+    async fn spin_up(
+        &mut self,
+        job: &JobId,
+        instance_type: &str,
+        region: &str,
+        req_mem: i64,
+        req_vcpu: i32,
+        bandwidth: u64,
+        image_url: &str,
+        init_params: &[u8],
+    ) -> Result<()> {
+        (**self)
+            .spin_up(
+                job,
+                instance_type,
+                region,
+                req_mem,
+                req_vcpu,
+                bandwidth,
+                image_url,
+                init_params,
+            )
+            .await
+    }
+
+    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
+        (**self).spin_down(job, region, bandwidth).await
+    }
+
+    async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
+        (**self).get_job_ip(job, region).await
+    }
+
+    async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
+        (**self).check_enclave_running(job, region).await
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RateCard {
+    pub instance: String,
+    pub min_rate: u64,
+    pub cpu: u32,
+    pub memory: u32,
+    pub arch: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RegionalRates {
+    pub region: String,
+    pub rate_cards: Vec<RateCard>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct GBRateCard {
+    pub region: String,
+    pub region_code: String,
+    pub rate: u64,
+}
+
+#[derive(PartialEq, Debug)]
+enum JobResult {
+    // success
+    Success,
+    // done, should still terminate instance, if any
+    Done,
+    // error, should terminate instance, if any
+    Failed,
+    // error, likely internal bug, exit but do not terminate instance
+    Internal,
+}
+
+static EXTRA_DECIMALS: u32 = 6;
 
 async fn fetch_job_events(
     conn: &mut PgConnection,
