@@ -18,22 +18,6 @@ use tracing::{error, info, info_span, Instrument};
 
 // IMPORTANT: do not import SystemTime, use a SystemContext
 
-// Trait to encapsulate behavior that should be simulated in tests
-trait SystemContext {
-    fn now_timestamp(&self) -> Duration;
-}
-
-struct RealSystemContext {}
-
-impl SystemContext for RealSystemContext {
-    fn now_timestamp(&self) -> Duration {
-        use std::time::SystemTime;
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-    }
-}
-
 // Basic architecture:
 // One future listening to new jobs
 // Each job has its own future managing its lifetime
@@ -1045,6 +1029,22 @@ impl JobRegistry {
                 }
             }
         }
+    }
+}
+
+// Trait to encapsulate behavior that should be simulated in tests
+trait SystemContext {
+    fn now_timestamp(&self) -> Duration;
+}
+
+struct RealSystemContext {}
+
+impl SystemContext for RealSystemContext {
+    fn now_timestamp(&self) -> Duration {
+        use std::time::SystemTime;
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
     }
 }
 
