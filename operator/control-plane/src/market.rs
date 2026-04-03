@@ -161,7 +161,7 @@ async fn job_task(
     mut infra_provider: impl InfraProvider + Send + Sync,
     job_id: JobId,
     allowed_regions: &[String],
-    aws_delay_duration: u64,
+    infra_delay_duration: u64,
     rates: &[RegionalRates],
     gb_rates: &[GBRateCard],
     address_whitelist: &[String],
@@ -171,30 +171,31 @@ async fn job_task(
     let mut state = JobState::new(
         &context,
         job_id.clone(),
-        aws_delay_duration,
+        infra_delay_duration,
         allowed_regions,
     );
 
     // usually tracks the result of the last log processed
     let mut job_result = JobResult::Success;
 
-    let mut cur_id: i64 = -1;
-
     // The processing loop follows this:
     // Keep processing events till you hit an unsuccessful processing
-    // If result is Retry or Internal, these are likely RPC issues and bugs
-    // Hence just break out, the parent function handles retrying
+    //
+    // If result is Internal, these are likely bugs, simply break out and leave the infra as is
     // If result is Done, the job is naturally "done", schedule termination
     // If result is Failed, the job ran into a user error, schedule termination
     // If job is insolvent, schedule termination
+    //
     // Once job is successfully terminated, break out
+    //
     // Insolvency and heartbeats only matter when job is not already scheduled for termination
     'event: loop {
         // compute time to insolvency
         let insolvency_duration = state.insolvency_duration();
         info!(duration = insolvency_duration.as_secs(), "Insolvency after");
 
-        let aws_delay_timeout = state
+        // compute infra change delay
+        let infra_delay_timeout = state
             .infra_change_time
             .saturating_duration_since(Instant::now());
 
@@ -215,18 +216,15 @@ async fn job_task(
             log = events_stream.recv(), if job_result == JobResult::Success => {
                 job_result = match log {
                     Some(log) => {
-                        if log.id <= cur_id {
-                            return JobResult::Success;
-                        }
-
-                        cur_id = log.id;
-
                         match parse_event(log.event_name, log.event_data) {
                             Ok(event) => state.process_event(event, rates, gb_rates, address_whitelist, address_blacklist),
                             Err(result) => result
                         }
                     }
-                    None => JobResult::Internal,
+                    None => {
+                        error!("log stream ended, should never happen");
+                        JobResult::Internal
+                    }
                 };
 
                 match job_result {
@@ -252,9 +250,9 @@ async fn job_task(
                 job_result = JobResult::Done;
             }
 
-            // aws delayed spin up check
+            // infra delayed spin up check
             // should only happen if scheduled
-            () = sleep(aws_delay_timeout), if state.infra_change_scheduled => {
+            () = sleep(infra_delay_timeout), if state.infra_change_scheduled => {
                 let res = state.change_infra(&mut infra_provider).await;
                 if res && !state.infra_state {
                     // successful termination, exit
@@ -264,7 +262,7 @@ async fn job_task(
 
             // running instance heartbeat check
             // should only happen if infra change is not scheduled
-            () = sleep(Duration::from_secs(5)), if !state.infra_change_scheduled => {
+            () = sleep(Duration::from_secs(10)), if job_result == JobResult::Success => {
                 state.heartbeat_check(&mut infra_provider).await;
             }
         }
