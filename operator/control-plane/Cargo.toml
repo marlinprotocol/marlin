@@ -31,6 +31,7 @@ shell-escape = "0.1.5"
 ssh-key = { version = "0.6.7", features = ["ed25519"] }
 ssh2 = { version = "0.9.5", features = ["vendored-openssl"] }
 tokio = { version = "1.42.0", features = ["full", "test-util"] }
+tokio-retry = "0.3.0"
 tokio-stream = "0.1"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
