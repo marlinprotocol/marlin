@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hasher};
 
 use anyhow::{anyhow, Result};
+use indexer_framework::events::{
+    JobClosed, JobDeposited, JobMetadataUpdated, JobOpened, JobRateRevised, JobSettled, JobWithdrew,
+};
 use indexer_framework::models::{JobEventName, JobEventRecord};
 use tokio::time::Instant;
 
@@ -173,13 +176,13 @@ impl InfraProvider for TestAws {
 
 #[derive(Clone)]
 pub enum Action {
-    Open(String, u64, u64, i64),
-    Close,
-    Settle(u64, i64),
-    Deposit(u64),
-    Withdraw(u64),
-    RateRevised(u64),
-    MetadataUpdated(String),
+    Open(u64, String),
+    Close(u64),
+    Settle(u64, u64),
+    Deposit(u64, u64),
+    Withdraw(u64, u64),
+    RateRevised(u64, u64),
+    MetadataUpdated(u64, String),
 }
 
 pub fn get_rates() -> Vec<RegionalRates> {
@@ -205,73 +208,86 @@ pub fn get_gb_rates() -> Vec<GBRateCard> {
 
 pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
     match topic {
-        Action::Open(metadata, _rate, _balance, timestamp) => JobEventRecord {
+        Action::Open(timestamp, metadata) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Opened,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-                "owner": compute_address_word("owner"),
-                "provider": compute_address_word("provider"),
-                "metadata": metadata,
-                "timestamp": timestamp,
-            }),
+            event_data: serde_json::to_value(JobOpened {
+                job_id: job_idx,
+                timestamp: timestamp,
+                metadata: metadata,
+                owner: compute_address_word("owner"),
+                provider: compute_address_word("provider"),
+            })
+            .unwrap(),
         },
-        Action::Close => JobEventRecord {
+        Action::Close(timestamp) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Closed,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-            }),
+            event_data: serde_json::to_value(JobClosed {
+                job_id: job_idx,
+                timestamp: timestamp,
+            })
+            .unwrap(),
         },
-        Action::Settle(amount, timestamp) => JobEventRecord {
+        Action::Settle(timestamp, amount) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Settled,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-                "amount": amount,
-                "timestamp": timestamp,
-            }),
+            event_data: serde_json::to_value(JobSettled {
+                job_id: job_idx,
+                timestamp: timestamp,
+                amount: amount,
+                to: compute_address_word("to"),
+            })
+            .unwrap(),
         },
-        Action::Deposit(amount) => JobEventRecord {
+        Action::Deposit(timestamp, amount) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Deposited,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-                "from": compute_address_word("depositor"),
-                "amount": amount,
-            }),
+            event_data: serde_json::to_value(JobDeposited {
+                job_id: job_idx,
+                timestamp: timestamp,
+                amount: amount,
+                from: compute_address_word("from"),
+            })
+            .unwrap(),
         },
-        Action::Withdraw(amount) => JobEventRecord {
+        Action::Withdraw(timestamp, amount) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Withdrew,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-                "to": compute_address_word("withdrawer"),
-                "amount": amount,
-            }),
+            event_data: serde_json::to_value(JobWithdrew {
+                job_id: job_idx,
+                timestamp: timestamp,
+                amount: amount,
+                to: compute_address_word("to"),
+            })
+            .unwrap(),
         },
-        Action::RateRevised(rate) => JobEventRecord {
+        Action::RateRevised(timestamp, rate) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::RateRevised,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-                "new_rate": rate,
-            }),
+            event_data: serde_json::to_value(JobRateRevised {
+                job_id: job_idx,
+                timestamp: timestamp,
+                new_rate: rate,
+            })
+            .unwrap(),
         },
-        Action::MetadataUpdated(metadata) => JobEventRecord {
+        Action::MetadataUpdated(timestamp, metadata) => JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::MetadataUpdated,
-            event_data: serde_json::json!({
-                "job_id": job_idx,
-                "metadata": metadata,
-            }),
+            event_data: serde_json::to_value(JobMetadataUpdated {
+                job_id: job_idx,
+                timestamp: timestamp,
+                metadata: metadata,
+            })
+            .unwrap(),
         },
     }
 }
