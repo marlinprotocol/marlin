@@ -74,41 +74,6 @@ struct Cli {
     port: u16,
 }
 
-async fn parse_file(filepath: String) -> Result<Vec<String>> {
-    if filepath.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let contents = fs::read_to_string(filepath).context("Error reading file")?;
-    let lines: Vec<String> = contents.lines().map(|s| s.to_string()).collect();
-
-    Ok(lines)
-}
-
-async fn parse_compute_rates_file(filepath: String) -> Result<Vec<market::RegionalRates>> {
-    if filepath.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let contents = fs::read_to_string(filepath).context("Error reading file")?;
-    let rates: Vec<market::RegionalRates> =
-        serde_json::from_str(&contents).context("failed to parse rates file")?;
-
-    Ok(rates)
-}
-
-async fn parse_bandwidth_rates_file(filepath: String) -> Result<Vec<market::GBRateCard>> {
-    if filepath.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let contents = fs::read_to_string(filepath).context("Error reading file")?;
-    let rates: Vec<market::GBRateCard> =
-        serde_json::from_str(&contents).context("failed to parse rates file")?;
-
-    Ok(rates)
-}
-
 async fn run() -> Result<()> {
     let cli = Cli::parse();
 
@@ -208,7 +173,7 @@ async fn run() -> Result<()> {
     });
 
     let job_id = market::JobId {
-        id: B256::ZERO.encode_hex_with_prefix(),
+        id: 0,
         operator: cli.provider.clone(),
         contract: cli.contract.clone(),
         chain: cli.chain_id.clone(),
@@ -241,6 +206,41 @@ async fn run() -> Result<()> {
     .await;
 
     Ok(())
+}
+
+async fn parse_file(filepath: String) -> Result<Vec<String>> {
+    if filepath.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let contents = fs::read_to_string(filepath).context("Error reading file")?;
+    let lines: Vec<String> = contents.lines().map(|s| s.to_string()).collect();
+
+    Ok(lines)
+}
+
+async fn parse_compute_rates_file(filepath: String) -> Result<Vec<market::RegionalRates>> {
+    if filepath.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let contents = fs::read_to_string(filepath).context("Error reading file")?;
+    let rates: Vec<market::RegionalRates> =
+        serde_json::from_str(&contents).context("failed to parse rates file")?;
+
+    Ok(rates)
+}
+
+async fn parse_bandwidth_rates_file(filepath: String) -> Result<Vec<market::GBRateCard>> {
+    if filepath.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let contents = fs::read_to_string(filepath).context("Error reading file")?;
+    let rates: Vec<market::GBRateCard> =
+        serde_json::from_str(&contents).context("failed to parse rates file")?;
+
+    Ok(rates)
 }
 
 #[tokio::main]
