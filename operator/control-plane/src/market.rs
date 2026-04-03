@@ -42,7 +42,7 @@ impl SystemContext for RealSystemContext {
 // This is needed to cleanly support multiple operators/contracts/chains at the infra level
 #[derive(Clone)]
 pub struct JobId {
-    pub id: String,
+    pub id: u64,
     pub operator: String,
     pub contract: String,
     pub chain: String,
@@ -953,8 +953,8 @@ impl<'a> JobState<'a> {
 // Registry to track jobs
 #[derive(Clone)]
 pub struct JobRegistry {
-    active_jobs: Arc<Mutex<HashMap<String, Sender<JobEvent>>>>,
-    terminated_jobs: Arc<Mutex<HashSet<String>>>,
+    active_jobs: Arc<Mutex<HashMap<u64, Sender<JobEvent>>>>,
+    terminated_jobs: Arc<Mutex<HashSet<u64>>>,
     db_url: String,
 }
 
@@ -974,7 +974,7 @@ impl JobRegistry {
         .await
         .context("Failed to query terminated jobs ids from the DB")?;
 
-        let terminated_jobs: HashSet<String> = rows.into_iter().map(|(id,)| id).collect();
+        let terminated_jobs: HashSet<u64> = rows.into_iter().map(|(id,)| id).collect();
 
         info!(
             "Loaded {} terminated jobs from registry",
@@ -988,20 +988,20 @@ impl JobRegistry {
         })
     }
 
-    fn add_terminated_job(&self, job_id: String) {
+    fn add_terminated_job(&self, job_id: u64) {
         self.terminated_jobs.lock().unwrap().insert(job_id);
     }
 
-    fn remove_active_job(&self, job_id: String) {
+    fn remove_active_job(&self, job_id: u64) {
         self.active_jobs.lock().unwrap().remove(&job_id);
     }
 
-    fn is_job_terminated(&self, job_id: &str) -> bool {
-        self.terminated_jobs.lock().unwrap().contains(job_id)
+    fn is_job_terminated(&self, job_id: u64) -> bool {
+        self.terminated_jobs.lock().unwrap().contains(&job_id)
     }
 
     async fn save_to_disk(&self) -> Result<u64> {
-        let job_ids: Vec<String> = self
+        let job_ids: Vec<u64> = self
             .terminated_jobs
             .lock()
             .unwrap()
@@ -1063,7 +1063,7 @@ mod tests {
     use tokio::sync::mpsc;
     use tokio::time::{sleep, Duration, Instant};
 
-    use crate::market::{self, JobEvent};
+    use crate::market;
     use crate::test::{
         self, compute_address_word, compute_instance_id, Action, TestAws, TestAwsOutcome,
     };
@@ -1156,7 +1156,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_instance_launch_after_delay_on_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1206,7 +1206,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_init_params() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string(),31000000000000u64,31000u64,0)),
@@ -1256,7 +1256,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_instance_launch_with_debug_mode_on_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"debug\":true}".to_string(),31000000000000u64,31000u64,0)),
@@ -1306,7 +1306,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_instance_launch_after_delay_on_spin_up_with_specific_family() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1356,7 +1356,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_deposit_withdraw_settle() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1409,7 +1409,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_revise_rate_cancel() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1463,7 +1463,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_unsupported_region() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-east-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1497,7 +1497,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_region_not_found() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1531,7 +1531,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_instance_type_not_found() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1565,7 +1565,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_unsupported_instance() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.vsmall\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1599,7 +1599,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_eif_url_not_found() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"instance\":\"c6a.vsmall\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1633,7 +1633,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_min_rate() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),29000000000000u64,31000u64,0)),
@@ -1667,7 +1667,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_rate_exceed_balance() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,0u64,0)),
@@ -1703,7 +1703,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_withdrawal_exceed_rate() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1754,7 +1754,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_revise_rate_lower_higher() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1807,7 +1807,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_address_whitelisted() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1860,7 +1860,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_address_not_whitelisted() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1897,7 +1897,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_address_blacklisted() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -1934,7 +1934,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_address_not_blacklisted() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2150,7 +2150,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_eif_update_before_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2201,7 +2201,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_debug_update_before_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"debug\":true}".to_string(),31000000000000u64,31000u64,0)),
@@ -2252,7 +2252,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_other_metadata_update_before_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2288,7 +2288,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_init_params_update_before_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2339,7 +2339,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_metadata_update_event_with_no_updates_before_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2390,7 +2390,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_eif_update_after_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2455,7 +2455,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_other_metadata_update_after_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2507,7 +2507,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_init_params_update_after_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
@@ -2572,7 +2572,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_metadata_update_event_with_no_updates_after_spin_up() {
         let start_time = Instant::now();
-        let job_id = format!("{:064x}", 1);
+        let job_id = 1;
 
         let logs = vec![
             (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
