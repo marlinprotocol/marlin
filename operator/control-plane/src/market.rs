@@ -683,30 +683,9 @@ pub struct JobRegistry {
 
 impl JobRegistry {
     pub async fn new(db_url: String) -> Result<Self> {
-        let pool = PgPoolOptions::new()
-            .connect(&db_url)
-            .await
-            .context("Failed to connect to the DATABASE_URL")?;
-
-        let rows = sqlx::query_as::<_, (String,)>(
-            r#"
-            SELECT job_id FROM terminated_jobs
-            "#,
-        )
-        .fetch_all(&pool)
-        .await
-        .context("Failed to query terminated jobs ids from the DB")?;
-
-        let terminated_jobs: HashSet<u64> = rows.into_iter().map(|(id,)| id).collect();
-
-        info!(
-            "Loaded {} terminated jobs from registry",
-            terminated_jobs.len()
-        );
-
         Ok(JobRegistry {
             active_jobs: Arc::new(Mutex::new(HashMap::new())),
-            terminated_jobs: Arc::new(Mutex::new(terminated_jobs)),
+            terminated_jobs: Arc::new(Mutex::new(HashSet::new())),
             db_url,
         })
     }
@@ -720,40 +699,48 @@ impl JobRegistry {
     }
 
     fn is_job_terminated(&self, job_id: u64) -> bool {
-        self.terminated_jobs.lock().unwrap().contains(&job_id)
+        let Ok(mut conn) = PgConnection::establish(&self.db_url)
+            .context("failed to connect to the provided db url")
+            .inspect_err(|e| error!(?e))
+        else {
+            // conservative answer
+            return false;
+        };
+
+        schema::terminated_jobs::table
+            .count()
+            .filter(schema::terminated_jobs::job_id.eq(job_id as i64))
+            .get_result(&mut conn)
+            == Ok(1)
     }
 
-    async fn save_to_disk(&self) -> Result<u64> {
-        let job_ids: Vec<u64> = self
-            .terminated_jobs
-            .lock()
-            .unwrap()
-            .iter()
-            .cloned()
-            .collect();
+    async fn save_to_disk(&self) -> Result<usize> {
+        // swap to get the terminated jobs and start a new set
+        // WARN: the terminated jobs are simply dropped on errors
+        // it is fine for now since we only use it as an optimization
+        let mut job_ids = HashSet::new();
+        std::mem::swap(
+            self.terminated_jobs.lock().unwrap().deref_mut(),
+            &mut job_ids,
+        );
 
         if job_ids.is_empty() {
             return Ok(0);
         }
 
-        let pool = PgPoolOptions::new()
-            .connect(&self.db_url)
-            .await
-            .context("Failed to connect to the DATABASE_URL")?;
+        let mut conn = PgConnection::establish(&self.db_url)
+            .context("failed to connect to the provided db url")?;
 
-        let result = sqlx::query(
-            r#"
-            INSERT INTO terminated_jobs (job_id)
-            SELECT * FROM UNNEST ($1::VARCHAR[])
-            ON CONFLICT (job_id) DO NOTHING
-        "#,
-        )
-        .bind(&job_ids)
-        .execute(&pool)
-        .await
-        .context("Failed to execute batch insert for terminated_jobs")?;
-
-        Ok(result.rows_affected())
+        diesel::insert_into(schema::terminated_jobs::table)
+            .values(
+                job_ids
+                    .into_iter()
+                    .map(|x| schema::terminated_jobs::job_id.eq(x as i64))
+                    .collect::<Vec<_>>(),
+            )
+            .on_conflict_do_nothing()
+            .execute(&mut conn)
+            .context("failed to insert terminated jobs")
     }
 
     pub async fn run_periodic_save(self, interval_secs: u64) {
