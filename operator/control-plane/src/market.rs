@@ -1077,8 +1077,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (301, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (301, Action::Close(301)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1125,8 +1127,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string(),31000000000000u64,31000u64,0)),
-            (301, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (301, Action::Close(301)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1173,56 +1177,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"debug\":true}".to_string(),31000000000000u64,31000u64,0)),
-            (301, Action::Close),
-        ];
-
-        let job_manager_params = JobManagerParams {
-            job_id: market::JobId {
-                id: job_id.clone(),
-                operator: "abc".into(),
-                contract: "xyz".into(),
-                chain: "123".into(),
-            },
-            allowed_regions: vec!["ap-south-1".to_owned()],
-            address_whitelist: vec![],
-            address_blacklist: vec![],
-        };
-
-        let test_results = TestResults {
-            res: JobResult::Done,
-            outcomes: vec![
-                TestAwsOutcome::SpinUp(test::SpinUpOutcome {
-                    time: start_time + Duration::from_secs(300),
-                    job: job_id.clone(),
-                    instance_type: "c6a.xlarge".into(),
-                    region: "ap-south-1".into(),
-                    bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
-                    init_params: [].into(),
-                    contract_address: "xyz".into(),
-                    chain_id: "123".into(),
-                    instance_id: compute_instance_id(0),
-                }),
-                TestAwsOutcome::SpinDown(test::SpinDownOutcome {
-                    time: start_time + Duration::from_secs(301),
-                    job: job_id,
-                    region: "ap-south-1".into(),
-                }),
-            ],
-        };
-
-        run_test(start_time, logs, job_manager_params, test_results).await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_instance_launch_after_delay_on_spin_up_with_specific_family() {
-        let start_time = Instant::now();
-        let job_id = 1;
-
-        let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (301, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (301, Action::Close(301)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1269,11 +1227,13 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (40, Action::Deposit(500)),
-            (60, Action::Withdraw(500)),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (40, Action::Deposit(40, 500)),
+            (60, Action::Withdraw(60, 500)),
             (100, Action::Settle(2, 6)),
-            (505, Action::Close),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1320,8 +1280,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-east-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-east-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1354,8 +1316,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"not_region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1388,8 +1352,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"not_instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1422,8 +1388,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.vsmall\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.vsmall\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1456,8 +1424,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"instance\":\"c6a.vsmall\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"not_url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1490,8 +1460,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),29000000000000u64,31000u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,29000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1524,8 +1496,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,0u64,0)),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 0)),
+            (0, Action::RateRevised(0,31000000)),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1560,9 +1534,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (350, Action::Withdraw(30000u64)),
-            (500, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (350, Action::Withdraw(350, 30000)),
+            (500, Action::Close(500)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1609,9 +1585,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (350, Action::RateRevised(29000000000000u64)),
-            (450, Action::RateRevised(31000000000000u64)),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (350, Action::RateRevised(350, 29000000)),
+            (450, Action::RateRevised(450, 31000000)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1658,8 +1636,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (500, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (500, Action::Close(500)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1709,8 +1689,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (500, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (500, Action::Close(500)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1729,7 +1711,7 @@ mod tests {
         // expected to not deploy
 
         let test_results = TestResults {
-            res: JobResult::Done,
+            res: JobResult::Failed,
             outcomes: vec![TestAwsOutcome::SpinDown(test::SpinDownOutcome {
                 time: start_time + Duration::from_secs(0),
                 job: job_id,
@@ -1746,8 +1728,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (500, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (500, Action::Close(500)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1766,7 +1750,7 @@ mod tests {
         // expected to not deploy
 
         let test_results = TestResults {
-            res: JobResult::Done,
+            res: JobResult::Failed,
             outcomes: vec![TestAwsOutcome::SpinDown(test::SpinDownOutcome {
                 time: start_time + Duration::from_secs(0),
                 job: job_id,
@@ -1783,8 +1767,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (500, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (500, Action::Close(500)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -1939,7 +1925,7 @@ mod tests {
 
     #[test]
     fn test_parse_compute_rates() {
-        let contents = "[{\"region\": \"ap-south-1\", \"rate_cards\": [{\"instance\": \"c6a.48xlarge\", \"min_rate\": \"2469600000000000\", \"cpu\": 192, \"memory\": 384, \"arch\": \"amd64\"}, {\"instance\": \"m7g.xlarge\", \"min_rate\": \"150000000\", \"cpu\": 4, \"memory\": 8, \"arch\": \"arm64\"}]}]";
+        let contents = "[{\"region\": \"ap-south-1\", \"rate_cards\": [{\"instance\": \"c6a.48xlarge\", \"min_rate\": 2469600000000000, \"cpu\": 192, \"memory\": 384, \"arch\": \"amd64\"}, {\"instance\": \"m7g.xlarge\", \"min_rate\": 150000000, \"cpu\": 4, \"memory\": 8, \"arch\": \"arm64\"}]}]";
         let rates: Vec<market::RegionalRates> = serde_json::from_str(contents).unwrap();
 
         assert_eq!(rates.len(), 1);
@@ -1969,7 +1955,7 @@ mod tests {
 
     #[test]
     fn test_parse_bandwidth_rates() {
-        let contents = "[{\"region\": \"Asia South (Mumbai)\", \"region_code\": \"ap-south-1\", \"rate\": \"8264900000000000\"}, {\"region\": \"US East (N.Virginia)\", \"region_code\": \"us-east-1\", \"rate\": \"10000\"}]";
+        let contents = "[{\"region\": \"Asia South (Mumbai)\", \"region_code\": \"ap-south-1\", \"rate\": 8264900000000000}, {\"region\": \"US East (N.Virginia)\", \"region_code\": \"us-east-1\", \"rate\": 10000}]";
         let rates: Vec<market::GBRateCard> = serde_json::from_str(contents).unwrap();
 
         assert_eq!(rates.len(), 2);
@@ -1997,9 +1983,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (100, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2046,9 +2034,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"debug\":true}".to_string(),31000000000000u64,31000u64,0)),
-            (100, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2095,10 +2085,12 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (100, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.large\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.large\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2131,9 +2123,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (100, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2180,9 +2174,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (100, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2229,9 +2225,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (400, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2290,10 +2288,12 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            // init params have also been updated in the metadata. should fail this job.
-            (400, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.large\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            // instance type has also been updated in the metadata. should fail this job.
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.large\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2340,9 +2340,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (400, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2,\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
@@ -2401,9 +2403,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string(),31000000000000u64,31000u64,0)),
-            (400, Action::MetadataUpdated("{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"memory\":4096,\"vcpu\":2}".to_string())),
-            (505, Action::Close),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Deposit(0, 31000)),
+            (0, Action::RateRevised(0,31000000)),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (505, Action::Close(505)),
         ];
 
         let job_manager_params = JobManagerParams {
