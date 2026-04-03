@@ -462,22 +462,20 @@ impl<'a> JobState<'a> {
 
         match event {
             JobEvent::Opened(event) => {
-                info!(
-                    timestamp = event.timestamp.to_string(),
-                    event.metadata, "OPENED",
-                );
+                info!(event.metadata, event.owner, event.provider, "OPENED");
 
                 // handle metadata
-                if let Err(err) = self.decode_metadata(event.metadata, false) {
-                    error!(id = event.job_id, ?err);
+                if let Err(err) = self
+                    .decode_metadata(event.metadata, false)
+                    .context("failed to decode metadata")
+                {
+                    error!(?err);
                     return JobResult::Failed;
                 }
 
+                // check if region is supported
                 if !self.allowed_regions.contains(&self.region) {
-                    error!(
-                        id = event.job_id,
-                        self.region, "Region not supported, exiting job"
-                    );
+                    error!(self.region, "Region not supported, exiting job");
                     return JobResult::Failed;
                 }
 
@@ -485,11 +483,13 @@ impl<'a> JobState<'a> {
                 let allowed =
                     whitelist_blacklist_check(event.owner, address_whitelist, address_blacklist);
                 if !allowed {
-                    error!(id = event.job_id, "failed whitelist/blacklist check");
+                    error!("failed whitelist/blacklist check");
                     // blacklisted or not whitelisted address
                     return JobResult::Failed;
                 }
 
+                // check if instance type is supported
+                // set min rate if so
                 let mut supported = false;
                 for entry in rates {
                     if entry.region == self.region {
@@ -505,10 +505,7 @@ impl<'a> JobState<'a> {
                 }
 
                 if !supported {
-                    error!(
-                        id = event.job_id,
-                        self.instance_type, "Instance type not supported",
-                    );
+                    error!(self.instance_type, "Instance type not supported");
                     return JobResult::Failed;
                 }
 
@@ -516,25 +513,19 @@ impl<'a> JobState<'a> {
             }
             JobEvent::Settled(event) => {
                 info!(
-                    id = event.job_id,
-                    amount = event.amount.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    event.amount,
+                    self.rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "SETTLED",
                 );
                 // update solvency metrics
                 self.balance -= event.amount;
-                self.last_settled = Duration::from_secs(if event.timestamp < 0 {
-                    0
-                } else {
-                    event.timestamp as u64
-                });
+                self.last_settled = Duration::from_secs(event.timestamp);
                 info!(
-                    id = event.job_id,
-                    amount = event.amount.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    event.amount,
+                    self.rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "SETTLED",
                 );
@@ -544,20 +535,18 @@ impl<'a> JobState<'a> {
             JobEvent::Closed(_) => JobResult::Done,
             JobEvent::Deposited(event) => {
                 info!(
-                    id = event.job_id,
-                    amount = event.amount.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    event.amount,
+                    self.rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "DEPOSITED",
                 );
                 // update solvency metrics
                 self.balance += event.amount;
                 info!(
-                    id = event.job_id,
-                    amount = event.amount.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    event.amount,
+                    self.rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "DEPOSITED",
                 );
@@ -566,20 +555,18 @@ impl<'a> JobState<'a> {
             }
             JobEvent::Withdrew(event) => {
                 info!(
-                    id = event.job_id,
-                    amount = event.amount.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    event.amount,
+                    self.rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "WITHDREW",
                 );
                 // update solvency metrics
                 self.balance -= event.amount;
                 info!(
-                    id = event.job_id,
-                    amount = event.amount.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    event.amount,
+                    self.rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "WITHDREW",
                 );
@@ -588,84 +575,30 @@ impl<'a> JobState<'a> {
             }
             JobEvent::RateRevised(event) => {
                 info!(
-                    id = event.job_id,
                     rate = self.rate,
-                    new_rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    new_rate = event.new_rate,
+                    balance = self.balance,
                     last_settled = self.last_settled.as_secs(),
-                    "JOB_REVISE_RATE_INITIATED",
+                    "RATE_REVISED",
                 );
-                self.original_rate = self.rate;
                 self.rate = event.new_rate;
                 if self.rate < self.min_rate {
-                    info!(
-                        id = event.job_id,
-                        "Revised job rate below min rate, shut down"
-                    );
+                    info!("Revised job rate below min rate, shut down");
                     return JobResult::Done;
                 }
                 info!(
-                    id = event.job_id,
-                    self.original_rate = self.original_rate.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
+                    rate = self.rate,
+                    balance = self.balance,
                     last_settled = self.last_settled.as_secs(),
-                    "JOB_REVISE_RATE_INITIATED",
-                );
-
-                JobResult::Success
-            }
-            JobEvent::ReviseRateCancelled(event) => {
-                info!(
-                    id = event.job_id,
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
-                    last_settled = self.last_settled.as_secs(),
-                    "JOB_REVISE_RATE_CANCELLED",
-                );
-                self.rate = self.original_rate;
-                info!(
-                    id = event.job_id,
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
-                    last_settled = self.last_settled.as_secs(),
-                    "JOB_REVISE_RATE_CANCELLED",
-                );
-
-                JobResult::Success
-            }
-            JobEvent::ReviseRateFinalized(event) => {
-                info!(
-                    id = event.job_id,
-                    self.original_rate = self.original_rate.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
-                    last_settled = self.last_settled.as_secs(),
-                    "JOB_REVISE_RATE_FINALIZED",
-                );
-                if self.rate != event.new_rate {
-                    error!(
-                        id = event.job_id,
-                        "Something went wrong, finalized rate not same as initiated rate"
-                    );
-                    return JobResult::Internal;
-                }
-                self.original_rate = event.new_rate;
-                info!(
-                    id = event.job_id,
-                    self.original_rate = self.original_rate.to_string(),
-                    rate = self.rate.to_string(),
-                    balance = self.balance.to_string(),
-                    last_settled = self.last_settled.as_secs(),
-                    "JOB_REVISE_RATE_FINALIZED",
+                    "RATE_REVISED",
                 );
 
                 JobResult::Success
             }
             JobEvent::MetadataUpdated(event) => {
-                info!(id = event.job_id, event.new_metadata, "METADATA_UPDATED");
+                info!(event.metadata, "METADATA_UPDATED");
 
-                if let Err(err) = self.decode_metadata(event.new_metadata, true) {
+                if let Err(err) = self.decode_metadata(event.metadata, true) {
                     error!(id = event.job_id, ?err);
                     return JobResult::Failed;
                 }
