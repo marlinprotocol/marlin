@@ -12,9 +12,9 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use coldsnap::{SnapshotUploader, SnapshotWaiter};
 use rand_core::OsRng;
 use regex::Regex;
+use ssh2::Session;
 use ssh_key::sha2::{Digest, Sha256};
 use ssh_key::{Algorithm, LineEnding, PrivateKey};
-use ssh2::Session;
 use tokio::time::{sleep, Duration};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
@@ -183,7 +183,7 @@ impl Aws {
             .is_empty())
     }
 
-     /* SSH UTILITY */
+    /* SSH UTILITY */
 
     pub async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
         let tcp = TcpStream::connect(ip_address)?;
@@ -258,7 +258,10 @@ impl Aws {
         let name_tag = Tag::builder().key("Name").value("JobRunner").build();
         let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
         let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder().key("jobId").value(&job.id).build();
+        let job_tag = Tag::builder()
+            .key("jobId")
+            .value(job.id.to_string())
+            .build();
         let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
         let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
         let contract_tag = Tag::builder()
@@ -358,10 +361,7 @@ impl Aws {
             .values("marlin-cvm")
             .build();
 
-        let type_filter = Filter::builder()
-            .name("tag:type")
-            .values("cvm")
-            .build();
+        let type_filter = Filter::builder().name("tag:type").values("cvm").build();
 
         Ok(self
             .client(region)
@@ -382,7 +382,10 @@ impl Aws {
     }
 
     async fn get_job_snapshot_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
+        let job_filter = Filter::builder()
+            .name("tag:jobId")
+            .values(job.id.to_string())
+            .build();
         let operator_filter = Filter::builder()
             .name("tag:operator")
             .values(&job.operator)
@@ -423,7 +426,10 @@ impl Aws {
     }
 
     async fn get_job_ami_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
+        let job_filter = Filter::builder()
+            .name("tag:jobId")
+            .values(job.id.to_string())
+            .build();
         let operator_filter = Filter::builder()
             .name("tag:operator")
             .values(&job.operator)
@@ -468,7 +474,10 @@ impl Aws {
         job: &JobId,
         region: &str,
     ) -> Result<(bool, String, String, String, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
+        let job_filter = Filter::builder()
+            .name("tag:jobId")
+            .values(job.id.to_string())
+            .build();
         let operator_filter = Filter::builder()
             .name("tag:operator")
             .values(&job.operator)
@@ -496,7 +505,13 @@ impl Aws {
         let reservations = res.reservations();
 
         if reservations.is_empty() {
-            Ok((false, "".to_owned(), "".to_owned(), "".to_owned(), "".to_owned()))
+            Ok((
+                false,
+                "".to_owned(),
+                "".to_owned(),
+                "".to_owned(),
+                "".to_owned(),
+            ))
         } else {
             let instance = reservations[0]
                 .instances()
@@ -525,7 +540,7 @@ impl Aws {
                 instance
                     .private_ip_address()
                     .ok_or(anyhow!("could not parse private ip"))?
-                    .to_string()
+                    .to_string(),
             ))
         }
     }
@@ -572,7 +587,10 @@ impl Aws {
 
         let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
         let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder().key("jobId").value(&job.id).build();
+        let job_tag = Tag::builder()
+            .key("jobId")
+            .value(job.id.to_string())
+            .build();
         let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
         let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
         let contract_tag = Tag::builder()
@@ -616,7 +634,10 @@ impl Aws {
         region: &str,
         with_association: bool,
     ) -> Result<(bool, String, String, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
+        let job_filter = Filter::builder()
+            .name("tag:jobId")
+            .values(job.id.to_string())
+            .build();
         let operator_filter = Filter::builder()
             .name("tag:operator")
             .values(&job.operator)
@@ -646,16 +667,11 @@ impl Aws {
                 .addresses()
                 .first()
             {
-                None => (
-                    false,
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                ),
+                None => (false, String::new(), String::new(), String::new()),
                 Some(addrs) => {
                     if with_association == false {
                         // load private ip, eni id from tags
-                        
+
                         (
                             true,
                             addrs
@@ -669,12 +685,7 @@ impl Aws {
                             String::new(),
                         )
                     } else if addrs.association_id().is_none() {
-                        (
-                            false,
-                            String::new(),
-                            String::new(),
-                            String::new(),
-                        )
+                        (false, String::new(), String::new(), String::new())
                     } else {
                         (
                             true,
@@ -692,7 +703,7 @@ impl Aws {
                                 .to_string(),
                         )
                     }
-                },
+                }
             },
         )
     }
@@ -703,7 +714,7 @@ impl Aws {
         alloc_id: &str,
         region: &str,
     ) -> Result<()> {
-         self.client(region)
+        self.client(region)
             .await
             .associate_address()
             .allocation_id(alloc_id)
@@ -760,9 +771,16 @@ impl Aws {
             } else if state == "stopping" || state == "stopped" {
                 // instance unhealthy, terminate
                 info!(instance, "Found existing unhealthy instance");
-                self.spin_down_instance(&instance, job, &private_ip, region, bandwidth, &rl_instance_id)
-                    .await
-                    .context("failed to terminate instance")?;
+                self.spin_down_instance(
+                    &instance,
+                    job,
+                    &private_ip,
+                    region,
+                    bandwidth,
+                    &rl_instance_id,
+                )
+                .await
+                .context("failed to terminate instance")?;
 
                 // set to false so new one can be provisioned
                 exist = false;
@@ -868,7 +886,7 @@ impl Aws {
                     .build();
                 let job_tag = aws_sdk_ebs::types::Tag::builder()
                     .key("jobId")
-                    .value(&job.id)
+                    .value(job.id.to_string())
                     .build();
                 let operator_tag = aws_sdk_ebs::types::Tag::builder()
                     .key("operator")
@@ -961,7 +979,12 @@ impl Aws {
                         .resource_type(ResourceType::Image)
                         .tags(Tag::builder().key("managedBy").value("marlin").build())
                         .tags(Tag::builder().key("project").value("marlin-cvm").build())
-                        .tags(Tag::builder().key("jobId").value(&job.id).build())
+                        .tags(
+                            Tag::builder()
+                                .key("jobId")
+                                .value(job.id.to_string())
+                                .build(),
+                        )
                         .tags(Tag::builder().key("operator").value(&job.operator).build())
                         .tags(
                             Tag::builder()
@@ -1053,7 +1076,9 @@ impl Aws {
             .context("could not launch instance")?;
         sleep(Duration::from_secs(100)).await;
 
-        let res = self.post_spin_up(job, &instance_id, &private_ip, region, bandwidth).await;
+        let res = self
+            .post_spin_up(job, &instance_id, &private_ip, region, bandwidth)
+            .await;
 
         if let Err(err) = res {
             error!(?err, "Error during post spin up");
@@ -1076,8 +1101,7 @@ impl Aws {
         // select and configure rate limiter
         // allocate Elastic IP
         // associate Elastic IP
-        self
-            .select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
+        self.select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
             .await
             .context("could not select rate limiter")?;
 
@@ -1089,8 +1113,8 @@ impl Aws {
         info!(ip, "Elastic Ip allocated");
 
         self.associate_address(instance_id, &alloc_id, region)
-        .await
-        .context("could not associate ip address")?;
+            .await
+            .context("could not associate ip address")?;
 
         Ok(())
     }
@@ -1118,10 +1142,14 @@ impl Aws {
         // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
         let add_rl_cmd = format!(
             "add_rl {} {} {} {}",
-            job.id, private_ip, bandwidth * 1000, instance_bandwidth_limit
+            job.id,
+            private_ip,
+            bandwidth * 1000,
+            instance_bandwidth_limit
         );
 
-        let (_, stderr) = Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
+        let (_, stderr) =
+            Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
 
         if !stderr.is_empty() {
             error!(stderr = ?stderr, "Error setting up Rate Limiter");
@@ -1129,10 +1157,13 @@ impl Aws {
         }
 
         Ok(())
-
     }
 
-    pub async fn get_instance_bandwidth_limit(&self, instance_type: InstanceType, region: &str) -> Result<u64> {
+    pub async fn get_instance_bandwidth_limit(
+        &self,
+        instance_type: InstanceType,
+        region: &str,
+    ) -> Result<u64> {
         let res = self
             .client(region)
             .await
@@ -1153,8 +1184,9 @@ impl Aws {
         }
         // bandwidth_limit is string like "Up to 12.5 Gigabit", "Up to 10 Gigabit", "10 Gigabit"
         // We need to parse this string and return bandwidth in bit/sec
-        let re = Regex::new(r"^(?i)(?:Up to\s+)?([\d\.]+)\s+Gigabit$")
-            .context(anyhow!("Failed to initialise bandwidth capturing regular expression"))?;
+        let re = Regex::new(r"^(?i)(?:Up to\s+)?([\d\.]+)\s+Gigabit$").context(anyhow!(
+            "Failed to initialise bandwidth capturing regular expression"
+        ))?;
         let captures = re
             .captures(bandwidth_limit_res)
             .ok_or(anyhow!("Could not parse bandwidth limit from string"))?;
@@ -1190,10 +1222,7 @@ impl Aws {
             .name("tag:project")
             .values("marlin-cvm")
             .build();
-        let rl_filter = Filter::builder()
-            .name("tag:type")
-            .values("limiter")
-            .build();
+        let rl_filter = Filter::builder().name("tag:type").values("limiter").build();
         let res = self
             .client(region)
             .await
@@ -1219,32 +1248,37 @@ impl Aws {
                     );
                     continue;
                 }
-                let instance_bandwidth_limit = self.get_instance_bandwidth_limit(
-                    instance.instance_type().ok_or(anyhow!("could not parse instance type"))?.clone(),
-                    region
-                ).await
-                .context("could not get instance bandwidth limit")?;
+                let instance_bandwidth_limit = self
+                    .get_instance_bandwidth_limit(
+                        instance
+                            .instance_type()
+                            .ok_or(anyhow!("could not parse instance type"))?
+                            .clone(),
+                        region,
+                    )
+                    .await
+                    .context("could not get instance bandwidth limit")?;
                 for eni in instance.network_interfaces() {
                     if let Some(eni_id) = eni.network_interface_id() {
                         if eni.mac_address().is_none() {
-                            debug!(
-                                "MAC address not found for ENI {}. Skipping ENI",
-                                eni_id
-                            );
+                            debug!("MAC address not found for ENI {}. Skipping ENI", eni_id);
                             continue;
                         };
-                        if self.configure_rate_limiter(
-                            job,
-                            private_ip,
-                            &rl_instance_id,
-                            bandwidth,
-                            instance_bandwidth_limit,
-                            region
-                        ).await.is_err() {
+                        if self
+                            .configure_rate_limiter(
+                                job,
+                                private_ip,
+                                &rl_instance_id,
+                                bandwidth,
+                                instance_bandwidth_limit,
+                                region,
+                            )
+                            .await
+                            .is_err()
+                        {
                             warn!(
                                 "Error configuring Rate Limit instance [{}], ENI [{}]",
-                                rl_instance_id,
-                                eni_id
+                                rl_instance_id, eni_id
                             );
                             continue;
                         }
@@ -1263,7 +1297,6 @@ impl Aws {
                         return Ok(());
                     }
                 }
-
             }
         }
         Err(anyhow!(
@@ -1283,14 +1316,22 @@ impl Aws {
             return Ok(());
         }
 
-
         // cleanup instance and related resources
         info!(instance, "Terminating existing instance");
-        self.spin_down_instance(&instance, job, &private_ip, region, bandwidth, &rl_instance_id)
-            .await
-            .context("failed to terminate instance")?;
+        self.spin_down_instance(
+            &instance,
+            job,
+            &private_ip,
+            region,
+            bandwidth,
+            &rl_instance_id,
+        )
+        .await
+        .context("failed to terminate instance")?;
 
-        self.deregister_ami(job, region).await.context("failed to deregister ami")?;
+        self.deregister_ami(job, region)
+            .await
+            .context("failed to deregister ami")?;
         self.delete_snapshot(job, region)
             .await
             .context("failed to delete snapshot")?;
@@ -1354,13 +1395,10 @@ impl Aws {
             .await
             .context("error establishing ssh connection")?;
 
-        let remove_rl_cmd = format!(
-            "remove_rl {} {} {}",
-            job.id, private_ip, bandwidth * 1000
-        );
+        let remove_rl_cmd = format!("remove_rl {} {} {}", job.id, private_ip, bandwidth * 1000);
 
-        let (_, stderr) = Self::ssh_exec(sess, &remove_rl_cmd)
-            .context("Failed to run remove_rl command")?;
+        let (_, stderr) =
+            Self::ssh_exec(sess, &remove_rl_cmd).context("Failed to run remove_rl command")?;
 
         if !stderr.is_empty() {
             error!(stderr = ?stderr, "Error removing Rate Limiter configuration");
@@ -1392,10 +1430,9 @@ impl Aws {
             self.disassociate_address(association_id.as_str(), region)
                 .await
                 .context("could not disassociate address")?;
-
         }
-        
-        let (exist, alloc_id, _,  _) = self
+
+        let (exist, alloc_id, _, _) = self
             .get_job_elastic_ip(job, region, false)
             .await
             .context("could not get elastic ip of job")?;
@@ -1427,8 +1464,6 @@ impl InfraProvider for Aws {
         job: &JobId,
         instance_type: &str,
         region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
         bandwidth: u64,
         image_url: &str,
         init_params: &[u8],
@@ -1437,8 +1472,8 @@ impl InfraProvider for Aws {
             job,
             instance_type,
             region,
-            req_mem,
-            req_vcpu,
+            0,
+            0,
             bandwidth,
             image_url,
             init_params,
@@ -1454,7 +1489,6 @@ impl InfraProvider for Aws {
     }
 
     async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
-
         let instance = self
             .get_job_instance_id(job, region)
             .await
@@ -1494,155 +1528,5 @@ impl InfraProvider for Aws {
         }
         // TODO: check wether state == pending is fine or not
         Ok(true)
-    }
-}
-
-// write a test module for AWS struct spin up function
-#[cfg(test)]
-mod tests {
-    use tracing_subscriber::EnvFilter;
-
-    use super::*;
-    use crate::market::InfraProvider;
-    use crate::market::JobId;
-
-    #[tokio::test]
-    async fn test_aws_spin_up_down() {
-        let mut filter = EnvFilter::new("info,aws_config=warn");
-        if let Ok(var) = std::env::var("RUST_LOG") {
-            filter = filter.add_directive(var.parse().unwrap());
-        }
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_env_filter(filter)
-            .init();
-
-        let mut aws = Aws::new(
-            "cp".to_string(),
-            &["ap-southeast-2".to_string()],
-            "rlgen".to_string(),
-            None,
-            None,
-        )
-        .await;
-        let job_id = uuid::Uuid::new_v4().to_string();
-        let job = JobId {
-            id: "test-job-".to_string() + &job_id,
-            operator: "test-operator".to_string(),
-            chain: "test-chain".to_string(),
-            contract: "test-contract".to_string(),
-        };
-        let region = "ap-southeast-2";
-        let instance_type = "t4g.micro";
-        let req_mem = 1024;
-        let req_vcpu = 2;
-        let bandwidth = 100;
-        let image_url = "https://example.com";
-        let init_params = b"test-init-params";
-
-        // Spin up
-        let spin_up_result = aws
-            .spin_up(
-                &job,
-                instance_type,
-                region,
-                req_mem,
-                req_vcpu,
-                bandwidth,
-                image_url,
-                init_params,
-            )
-            .await;
-        assert!(
-            spin_up_result.is_ok(),
-            "Spin up failed: {:?}",
-            spin_up_result.err()
-        );
-
-        // Check if running
-        // let is_running = aws
-        //     .check_enclave_running(&job, region)
-        //     .await
-        //     .expect("Failed to check if enclave is running");
-        // assert!(is_running, "Enclave should be running after spin up");
-
-        // Get job IP
-        let job_ip_result = aws.get_job_ip(&job, region).await;
-        assert!(
-            job_ip_result.is_ok(),
-            "Get job IP failed: {:?}",
-            job_ip_result.err()
-        );
-        let job_ip = job_ip_result.unwrap();
-        println!("Job IP: {}", job_ip);
-
-        print!("Sleeping for 30 seconds...");
-        sleep(Duration::from_secs(30)).await;
-
-        // Spin down
-        let spin_down_result = aws.spin_down(&job, region, bandwidth).await;
-        assert!(
-            spin_down_result.is_ok(),
-            "Spin down failed: {:?}",
-            spin_down_result.err()
-        );
-
-        // Check if not running
-        let is_running_after_down = aws
-            .check_enclave_running(&job, region)
-            .await
-            .expect("Failed to check if enclave is running after spin down");
-        assert!(
-            !is_running_after_down,
-            "Enclave should not be running after spin down"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_bandwidth_limit() {
-        let region = "ap-southeast-2";
-        let aws = Aws::new(
-            "cp".to_string(),
-            &["ap-southeast-2".to_string()],
-            "rlgen".to_string(),
-            None,
-            None,
-        )
-        .await;
-        let instance_type = InstanceType::C6aXlarge;
-        let bandwidth_limit_result = aws
-            .get_instance_bandwidth_limit(instance_type, region)
-            .await;
-        assert!(
-            bandwidth_limit_result.is_ok(),
-            "Get instance bandwidth limit failed: {:?}",
-            bandwidth_limit_result.err()
-        );
-        let bandwidth_limit = bandwidth_limit_result.unwrap();
-        println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
-
-        let instance_type = InstanceType::M6a12xlarge;
-        let bandwidth_limit_result = aws
-            .get_instance_bandwidth_limit(instance_type, region)
-            .await;
-        assert!(
-            bandwidth_limit_result.is_ok(),
-            "Get instance bandwidth limit failed: {:?}",
-            bandwidth_limit_result.err()
-        );
-        let bandwidth_limit = bandwidth_limit_result.unwrap();
-        println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
-
-        let instance_type = InstanceType::M5Xlarge;
-        let bandwidth_limit_result = aws
-            .get_instance_bandwidth_limit(instance_type, region)
-            .await;
-        assert!(
-            bandwidth_limit_result.is_ok(),
-            "Get instance bandwidth limit failed: {:?}",
-            bandwidth_limit_result.err()
-        );
-        let bandwidth_limit = bandwidth_limit_result.unwrap();
-        println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
     }
 }
