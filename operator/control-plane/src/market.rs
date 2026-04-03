@@ -576,9 +576,10 @@ impl<'a> JobState<'a> {
             }
             JobEvent::RateRevised(event) => {
                 info!(
-                    rate = self.rate,
-                    new_rate = event.new_rate,
-                    balance = self.balance,
+                    self.rate,
+                    self.bandwidth,
+                    event.new_rate,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "RATE_REVISED",
                 );
@@ -607,8 +608,9 @@ impl<'a> JobState<'a> {
                 self.schedule_launch(self.launch_delay);
 
                 info!(
-                    rate = self.rate,
-                    balance = self.balance,
+                    self.rate,
+                    self.bandwidth,
+                    self.balance,
                     last_settled = self.last_settled.as_secs(),
                     "RATE_REVISED",
                 );
