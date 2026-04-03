@@ -153,7 +153,7 @@ enum JobResult {
     Internal,
 }
 
-static EXTRA_DECIMALS: usize = 6;
+static EXTRA_DECIMALS: u32 = 6;
 
 pub async fn run(
     infra_provider: impl InfraProvider + Send + Sync + Clone + 'static,
@@ -526,8 +526,6 @@ struct JobState<'a> {
     eif_url: String, // [Update Note] TODO: Change name of eif
     instance_type: String,
     region: String,
-    req_vcpus: i32,
-    req_mem: i64,
     init_params: Box<[u8]>,
 
     // whether instance should exist or not
@@ -560,8 +558,6 @@ impl<'a> JobState<'a> {
             eif_url: String::new(),
             instance_type: "c6a.xlarge".to_string(),
             region: "ap-south-1".to_string(),
-            req_vcpus: 2,
-            req_mem: 4096,
             init_params: Box::new([0; 0]),
             infra_state: false,
             infra_change_time: Instant::now(),
@@ -575,11 +571,10 @@ impl<'a> JobState<'a> {
         if self.rate == 0 {
             Duration::from_secs(0)
         } else {
-            // solvent for balance / rate seconds from last_settled with 300s as margin
+            // solvent for balance / rate seconds from last_settled
             Duration::from_secs(
-                (self.balance * U256::from(10).pow(U256::from(EXTRA_DECIMALS)) / self.rate)
-                    .saturating_to::<u64>()
-                    .saturating_sub(300),
+                (self.balance as u128 * 10u128.pow(EXTRA_DECIMALS) / self.rate as u128)
+                    .clamp(0, u64::MAX as u128) as u64,
             )
             .saturating_sub(now_ts.saturating_sub(self.last_settled))
         }
@@ -648,8 +643,8 @@ impl<'a> JobState<'a> {
                     &self.job_id,
                     self.instance_type.as_str(),
                     &self.region,
-                    self.req_mem,
-                    self.req_vcpus,
+                    0,
+                    0,
                     self.bandwidth,
                     &self.eif_url,
                     &self.init_params,
@@ -698,25 +693,11 @@ impl<'a> JobState<'a> {
         match event {
             JobEvent::Opened(event) => {
                 info!(
-                    id = event.job_id,
-                    event.metadata,
-                    rate = event.rate.to_string(),
-                    balance = event.balance.to_string(),
                     timestamp = event.timestamp.to_string(),
-                    last_settled = self.last_settled.as_secs(),
-                    "OPENED",
+                    event.metadata, "OPENED",
                 );
 
-                // update solvency metrics
-                self.balance = event.balance;
-                self.rate = event.rate;
-                self.original_rate = event.rate;
-                self.last_settled = Duration::from_secs(if event.timestamp < 0 {
-                    0
-                } else {
-                    event.timestamp as u64
-                });
-
+                // handle metadata
                 if let Err(err) = self.decode_metadata(event.metadata, false) {
                     error!(id = event.job_id, ?err);
                     return JobResult::Failed;
@@ -734,8 +715,9 @@ impl<'a> JobState<'a> {
                 let allowed =
                     whitelist_blacklist_check(event.owner, address_whitelist, address_blacklist);
                 if !allowed {
+                    error!(id = event.job_id, "failed whitelist/blacklist check");
                     // blacklisted or not whitelisted address
-                    return JobResult::Done;
+                    return JobResult::Failed;
                 }
 
                 let mut supported = false;
@@ -760,32 +742,7 @@ impl<'a> JobState<'a> {
                     return JobResult::Failed;
                 }
 
-                info!(
-                    id = event.job_id,
-                    self.instance_type,
-                    rate = self.min_rate.to_string(),
-                    "MIN RATE",
-                );
-
-                // launch only if rate is more than min
-                if self.rate >= self.min_rate {
-                    for entry in gb_rates {
-                        if entry.region_code == self.region {
-                            let gb_cost = entry.rate;
-                            let bandwidth_rate = self.rate - self.min_rate;
-
-                            self.bandwidth = (bandwidth_rate
-                                .saturating_mul(U256::from(1024 * 1024 * 8))
-                                / gb_cost)
-                                .saturating_to::<u64>();
-                            break;
-                        }
-                    }
-                    self.schedule_launch(self.launch_delay);
-                    JobResult::Success
-                } else {
-                    JobResult::Done
-                }
+                JobResult::Success
             }
             JobEvent::Settled(event) => {
                 info!(
@@ -859,11 +816,11 @@ impl<'a> JobState<'a> {
 
                 JobResult::Success
             }
-            JobEvent::ReviseRateInitiated(event) => {
+            JobEvent::RateRevised(event) => {
                 info!(
                     id = event.job_id,
-                    self.original_rate = self.original_rate.to_string(),
-                    rate = self.rate.to_string(),
+                    rate = self.rate,
+                    new_rate = self.rate.to_string(),
                     balance = self.balance.to_string(),
                     last_settled = self.last_settled.as_secs(),
                     "JOB_REVISE_RATE_INITIATED",
@@ -975,26 +932,6 @@ impl<'a> JobState<'a> {
         } else {
             self.region = region.to_string();
             info!(self.region, "Job region set");
-        }
-
-        let Some(memory) = metadata_json["memory"].as_i64() else {
-            return Err(anyhow!("Memory not set"));
-        };
-        if update && self.req_mem != memory {
-            return Err(anyhow!("Memory change not allowed"));
-        } else {
-            self.req_mem = memory;
-            info!(self.req_mem, "Required memory");
-        }
-
-        let Some(vcpu) = metadata_json["vcpu"].as_i64() else {
-            return Err(anyhow!("vcpu not set"));
-        };
-        if update && self.req_vcpus != vcpu.try_into().unwrap_or(2) {
-            return Err(anyhow!("vcpu change not allowed"));
-        } else {
-            self.req_vcpus = vcpu.try_into().unwrap_or(i32::MAX);
-            info!(self.req_vcpus, "Required vcpu");
         }
 
         let Some(url) = metadata_json["url"].as_str() else {
