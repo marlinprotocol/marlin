@@ -109,7 +109,7 @@ pub async fn main_task(
 
                 // spawn job task with channel receiver
                 tokio::spawn(
-                    job_manager(
+                    job_task(
                         RealSystemContext {},
                         rx,
                         infra_provider.clone(),
@@ -142,6 +142,7 @@ pub async fn main_task(
                 if let Err(err) = sender.send(event).await {
                     // might happen if job exits after we retrieved the channel
                     // just ignore for now
+                    // log so we know frequency
                     error!(?err, "Channel sender error");
                 }
             }
@@ -149,6 +150,133 @@ pub async fn main_task(
             last_processed_id = event_id;
         }
     }
+}
+
+// Job task
+// Exit only when done or on unrecoverable errors
+// Read events from channel and process
+async fn job_task(
+    context: impl SystemContext + Send + Sync,
+    mut events_stream: mpsc::Receiver<JobEventRecord>,
+    mut infra_provider: impl InfraProvider + Send + Sync,
+    job_id: JobId,
+    allowed_regions: &[String],
+    aws_delay_duration: u64,
+    rates: &[RegionalRates],
+    gb_rates: &[GBRateCard],
+    address_whitelist: &[String],
+    address_blacklist: &[String],
+    job_registry: JobRegistry,
+) -> JobResult {
+    let mut state = JobState::new(
+        &context,
+        job_id.clone(),
+        aws_delay_duration,
+        allowed_regions,
+    );
+
+    // usually tracks the result of the last log processed
+    let mut job_result = JobResult::Success;
+
+    let mut cur_id: i64 = -1;
+
+    // The processing loop follows this:
+    // Keep processing events till you hit an unsuccessful processing
+    // If result is Retry or Internal, these are likely RPC issues and bugs
+    // Hence just break out, the parent function handles retrying
+    // If result is Done, the job is naturally "done", schedule termination
+    // If result is Failed, the job ran into a user error, schedule termination
+    // If job is insolvent, schedule termination
+    // Once job is successfully terminated, break out
+    // Insolvency and heartbeats only matter when job is not already scheduled for termination
+    'event: loop {
+        // compute time to insolvency
+        let insolvency_duration = state.insolvency_duration();
+        info!(duration = insolvency_duration.as_secs(), "Insolvency after");
+
+        let aws_delay_timeout = state
+            .infra_change_time
+            .saturating_duration_since(Instant::now());
+
+        // NOTE: some stuff like cargo fmt does not work inside this macro
+        // extract as much stuff as possible outside it
+        tokio::select! {
+            // order matters
+            // first process all logs because they might end up closing the job
+            // then process insolvency because it might end up closing the job
+            // then infra changes
+            // then heartbeat
+            // this ensures that any log which results in a job getting closed or insolvent
+            // is given priority and the job is terminated even if other infra changes are
+            // scheduled
+            biased;
+
+            // keep processing logs till the processing is successful
+            log = events_stream.recv(), if job_result == JobResult::Success => {
+                job_result = match log {
+                    Some(log) => {
+                        if log.id <= cur_id {
+                            return JobResult::Success;
+                        }
+
+                        cur_id = log.id;
+
+                        match parse_event(log.event_name, log.event_data) {
+                            Ok(event) => state.process_event(event, rates, gb_rates, address_whitelist, address_blacklist),
+                            Err(result) => result
+                        }
+                    }
+                    None => JobResult::Internal,
+                };
+
+                match job_result {
+                    // just proceed
+                    JobResult::Success => {},
+                    // terminate
+                    JobResult::Done => {
+                        state.schedule_termination(0);
+                    },
+                    // terminate
+                    JobResult::Failed => {
+                        state.schedule_termination(0);
+                    },
+                    // break
+                    JobResult::Internal => break 'event,
+                };
+            }
+
+            // insolvency check
+            // enable when processing is successful
+            () = sleep(insolvency_duration), if job_result == JobResult::Success => {
+                state.handle_insolvency();
+                job_result = JobResult::Done;
+            }
+
+            // aws delayed spin up check
+            // should only happen if scheduled
+            () = sleep(aws_delay_timeout), if state.infra_change_scheduled => {
+                let res = state.change_infra(&mut infra_provider).await;
+                if res && !state.infra_state {
+                    // successful termination, exit
+                    break 'event;
+                }
+            }
+
+            // running instance heartbeat check
+            // should only happen if infra change is not scheduled
+            () = sleep(Duration::from_secs(5)), if !state.infra_change_scheduled => {
+                state.heartbeat_check(&mut infra_provider).await;
+            }
+        }
+    }
+
+    if job_result == JobResult::Done || job_result == JobResult::Failed {
+        job_registry.add_terminated_job(job_id.id.clone());
+    }
+
+    job_registry.remove_active_job(job_id.id);
+
+    job_result
 }
 
 // Identify jobs not only by the id, but also by the operator, contract and the chain
@@ -279,131 +407,6 @@ async fn fetch_job_events(
         .limit(1000)
         .load::<JobEventRecord>(conn)
         .context("failed to load events")
-}
-
-// manage the complete lifecycle of a job
-async fn job_manager(
-    context: impl SystemContext + Send + Sync,
-    mut events_stream: mpsc::Receiver<JobEventRecord>,
-    mut infra_provider: impl InfraProvider + Send + Sync,
-    job_id: JobId,
-    allowed_regions: &[String],
-    aws_delay_duration: u64,
-    rates: &[RegionalRates],
-    gb_rates: &[GBRateCard],
-    address_whitelist: &[String],
-    address_blacklist: &[String],
-    job_registry: JobRegistry,
-) -> JobResult {
-    let mut state = JobState::new(
-        &context,
-        job_id.clone(),
-        aws_delay_duration,
-        allowed_regions,
-    );
-
-    // usually tracks the result of the last log processed
-    let mut job_result = JobResult::Success;
-
-    let mut cur_id: i64 = -1;
-
-    // The processing loop follows this:
-    // Keep processing events till you hit an unsuccessful processing
-    // If result is Retry or Internal, these are likely RPC issues and bugs
-    // Hence just break out, the parent function handles retrying
-    // If result is Done, the job is naturally "done", schedule termination
-    // If result is Failed, the job ran into a user error, schedule termination
-    // If job is insolvent, schedule termination
-    // Once job is successfully terminated, break out
-    // Insolvency and heartbeats only matter when job is not already scheduled for termination
-    'event: loop {
-        // compute time to insolvency
-        let insolvency_duration = state.insolvency_duration();
-        info!(duration = insolvency_duration.as_secs(), "Insolvency after");
-
-        let aws_delay_timeout = state
-            .infra_change_time
-            .saturating_duration_since(Instant::now());
-
-        // NOTE: some stuff like cargo fmt does not work inside this macro
-        // extract as much stuff as possible outside it
-        tokio::select! {
-            // order matters
-            // first process all logs because they might end up closing the job
-            // then process insolvency because it might end up closing the job
-            // then infra changes
-            // then heartbeat
-            // this ensures that any log which results in a job getting closed or insolvent
-            // is given priority and the job is terminated even if other infra changes are
-            // scheduled
-            biased;
-
-            // keep processing logs till the processing is successful
-            log = events_stream.recv(), if job_result == JobResult::Success => {
-                job_result = match log {
-                    Some(log) => {
-                        if log.id <= cur_id {
-                            return JobResult::Success;
-                        }
-
-                        cur_id = log.id;
-
-                        match parse_event(log.event_name, log.event_data) {
-                            Ok(event) => state.process_event(event, rates, gb_rates, address_whitelist, address_blacklist),
-                            Err(result) => result
-                        }
-                    }
-                    None => JobResult::Internal,
-                };
-
-                match job_result {
-                    // just proceed
-                    JobResult::Success => {},
-                    // terminate
-                    JobResult::Done => {
-                        state.schedule_termination(0);
-                    },
-                    // terminate
-                    JobResult::Failed => {
-                        state.schedule_termination(0);
-                    },
-                    // break
-                    JobResult::Internal => break 'event,
-                };
-            }
-
-            // insolvency check
-            // enable when processing is successful
-            () = sleep(insolvency_duration), if job_result == JobResult::Success => {
-                state.handle_insolvency();
-                job_result = JobResult::Done;
-            }
-
-            // aws delayed spin up check
-            // should only happen if scheduled
-            () = sleep(aws_delay_timeout), if state.infra_change_scheduled => {
-                let res = state.change_infra(&mut infra_provider).await;
-                if res && !state.infra_state {
-                    // successful termination, exit
-                    break 'event;
-                }
-            }
-
-            // running instance heartbeat check
-            // should only happen if infra change is not scheduled
-            () = sleep(Duration::from_secs(5)), if !state.infra_change_scheduled => {
-                state.heartbeat_check(&mut infra_provider).await;
-            }
-        }
-    }
-
-    if job_result == JobResult::Done || job_result == JobResult::Failed {
-        job_registry.add_terminated_job(job_id.id.clone());
-    }
-
-    job_registry.remove_active_job(job_id.id);
-
-    job_result
 }
 
 fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, JobResult> {
@@ -1117,7 +1120,7 @@ mod tests {
             }
         });
 
-        let res = market::job_manager(
+        let res = market::job_task(
             context,
             rx,
             &mut aws,
