@@ -202,8 +202,6 @@ async fn run() -> Result<()> {
     )
     .instrument(info_span!("main"))
     .await;
-
-    Ok(())
 }
 
 async fn parse_file(filepath: String) -> Result<Vec<String>> {

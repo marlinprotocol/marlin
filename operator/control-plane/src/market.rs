@@ -44,7 +44,7 @@ pub async fn main_task(
     // without job_id.id set
     job_id: JobId,
     job_registry: JobRegistry,
-) {
+) -> ! {
     let mut last_processed_id = -1i64;
     // Start from 1s, multiply by 2 each time, max of 64s
     let backoff_policy = ExponentialBackoff::from_millis(2)
