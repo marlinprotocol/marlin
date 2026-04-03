@@ -191,7 +191,7 @@ async fn run() -> Result<()> {
         .instrument(info_span!("server")),
     );
 
-    market::run(
+    market::main_task(
         aws,
         cli.db_url,
         regions,

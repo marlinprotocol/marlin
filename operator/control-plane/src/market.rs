@@ -143,7 +143,7 @@ enum JobResult {
 
 static EXTRA_DECIMALS: u32 = 6;
 
-pub async fn run(
+pub async fn main_task(
     infra_provider: impl InfraProvider + Send + Sync + Clone + 'static,
     db_url: String,
     regions: &'static [String],
