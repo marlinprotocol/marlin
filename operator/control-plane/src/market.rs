@@ -19,8 +19,12 @@ use tracing::{error, info, info_span, Instrument};
 // IMPORTANT: do not import SystemTime, use a SystemContext
 
 // Basic architecture:
-// One future listening to new jobs
-// Each job has its own future managing its lifetime
+// One task listening to job events in the db
+// One task per job managing its lifetime
+// One channel per job task to forward events from the main task to the job task
+// A registry of active jobs with corresponding channels
+// The main task starts from scratch, processes all events and never exits
+// The job tasks exit only when done or on unrecoverable errors
 
 // Identify jobs not only by the id, but also by the operator, contract and the chain
 // This is needed to cleanly support multiple operators/contracts/chains at the infra level
