@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Context, Result};
@@ -581,11 +582,30 @@ impl<'a> JobState<'a> {
                     last_settled = self.last_settled.as_secs(),
                     "RATE_REVISED",
                 );
+
                 self.rate = event.new_rate;
                 if self.rate < self.min_rate {
                     info!("Revised job rate below min rate, shut down");
                     return JobResult::Done;
                 }
+
+                // compute bandwidth
+                for entry in gb_rates {
+                    if entry.region_code == self.region {
+                        let gb_cost = entry.rate;
+                        let bandwidth_rate = self.rate - self.min_rate;
+
+                        self.bandwidth = ((bandwidth_rate as u128).saturating_mul(1024 * 1024 * 8)
+                            / gb_cost as u128)
+                            .clamp(0, u64::MAX as u128)
+                            as u64;
+                        break;
+                    }
+                }
+
+                // schedule launch
+                self.schedule_launch(self.launch_delay);
+
                 info!(
                     rate = self.rate,
                     balance = self.balance,
