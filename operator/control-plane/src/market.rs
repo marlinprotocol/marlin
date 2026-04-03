@@ -1059,6 +1059,7 @@ mod tests {
 
     use alloy_primitives::hex::FromHex;
     use alloy_primitives::{B256, U256};
+    use indexer_framework::models::JobEventRecord;
     use tokio::sync::mpsc;
     use tokio::time::{sleep, Duration, Instant};
 
@@ -1111,13 +1112,13 @@ mod tests {
         let context = TestSystemContext { start: start_time };
 
         let job_num = B256::from_hex(&job_manager_params.job_id.id).unwrap();
-        let job_logs: Vec<(u64, JobEvent)> = logs
+        let job_logs: Vec<(u64, JobEventRecord)> = logs
             .into_iter()
             .enumerate()
             .map(|x| (x.1 .0, test::get_event(x.1 .1, x.0 as i64, job_num)))
             .collect();
 
-        let (tx, rx) = mpsc::channel::<JobEvent>(10);
+        let (tx, rx) = mpsc::channel::<JobEventRecord>(10);
         let mut aws: TestAws = Default::default();
         let job_registry = market::JobRegistry::new_test();
 
