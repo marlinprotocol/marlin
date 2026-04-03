@@ -277,208 +277,6 @@ async fn job_task(
     job_result
 }
 
-// Identify jobs not only by the id, but also by the operator, contract and the chain
-// This is needed to cleanly support multiple operators/contracts/chains at the infra level
-#[derive(Clone)]
-pub struct JobId {
-    pub id: u64,
-    pub operator: String,
-    pub contract: String,
-    pub chain: String,
-}
-
-pub trait InfraProvider {
-    fn spin_up(
-        &mut self,
-        job: &JobId,
-        instance_type: &str,
-        region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
-        bandwidth: u64,
-        image_url: &str,
-        init_params: &[u8],
-    ) -> impl Future<Output = Result<()>> + Send;
-
-    fn spin_down(
-        &mut self,
-        job: &JobId,
-        region: &str,
-        bandwidth: u64,
-    ) -> impl Future<Output = Result<()>> + Send;
-
-    fn get_job_ip(&self, job: &JobId, region: &str) -> impl Future<Output = Result<String>> + Send;
-
-    fn check_enclave_running(
-        &mut self,
-        job: &JobId,
-        region: &str,
-    ) -> impl Future<Output = Result<bool>> + Send;
-}
-
-impl<T> InfraProvider for &mut T
-where
-    T: InfraProvider + Send + Sync,
-{
-    async fn spin_up(
-        &mut self,
-        job: &JobId,
-        instance_type: &str,
-        region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
-        bandwidth: u64,
-        image_url: &str,
-        init_params: &[u8],
-    ) -> Result<()> {
-        (**self)
-            .spin_up(
-                job,
-                instance_type,
-                region,
-                req_mem,
-                req_vcpu,
-                bandwidth,
-                image_url,
-                init_params,
-            )
-            .await
-    }
-
-    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
-        (**self).spin_down(job, region, bandwidth).await
-    }
-
-    async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
-        (**self).get_job_ip(job, region).await
-    }
-
-    async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        (**self).check_enclave_running(job, region).await
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct RateCard {
-    pub instance: String,
-    pub min_rate: u64,
-    pub cpu: u32,
-    pub memory: u32,
-    pub arch: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct RegionalRates {
-    pub region: String,
-    pub rate_cards: Vec<RateCard>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct GBRateCard {
-    pub region: String,
-    pub region_code: String,
-    pub rate: u64,
-}
-
-#[derive(PartialEq, Debug)]
-enum JobResult {
-    // success
-    Success,
-    // done, should still terminate instance, if any
-    Done,
-    // error, should terminate instance, if any
-    Failed,
-    // error, likely internal bug, exit but do not terminate instance
-    Internal,
-}
-
-static EXTRA_DECIMALS: u32 = 6;
-
-async fn fetch_job_events(
-    conn: &mut PgConnection,
-    last_processed_id: i64,
-) -> Result<Vec<JobEventRecord>> {
-    schema::job_events::table
-        .select(schema::job_events::all_columns)
-        .filter(schema::job_events::id.gt(last_processed_id))
-        .order_by(schema::job_events::id.asc())
-        .limit(1000)
-        .load::<JobEventRecord>(conn)
-        .context("failed to load events")
-}
-
-fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, JobResult> {
-    match event_name {
-        JobEventName::Opened => Ok(JobEvent::Opened(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(|err| error!(?err, data = ?event_data, "OPENED: Decode failure"))
-                .map_err(|_| JobResult::Internal)?,
-        )),
-        JobEventName::Closed => Ok(JobEvent::Closed(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(|err| error!(?err, data = ?event_data, "CLOSED: Decode failure"))
-                .map_err(|_| JobResult::Internal)?,
-        )),
-        JobEventName::Deposited => Ok(JobEvent::Deposited(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(|err| error!(?err, data = ?event_data, "DEPOSITED: Decode failure"))
-                .map_err(|_| JobResult::Internal)?,
-        )),
-        JobEventName::Settled => Ok(JobEvent::Settled(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(|err| error!(?err, data = ?event_data, "SETTLED: Decode failure"))
-                .map_err(|_| JobResult::Internal)?,
-        )),
-        JobEventName::MetadataUpdated => Ok(JobEvent::MetadataUpdated(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(
-                    |err| error!(?err, data = ?event_data, "METADATA_UPDATED: Decode failure"),
-                )
-                .map_err(|_| JobResult::Internal)?,
-        )),
-        JobEventName::Withdrew => Ok(JobEvent::Withdrew(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(|err| error!(?err, data = ?event_data, "WITHDREW: Decode failure"))
-                .map_err(|_| JobResult::Internal)?,
-        )),
-        JobEventName::RateRevised => Ok(JobEvent::RateRevised(
-            serde_json::from_value(event_data.clone())
-                .inspect_err(|err| error!(?err, data = ?event_data, "RATE_REVISED: Decode failure"))
-                .map_err(|_| JobResult::Internal)?,
-        )),
-    }
-}
-
-fn whitelist_blacklist_check(
-    owner: String,
-    address_whitelist: &[String],
-    address_blacklist: &[String],
-) -> bool {
-    // check whitelist
-    if !address_whitelist.is_empty() {
-        info!("Checking address whitelist...");
-        if address_whitelist.iter().any(|s| s == &owner) {
-            info!("ADDRESS ALLOWED!");
-        } else {
-            info!("ADDRESS NOT ALLOWED!");
-            return false;
-        }
-    }
-
-    // check blacklist
-    if !address_blacklist.is_empty() {
-        info!("Checking address blacklist...");
-        if address_blacklist.iter().any(|s| s == &owner) {
-            info!("ADDRESS NOT ALLOWED!");
-            return false;
-        } else {
-            info!("ADDRESS ALLOWED!");
-        }
-    }
-
-    true
-}
-
 struct JobState<'a> {
     // NOTE: not sure if dyn is a good idea, revisit later
     context: &'a (dyn SystemContext + Send + Sync),
@@ -493,7 +291,7 @@ struct JobState<'a> {
     min_rate: u64,
     bandwidth: u64,
 
-    eif_url: String, // [Update Note] TODO: Change name of eif
+    eif_url: String,
     instance_type: String,
     region: String,
     init_params: Box<[u8]>,
@@ -505,6 +303,8 @@ struct JobState<'a> {
     // whether to schedule change
     infra_change_scheduled: bool,
 }
+
+static EXTRA_DECIMALS: u32 = 6;
 
 impl<'a> JobState<'a> {
     fn new(
@@ -1015,6 +815,206 @@ impl JobRegistry {
                 }
             }
         }
+    }
+}
+
+async fn fetch_job_events(
+    conn: &mut PgConnection,
+    last_processed_id: i64,
+) -> Result<Vec<JobEventRecord>> {
+    schema::job_events::table
+        .select(schema::job_events::all_columns)
+        .filter(schema::job_events::id.gt(last_processed_id))
+        .order_by(schema::job_events::id.asc())
+        .limit(1000)
+        .load::<JobEventRecord>(conn)
+        .context("failed to load events")
+}
+
+fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, JobResult> {
+    match event_name {
+        JobEventName::Opened => Ok(JobEvent::Opened(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "OPENED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Closed => Ok(JobEvent::Closed(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "CLOSED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Deposited => Ok(JobEvent::Deposited(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "DEPOSITED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Settled => Ok(JobEvent::Settled(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "SETTLED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::MetadataUpdated => Ok(JobEvent::MetadataUpdated(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(
+                    |err| error!(?err, data = ?event_data, "METADATA_UPDATED: Decode failure"),
+                )
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::Withdrew => Ok(JobEvent::Withdrew(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "WITHDREW: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+        JobEventName::RateRevised => Ok(JobEvent::RateRevised(
+            serde_json::from_value(event_data.clone())
+                .inspect_err(|err| error!(?err, data = ?event_data, "RATE_REVISED: Decode failure"))
+                .map_err(|_| JobResult::Internal)?,
+        )),
+    }
+}
+
+fn whitelist_blacklist_check(
+    owner: String,
+    address_whitelist: &[String],
+    address_blacklist: &[String],
+) -> bool {
+    // check whitelist
+    if !address_whitelist.is_empty() {
+        info!("Checking address whitelist...");
+        if address_whitelist.iter().any(|s| s == &owner) {
+            info!("ADDRESS ALLOWED!");
+        } else {
+            info!("ADDRESS NOT ALLOWED!");
+            return false;
+        }
+    }
+
+    // check blacklist
+    if !address_blacklist.is_empty() {
+        info!("Checking address blacklist...");
+        if address_blacklist.iter().any(|s| s == &owner) {
+            info!("ADDRESS NOT ALLOWED!");
+            return false;
+        } else {
+            info!("ADDRESS ALLOWED!");
+        }
+    }
+
+    true
+}
+
+#[derive(PartialEq, Debug)]
+enum JobResult {
+    // success
+    Success,
+    // done, should still terminate instance, if any
+    Done,
+    // error, should terminate instance, if any
+    Failed,
+    // error, likely internal bug, exit but do not terminate instance
+    Internal,
+}
+
+// Identify jobs not only by the id, but also by the operator, contract and the chain
+// This is needed to cleanly support multiple operators/contracts/chains at the infra level
+#[derive(Clone)]
+pub struct JobId {
+    pub id: u64,
+    pub operator: String,
+    pub contract: String,
+    pub chain: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RegionalRates {
+    pub region: String,
+    pub rate_cards: Vec<RateCard>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RateCard {
+    pub instance: String,
+    pub min_rate: u64,
+    pub cpu: u32,
+    pub memory: u32,
+    pub arch: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct GBRateCard {
+    pub region: String,
+    pub region_code: String,
+    pub rate: u64,
+}
+
+pub trait InfraProvider {
+    fn spin_up(
+        &mut self,
+        job: &JobId,
+        instance_type: &str,
+        region: &str,
+        req_mem: i64,
+        req_vcpu: i32,
+        bandwidth: u64,
+        image_url: &str,
+        init_params: &[u8],
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn spin_down(
+        &mut self,
+        job: &JobId,
+        region: &str,
+        bandwidth: u64,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn get_job_ip(&self, job: &JobId, region: &str) -> impl Future<Output = Result<String>> + Send;
+
+    fn check_enclave_running(
+        &mut self,
+        job: &JobId,
+        region: &str,
+    ) -> impl Future<Output = Result<bool>> + Send;
+}
+
+impl<T> InfraProvider for &mut T
+where
+    T: InfraProvider + Send + Sync,
+{
+    async fn spin_up(
+        &mut self,
+        job: &JobId,
+        instance_type: &str,
+        region: &str,
+        req_mem: i64,
+        req_vcpu: i32,
+        bandwidth: u64,
+        image_url: &str,
+        init_params: &[u8],
+    ) -> Result<()> {
+        (**self)
+            .spin_up(
+                job,
+                instance_type,
+                region,
+                req_mem,
+                req_vcpu,
+                bandwidth,
+                image_url,
+                init_params,
+            )
+            .await
+    }
+
+    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
+        (**self).spin_down(job, region, bandwidth).await
+    }
+
+    async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
+        (**self).get_job_ip(job, region).await
+    }
+
+    async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
+        (**self).check_enclave_running(job, region).await
     }
 }
 
