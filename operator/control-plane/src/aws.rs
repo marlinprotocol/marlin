@@ -42,29 +42,21 @@ impl Aws {
         whitelist: Option<&'static [String]>,
         blacklist: Option<&'static [String]>,
     ) -> Aws {
-        let key_location = "/home/".to_owned() + &username() + "/.ssh/" + &key_name + ".pem";
-        let pub_key_location = "/home/".to_owned() + &username() + "/.ssh/" + &key_name + ".pub";
-
         let mut clients = HashMap::<String, aws_sdk_ec2::Client>::new();
         let mut ebs_clients = HashMap::<String, aws_sdk_ebs::Client>::new();
         for region in regions {
-            clients.insert(region.clone(), {
-                let config = aws_config::from_env()
-                    .profile_name(&aws_profile)
-                    .region(Region::new(region.clone()))
-                    .load()
-                    .await;
-                aws_sdk_ec2::Client::new(&config)
-            });
-            ebs_clients.insert(region.clone(), {
-                let config = aws_config::from_env()
-                    .profile_name(&aws_profile)
-                    .region(Region::new(region.clone()))
-                    .load()
-                    .await;
-                aws_sdk_ebs::Client::new(&config)
-            });
+            let config = aws_config::from_env()
+                .profile_name(&aws_profile)
+                .region(Region::new(region.clone()))
+                .load()
+                .await;
+            clients.insert(region.clone(), aws_sdk_ec2::Client::new(&config));
+            ebs_clients.insert(region.clone(), aws_sdk_ebs::Client::new(&config));
         }
+
+        let username = username();
+        let key_location = format!("/home/{username}/.ssh/{key_name}.pem");
+        let pub_key_location = format!("/home/{username}/.ssh/{key_name}.pub");
 
         Aws {
             clients,
