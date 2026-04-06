@@ -973,42 +973,44 @@ impl Aws {
 
     async fn configure_rate_limiter(
         &self,
-        job: &JobId,
-        private_ip: &str,
-        rl_instance_id: &str,
-        bandwidth: u64, // in kbit/sec
-        instance_bandwidth_limit: u64,
-        region: &str,
+        _job: &JobId,
+        _private_ip: &str,
+        _rl_instance_id: &str,
+        _bandwidth: u64, // in kbit/sec
+        _instance_bandwidth_limit: u64,
+        _region: &str,
     ) -> Result<()> {
-        // SSH into Rate Limiter instance and configure tc
-        let rl_ip = self
-            .get_instance_ip(rl_instance_id, region)
-            .await
-            .context("could not get rate limiter instance ip")?;
+        todo!("configure with http calls");
 
-        let sess = &self
-            .ssh_connect(&(rl_ip + ":22"))
-            .await
-            .context("error establishing ssh connection")?;
-
-        // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
-        let add_rl_cmd = format!(
-            "add_rl {} {} {} {}",
-            job.id,
-            private_ip,
-            bandwidth * 1000,
-            instance_bandwidth_limit
-        );
-
-        let (_, stderr) =
-            Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
-
-        if !stderr.is_empty() {
-            error!(stderr = ?stderr, "Error setting up Rate Limiter");
-            return Err(anyhow!(stderr)).context("Error setting up Rate Limiter");
-        }
-
-        Ok(())
+        // // SSH into Rate Limiter instance and configure tc
+        // let rl_ip = self
+        //     .get_instance_ip(rl_instance_id, region)
+        //     .await
+        //     .context("could not get rate limiter instance ip")?;
+        //
+        // let sess = &self
+        //     .ssh_connect(&(rl_ip + ":22"))
+        //     .await
+        //     .context("error establishing ssh connection")?;
+        //
+        // // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
+        // let add_rl_cmd = format!(
+        //     "add_rl {} {} {} {}",
+        //     job.id,
+        //     private_ip,
+        //     bandwidth * 1000,
+        //     instance_bandwidth_limit
+        // );
+        //
+        // let (_, stderr) =
+        //     Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
+        //
+        // if !stderr.is_empty() {
+        //     error!(stderr = ?stderr, "Error setting up Rate Limiter");
+        //     return Err(anyhow!(stderr)).context("Error setting up Rate Limiter");
+        // }
+        //
+        // Ok(())
     }
 
     pub async fn get_instance_bandwidth_limit(
@@ -1224,31 +1226,33 @@ impl Aws {
 
     async fn remove_rate_limiter_config(
         &self,
-        job: &JobId,
-        private_ip: &str,
-        rl_instance_id: &str,
-        bandwidth: u64, // in kbit/sec
-        region: &str,
+        _job: &JobId,
+        _private_ip: &str,
+        _rl_instance_id: &str,
+        _bandwidth: u64, // in kbit/sec
+        _region: &str,
     ) -> Result<()> {
-        let rl_ip = self
-            .get_instance_ip(rl_instance_id, region)
-            .await
-            .context("could not get rate limiter instance ip")?;
+        todo!("configure with http calls");
 
-        let sess = &self
-            .ssh_connect(&(rl_ip + ":22"))
-            .await
-            .context("error establishing ssh connection")?;
-
-        let remove_rl_cmd = format!("remove_rl {} {} {}", job.id, private_ip, bandwidth * 1000);
-
-        let (_, stderr) =
-            Self::ssh_exec(sess, &remove_rl_cmd).context("Failed to run remove_rl command")?;
-
-        if !stderr.is_empty() {
-            error!(stderr = ?stderr, "Error removing Rate Limiter configuration");
-        }
-        Ok(())
+        // let rl_ip = self
+        //     .get_instance_ip(rl_instance_id, region)
+        //     .await
+        //     .context("could not get rate limiter instance ip")?;
+        //
+        // let sess = &self
+        //     .ssh_connect(&(rl_ip + ":22"))
+        //     .await
+        //     .context("error establishing ssh connection")?;
+        //
+        // let remove_rl_cmd = format!("remove_rl {} {} {}", job.id, private_ip, bandwidth * 1000);
+        //
+        // let (_, stderr) =
+        //     Self::ssh_exec(sess, &remove_rl_cmd).context("Failed to run remove_rl command")?;
+        //
+        // if !stderr.is_empty() {
+        //     error!(stderr = ?stderr, "Error removing Rate Limiter configuration");
+        // }
+        // Ok(())
     }
 
     // TODO: handle all error cases
