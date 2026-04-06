@@ -735,8 +735,6 @@ impl Aws {
         job: &JobId,
         instance_type: &str,
         region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
         bandwidth: u64,
         image_url: &str,
         init_params: &[u8],
@@ -995,8 +993,6 @@ impl Aws {
                 job,
                 instance_type,
                 region,
-                req_mem,
-                req_vcpu,
                 init_params,
                 ami_id.as_str(),
                 bandwidth,
@@ -1013,43 +1009,12 @@ impl Aws {
         job: &JobId,
         instance_type: &str,
         region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
         init_params: &[u8],
         ami_id: &str,
         bandwidth: u64,
     ) -> Result<String> {
         let instance_type =
             InstanceType::from_str(instance_type).context("cannot parse instance type")?;
-        let resp = self
-            .client(region)
-            .describe_instance_types()
-            .instance_types(instance_type.clone())
-            .send()
-            .await
-            .context("could not describe instance types")?;
-        let mut v_cpus: i32 = 4;
-        let mut mem: i64 = 8192;
-
-        let instance_types = resp.instance_types();
-        for instance in instance_types {
-            v_cpus = instance
-                .v_cpu_info()
-                .ok_or(anyhow!("error fetching instance v_cpu info"))?
-                .default_v_cpus()
-                .ok_or(anyhow!("error fetching instance v_cpu info"))?;
-            info!(v_cpus);
-            mem = instance
-                .memory_info()
-                .ok_or(anyhow!("error fetching instance memory info"))?
-                .size_in_mib()
-                .ok_or(anyhow!("error fetching instance memory info"))?;
-            info!(mem);
-        }
-
-        if req_mem > mem || req_vcpu > v_cpus {
-            return Err(anyhow!("Required memory or vcpus are more than available"));
-        }
         let (instance_id, private_ip) = self
             .launch_instance(job, instance_type, region, init_params, ami_id)
             .await
@@ -1447,8 +1412,6 @@ impl InfraProvider for Aws {
             job,
             instance_type,
             region,
-            0,
-            0,
             bandwidth,
             image_url,
             init_params,
