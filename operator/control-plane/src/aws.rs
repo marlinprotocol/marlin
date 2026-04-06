@@ -237,17 +237,20 @@ impl Aws {
     }
 }
 
-// Elastic IP utilities
+// Elastic IP
 impl Aws {
-    async fn get_or_allocate_ip(&self, job: &JobId, region: &str) -> Result<(String, String)> {
-        let (exist, alloc_id, public_ip, _) = self
-            .get_job_elastic_ip(job, region, false)
+    // returns (is_new, alloc_id, ip, assoc_id)
+    async fn get_or_allocate_ip_for_job(
+        &self,
+        job: &JobId,
+        region: &str,
+    ) -> Result<(bool, String, String, Option<String>)> {
+        if let Some((alloc_id, public_ip, association_id)) = self
+            .get_ip_for_job(job, region)
             .await
-            .context("could not get elastic ip for job")?;
-
-        if exist {
-            info!(public_ip, "Elastic Ip already exists");
-            return Ok((alloc_id, public_ip));
+            .context("could not get elastic ip for job")?
+        {
+            return Ok((false, alloc_id, public_ip, association_id));
         }
 
         let tags = tag_spec!(
@@ -270,81 +273,57 @@ impl Aws {
             .context("could not allocate elastic ip")?;
 
         Ok((
+            true,
             resp.allocation_id()
                 .ok_or(anyhow!("could not parse allocation id"))?
                 .to_string(),
             resp.public_ip()
                 .ok_or(anyhow!("could not parse public ip"))?
                 .to_string(),
+            None,
         ))
     }
 
-    // if with_association is true means, caller expected this elastic associated and return association details
-    async fn get_job_elastic_ip(
+    // returns (ip, allocation_id, association_id) if it exists
+    async fn get_ip_for_job(
         &self,
         job: &JobId,
         region: &str,
-        with_association: bool,
-    ) -> Result<(bool, String, String, String)> {
+    ) -> Result<Option<(String, String, Option<String>)>> {
         let job_filter = filter!("tag:jobId", job.id.to_string());
         let operator_filter = filter!("tag:operator", &job.operator);
         let chain_filter = filter!("tag:chainID", &job.chain);
         let contract_filter = filter!("tag:contractAddress", &job.contract);
 
-        Ok(
-            match self
-                .client(region)
-                .describe_addresses()
-                .filters(job_filter)
-                .filters(operator_filter)
-                .filters(contract_filter)
-                .filters(chain_filter)
-                .send()
-                .await
-                .context("could not describe elastic ips")?
-                // response parsing starts here
-                .addresses()
-                .first()
-            {
-                None => (false, String::new(), String::new(), String::new()),
-                Some(addrs) => {
-                    if !with_association {
-                        // load private ip, eni id from tags
+        let describe_addresses_output = self
+            .client(region)
+            .describe_addresses()
+            .filters(job_filter)
+            .filters(operator_filter)
+            .filters(contract_filter)
+            .filters(chain_filter)
+            .send()
+            .await
+            .context("could not describe elastic ips")?;
+        let Some(address) = describe_addresses_output
+            // response parsing starts here
+            .addresses()
+            .first()
+        else {
+            return Ok(None);
+        };
 
-                        (
-                            true,
-                            addrs
-                                .allocation_id()
-                                .ok_or(anyhow!("could not parse allocation id"))?
-                                .to_string(),
-                            addrs
-                                .public_ip()
-                                .ok_or(anyhow!("could not parse public ip"))?
-                                .to_string(),
-                            String::new(),
-                        )
-                    } else if addrs.association_id().is_none() {
-                        (false, String::new(), String::new(), String::new())
-                    } else {
-                        (
-                            true,
-                            addrs
-                                .allocation_id()
-                                .ok_or(anyhow!("could not parse allocation id"))?
-                                .to_string(),
-                            addrs
-                                .public_ip()
-                                .ok_or(anyhow!("could not parse public ip"))?
-                                .to_string(),
-                            addrs
-                                .association_id()
-                                .ok_or(anyhow!("could not parse association id"))?
-                                .to_string(),
-                        )
-                    }
-                }
-            },
-        )
+        Ok(Some((
+            address
+                .public_ip()
+                .ok_or(anyhow!("could not parse public ip"))?
+                .to_string(),
+            address
+                .allocation_id()
+                .ok_or(anyhow!("could not parse allocation id"))?
+                .to_string(),
+            address.association_id().map(String::from),
+        )))
     }
 
     async fn associate_address(
@@ -978,8 +957,8 @@ impl Aws {
             .await
             .context("could not select rate limiter")?;
 
-        let (alloc_id, ip) = self
-            .get_or_allocate_ip(job, region)
+        let (_, alloc_id, ip, _) = self
+            .get_or_allocate_ip_for_job(job, region)
             .await
             .context("error allocating ip address")?;
 
@@ -1287,24 +1266,18 @@ impl Aws {
         // check rate limiter config and cleanup
         // terminate instance if exist
 
-        let (exist, _, _, association_id) = self
-            .get_job_elastic_ip(job, region, true)
+        if let Some((alloc_id, _, association_id)) = self
+            .get_ip_for_job(job, region)
             .await
-            .context("could not get elastic ip of job")?;
+            .context("could not get elastic ip of job")?
+        {
+            if let Some(association_id) = association_id {
+                self.disassociate_address(&association_id, region)
+                    .await
+                    .context("could not disassociate address")?;
+            }
 
-        if exist {
-            self.disassociate_address(association_id.as_str(), region)
-                .await
-                .context("could not disassociate address")?;
-        }
-
-        let (exist, alloc_id, _, _) = self
-            .get_job_elastic_ip(job, region, false)
-            .await
-            .context("could not get elastic ip of job")?;
-
-        if exist {
-            self.release_address(alloc_id.as_str(), region)
+            self.release_address(&alloc_id, region)
                 .await
                 .context("could not release address")?;
             info!("Elastic IP released");
@@ -1352,33 +1325,22 @@ impl InfraProvider for Aws {
             .context("could not spin down enclave")
     }
 
-    async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
-        let instance = self
-            .get_job_instance_id(job, region)
+    async fn get_ip(&self, job: &JobId, region: &str) -> Result<String> {
+        let Some((_, elastic_ip, association_id)) = self
+            .get_ip_for_job(job, region)
             .await
-            .context("could not get instance id for job instance ip")?;
+            .context("could not get job elastic ip")?
+        else {
+            // not found
+            return Err(anyhow!("IP not found"));
+        };
 
-        if !instance.0 {
-            return Err(anyhow!("Instance not found for job - {}", job.id));
+        if association_id.is_none() {
+            // not associated
+            return Err(anyhow!("IP not associated"));
         }
 
-        let instance_ip = self
-            .get_instance_ip(&instance.1, region)
-            .await
-            .context("could not get instance ip")?;
-
-        let (found, _, elastic_ip, _) = self
-            .get_job_elastic_ip(job, region, true)
-            .await
-            .context("could not get job elastic ip")?;
-
-        // it is possible for the two above to differ while the instance is initializing (maybe
-        // terminating?), better to error out instead of potentially showing a temporary IP
-        if found && instance_ip == elastic_ip {
-            return Ok(instance_ip);
-        }
-
-        Err(anyhow!("Instance is still initializing"))
+        Ok(elastic_ip)
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {

@@ -162,7 +162,7 @@ impl InfraProvider for TestAws {
         Ok(())
     }
 
-    async fn get_job_ip(&self, job: &JobId, _region: &str) -> Result<String> {
+    async fn get_ip(&self, job: &JobId, _region: &str) -> Result<String> {
         let instance_metadata = self.instances.get(&job.id);
         instance_metadata
             .map(|x| x.ip_address.clone())

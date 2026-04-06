@@ -63,7 +63,7 @@ async fn handle_ip_request(
     let client = &state.0;
 
     let ip = client
-        .get_job_ip(
+        .get_ip(
             &JobId {
                 id: query.id.unwrap(),
                 operator: state.4.operator,
