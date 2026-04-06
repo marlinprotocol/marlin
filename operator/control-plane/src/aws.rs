@@ -89,6 +89,24 @@ macro_rules! filter {
     };
 }
 
+macro_rules! tag_spec {
+    // Matches the ResourceType, followed by key => value pairs
+    ($resource_type:expr, $( $key:expr => $value:expr ),* $(,)? ) => {
+        aws_sdk_ec2::types::TagSpecification::builder()
+            .resource_type($resource_type)
+            $(
+                // Builds and attaches each tag in line
+                .tags(
+                    aws_sdk_ec2::types::Tag::builder()
+                        .key($key)
+                        .value($value)
+                        .build()
+                )
+            )*
+            .build()
+    };
+}
+
 // Key setup
 impl Aws {
     pub async fn key_setup(&self, regions: &[String]) -> Result<()> {
