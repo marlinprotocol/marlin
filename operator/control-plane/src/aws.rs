@@ -79,6 +79,16 @@ impl Aws {
     }
 }
 
+// Utility macros
+macro_rules! filter {
+    ($name:expr, $($value:expr),+ $(,)?) => {
+        aws_sdk_ec2::types::Filter::builder()
+            .name($name)
+            $( .values($value) )+
+            .build()
+    };
+}
+
 // Key setup
 impl Aws {
     pub async fn key_setup(&self, regions: &[String]) -> Result<()> {
@@ -177,7 +187,7 @@ impl Aws {
     }
 }
 
-// SSH utilities
+// SSH
 // TODO: Eventually remove, we will use http calls to the rate limtier instead of ssh
 impl Aws {
     async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
