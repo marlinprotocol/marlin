@@ -157,7 +157,7 @@ impl Aws {
             )
             .send()
             .await
-            .context("failed to query key pairs")?
+            .context("Failed to query key pairs")?
             .key_pairs()
             .is_empty())
     }
@@ -177,10 +177,10 @@ impl Aws {
     }
 }
 
+// SSH utilities
+// TODO: Eventually remove, we will use http calls to the rate limtier instead of ssh
 impl Aws {
-    /* SSH UTILITY */
-
-    pub async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
+    async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
         let tcp = TcpStream::connect(ip_address)?;
 
         let mut sess = Session::new()?;
@@ -212,7 +212,9 @@ impl Aws {
 
         Ok((stdout, stderr))
     }
+}
 
+impl Aws {
     /* AWS EC2 UTILITY */
 
     pub async fn get_instance_ip(&self, instance_id: &str, region: &str) -> Result<String> {
