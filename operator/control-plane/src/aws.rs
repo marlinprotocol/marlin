@@ -250,27 +250,15 @@ impl Aws {
             return Ok((alloc_id, public_ip));
         }
 
-        let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder()
-            .key("jobId")
-            .value(job.id.to_string())
-            .build();
-        let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
-        let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
-        let contract_tag = Tag::builder()
-            .key("contractAddress")
-            .value(&job.contract)
-            .build();
-        let tags = TagSpecification::builder()
-            .resource_type(ResourceType::ElasticIp)
-            .tags(managed_tag)
-            .tags(project_tag)
-            .tags(job_tag)
-            .tags(operator_tag)
-            .tags(contract_tag)
-            .tags(chain_tag)
-            .build();
+        let tags = tag_spec!(
+            ResourceType::ElasticIp,
+            "managedBy" => "marlin",
+            "project" => "marlin-cvm",
+            "jobId" => job.id.to_string(),
+            "operator" => &job.operator,
+            "chainID" => &job.chain,
+            "contractAddress" => &job.contract,
+        );
 
         let resp = self
             .client(region)
@@ -428,29 +416,17 @@ impl Aws {
         init_params: &[u8],
         ami_id: &str,
     ) -> Result<(String, String)> {
-        let name_tag = Tag::builder().key("Name").value("JobRunner").build();
-        let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder()
-            .key("jobId")
-            .value(job.id.to_string())
-            .build();
-        let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
-        let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
-        let contract_tag = Tag::builder()
-            .key("contractAddress")
-            .value(&job.contract)
-            .build();
-        let tags = TagSpecification::builder()
-            .resource_type(ResourceType::Instance)
-            .tags(name_tag)
-            .tags(managed_tag)
-            .tags(project_tag)
-            .tags(job_tag)
-            .tags(operator_tag)
-            .tags(contract_tag)
-            .tags(chain_tag)
-            .build();
+        let tags = tag_spec!(
+            ResourceType::Instance,
+            "Name" => format!("JobRunner {}", job.id),
+            "managedBy" => "marlin",
+            "project" => "marlin-cvm",
+            "jobId" => job.id.to_string(),
+            "operator" => &job.operator,
+            "chainID" => &job.chain,
+            "contractAddress" => &job.contract,
+        );
+
         let subnet = self
             .get_subnet(region)
             .await
@@ -917,27 +893,15 @@ impl Aws {
                 .ena_support(true)
                 .virtualization_type("hvm".to_string())
                 .boot_mode(BootModeValues::Uefi)
-                .tag_specifications(
-                    TagSpecification::builder()
-                        .resource_type(ResourceType::Image)
-                        .tags(Tag::builder().key("managedBy").value("marlin").build())
-                        .tags(Tag::builder().key("project").value("marlin-cvm").build())
-                        .tags(
-                            Tag::builder()
-                                .key("jobId")
-                                .value(job.id.to_string())
-                                .build(),
-                        )
-                        .tags(Tag::builder().key("operator").value(&job.operator).build())
-                        .tags(
-                            Tag::builder()
-                                .key("contractAddress")
-                                .value(&job.contract)
-                                .build(),
-                        )
-                        .tags(Tag::builder().key("chainID").value(&job.chain).build())
-                        .build(),
-                )
+                .tag_specifications(tag_spec!(
+                    ResourceType::Image,
+                    "managedBy" => "marlin",
+                    "project" => "marlin-cvm",
+                    "jobId" => job.id.to_string(),
+                    "operator" => &job.operator,
+                    "chainID" => &job.chain,
+                    "contractAddress" => &job.contract,
+                ))
                 .send()
                 .await
                 .context(format!(
