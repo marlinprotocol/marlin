@@ -214,6 +214,177 @@ impl Aws {
     }
 }
 
+// Elastic IP utilities
+impl Aws {
+    async fn get_or_allocate_ip(&self, job: &JobId, region: &str) -> Result<(String, String)> {
+        let (exist, alloc_id, public_ip, _) = self
+            .get_job_elastic_ip(job, region, false)
+            .await
+            .context("could not get elastic ip for job")?;
+
+        if exist {
+            info!(public_ip, "Elastic Ip already exists");
+            return Ok((alloc_id, public_ip));
+        }
+
+        let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
+        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
+        let job_tag = Tag::builder()
+            .key("jobId")
+            .value(job.id.to_string())
+            .build();
+        let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
+        let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
+        let contract_tag = Tag::builder()
+            .key("contractAddress")
+            .value(&job.contract)
+            .build();
+        let tags = TagSpecification::builder()
+            .resource_type(ResourceType::ElasticIp)
+            .tags(managed_tag)
+            .tags(project_tag)
+            .tags(job_tag)
+            .tags(operator_tag)
+            .tags(contract_tag)
+            .tags(chain_tag)
+            .build();
+
+        let resp = self
+            .client(region)
+            .allocate_address()
+            .domain(DomainType::Vpc)
+            .tag_specifications(tags)
+            .send()
+            .await
+            .context("could not allocate elastic ip")?;
+
+        Ok((
+            resp.allocation_id()
+                .ok_or(anyhow!("could not parse allocation id"))?
+                .to_string(),
+            resp.public_ip()
+                .ok_or(anyhow!("could not parse public ip"))?
+                .to_string(),
+        ))
+    }
+
+    // if with_association is true means, caller expected this elastic associated and return association details
+    async fn get_job_elastic_ip(
+        &self,
+        job: &JobId,
+        region: &str,
+        with_association: bool,
+    ) -> Result<(bool, String, String, String)> {
+        let job_filter = Filter::builder()
+            .name("tag:jobId")
+            .values(job.id.to_string())
+            .build();
+        let operator_filter = Filter::builder()
+            .name("tag:operator")
+            .values(&job.operator)
+            .build();
+        let chain_filter = Filter::builder()
+            .name("tag:chainID")
+            .values(&job.chain)
+            .build();
+        let contract_filter = Filter::builder()
+            .name("tag:contractAddress")
+            .values(&job.contract)
+            .build();
+
+        Ok(
+            match self
+                .client(region)
+                .describe_addresses()
+                .filters(job_filter)
+                .filters(operator_filter)
+                .filters(contract_filter)
+                .filters(chain_filter)
+                .send()
+                .await
+                .context("could not describe elastic ips")?
+                // response parsing starts here
+                .addresses()
+                .first()
+            {
+                None => (false, String::new(), String::new(), String::new()),
+                Some(addrs) => {
+                    if !with_association {
+                        // load private ip, eni id from tags
+
+                        (
+                            true,
+                            addrs
+                                .allocation_id()
+                                .ok_or(anyhow!("could not parse allocation id"))?
+                                .to_string(),
+                            addrs
+                                .public_ip()
+                                .ok_or(anyhow!("could not parse public ip"))?
+                                .to_string(),
+                            String::new(),
+                        )
+                    } else if addrs.association_id().is_none() {
+                        (false, String::new(), String::new(), String::new())
+                    } else {
+                        (
+                            true,
+                            addrs
+                                .allocation_id()
+                                .ok_or(anyhow!("could not parse allocation id"))?
+                                .to_string(),
+                            addrs
+                                .public_ip()
+                                .ok_or(anyhow!("could not parse public ip"))?
+                                .to_string(),
+                            addrs
+                                .association_id()
+                                .ok_or(anyhow!("could not parse association id"))?
+                                .to_string(),
+                        )
+                    }
+                }
+            },
+        )
+    }
+
+    async fn associate_address(
+        &self,
+        instance_id: &str,
+        alloc_id: &str,
+        region: &str,
+    ) -> Result<()> {
+        self.client(region)
+            .associate_address()
+            .allocation_id(alloc_id)
+            .instance_id(instance_id)
+            .send()
+            .await
+            .context("could not associate elastic ip")?;
+        Ok(())
+    }
+
+    async fn disassociate_address(&self, association_id: &str, region: &str) -> Result<()> {
+        self.client(region)
+            .disassociate_address()
+            .association_id(association_id)
+            .send()
+            .await
+            .context("could not disassociate elastic ip")?;
+        Ok(())
+    }
+
+    async fn release_address(&self, alloc_id: &str, region: &str) -> Result<()> {
+        self.client(region)
+            .release_address()
+            .allocation_id(alloc_id)
+            .send()
+            .await
+            .context("could not release elastic ip")?;
+        Ok(())
+    }
+}
+
 impl Aws {
     /* AWS EC2 UTILITY */
 
@@ -562,174 +733,6 @@ impl Aws {
             .into())
     }
 
-    async fn allocate_ip_addr(&self, job: &JobId, region: &str) -> Result<(String, String)> {
-        let (exist, alloc_id, public_ip, _) = self
-            .get_job_elastic_ip(job, region, false)
-            .await
-            .context("could not get elastic ip for job")?;
-
-        if exist {
-            info!(public_ip, "Elastic Ip already exists");
-            return Ok((alloc_id, public_ip));
-        }
-
-        let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder()
-            .key("jobId")
-            .value(job.id.to_string())
-            .build();
-        let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
-        let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
-        let contract_tag = Tag::builder()
-            .key("contractAddress")
-            .value(&job.contract)
-            .build();
-        let tags = TagSpecification::builder()
-            .resource_type(ResourceType::ElasticIp)
-            .tags(managed_tag)
-            .tags(project_tag)
-            .tags(job_tag)
-            .tags(operator_tag)
-            .tags(contract_tag)
-            .tags(chain_tag)
-            .build();
-
-        let resp = self
-            .client(region)
-            .allocate_address()
-            .domain(DomainType::Vpc)
-            .tag_specifications(tags)
-            .send()
-            .await
-            .context("could not allocate elastic ip")?;
-
-        Ok((
-            resp.allocation_id()
-                .ok_or(anyhow!("could not parse allocation id"))?
-                .to_string(),
-            resp.public_ip()
-                .ok_or(anyhow!("could not parse public ip"))?
-                .to_string(),
-        ))
-    }
-
-    // if with_association is true means, caller expected this elastic associated and return association details
-    async fn get_job_elastic_ip(
-        &self,
-        job: &JobId,
-        region: &str,
-        with_association: bool,
-    ) -> Result<(bool, String, String, String)> {
-        let job_filter = Filter::builder()
-            .name("tag:jobId")
-            .values(job.id.to_string())
-            .build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
-
-        Ok(
-            match self
-                .client(region)
-                .describe_addresses()
-                .filters(job_filter)
-                .filters(operator_filter)
-                .filters(contract_filter)
-                .filters(chain_filter)
-                .send()
-                .await
-                .context("could not describe elastic ips")?
-                // response parsing starts here
-                .addresses()
-                .first()
-            {
-                None => (false, String::new(), String::new(), String::new()),
-                Some(addrs) => {
-                    if !with_association {
-                        // load private ip, eni id from tags
-
-                        (
-                            true,
-                            addrs
-                                .allocation_id()
-                                .ok_or(anyhow!("could not parse allocation id"))?
-                                .to_string(),
-                            addrs
-                                .public_ip()
-                                .ok_or(anyhow!("could not parse public ip"))?
-                                .to_string(),
-                            String::new(),
-                        )
-                    } else if addrs.association_id().is_none() {
-                        (false, String::new(), String::new(), String::new())
-                    } else {
-                        (
-                            true,
-                            addrs
-                                .allocation_id()
-                                .ok_or(anyhow!("could not parse allocation id"))?
-                                .to_string(),
-                            addrs
-                                .public_ip()
-                                .ok_or(anyhow!("could not parse public ip"))?
-                                .to_string(),
-                            addrs
-                                .association_id()
-                                .ok_or(anyhow!("could not parse association id"))?
-                                .to_string(),
-                        )
-                    }
-                }
-            },
-        )
-    }
-
-    async fn associate_address(
-        &self,
-        instance_id: &str,
-        alloc_id: &str,
-        region: &str,
-    ) -> Result<()> {
-        self.client(region)
-            .associate_address()
-            .allocation_id(alloc_id)
-            .instance_id(instance_id)
-            .send()
-            .await
-            .context("could not associate elastic ip")?;
-        Ok(())
-    }
-
-    async fn disassociate_address(&self, association_id: &str, region: &str) -> Result<()> {
-        self.client(region)
-            .disassociate_address()
-            .association_id(association_id)
-            .send()
-            .await
-            .context("could not disassociate elastic ip")?;
-        Ok(())
-    }
-
-    async fn release_address(&self, alloc_id: &str, region: &str) -> Result<()> {
-        self.client(region)
-            .release_address()
-            .allocation_id(alloc_id)
-            .send()
-            .await
-            .context("could not release elastic ip")?;
-        Ok(())
-    }
-
     async fn spin_up_impl(
         &mut self,
         job: &JobId,
@@ -1051,7 +1054,7 @@ impl Aws {
             .context("could not select rate limiter")?;
 
         let (alloc_id, ip) = self
-            .allocate_ip_addr(job, region)
+            .get_or_allocate_ip(job, region)
             .await
             .context("error allocating ip address")?;
 
