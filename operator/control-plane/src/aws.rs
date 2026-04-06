@@ -43,8 +43,8 @@ impl Aws {
         whitelist: Option<&'static [String]>,
         blacklist: Option<&'static [String]>,
     ) -> Aws {
-        let mut clients = HashMap::<String, aws_sdk_ec2::Client>::new();
-        let mut ebs_clients = HashMap::<String, aws_sdk_ebs::Client>::new();
+        let mut clients = HashMap::<String, aws_sdk_ec2::Client>::with_capacity(regions.len());
+        let mut ebs_clients = HashMap::<String, aws_sdk_ebs::Client>::with_capacity(regions.len());
         for region in regions {
             let config = aws_config::from_env()
                 .profile_name(&aws_profile)
@@ -70,11 +70,11 @@ impl Aws {
         }
     }
 
-    async fn client(&self, region: &str) -> &aws_sdk_ec2::Client {
+    fn client(&self, region: &str) -> &aws_sdk_ec2::Client {
         &self.clients[region]
     }
 
-    async fn ebs_client(&self, region: &str) -> &aws_sdk_ebs::Client {
+    fn ebs_client(&self, region: &str) -> &aws_sdk_ebs::Client {
         &self.ebs_clients[region]
     }
 }
@@ -148,7 +148,6 @@ impl Aws {
     async fn check_key_pair(&self, region: &str) -> Result<bool> {
         Ok(!self
             .client(region)
-            .await
             .describe_key_pairs()
             .filters(
                 Filter::builder()
@@ -167,7 +166,6 @@ impl Aws {
         let pubkey = std::fs::read(&self.pubkey_location).context("Failed to read pubkey file")?;
 
         self.client(region)
-            .await
             .import_key_pair()
             .key_name(&self.key_name)
             .public_key_material(aws_sdk_ec2::primitives::Blob::new(pubkey))
@@ -220,7 +218,6 @@ impl Aws {
     pub async fn get_instance_ip(&self, instance_id: &str, region: &str) -> Result<String> {
         Ok(self
             .client(region)
-            .await
             .describe_instances()
             .filters(
                 Filter::builder()
@@ -285,7 +282,6 @@ impl Aws {
             .context("could not get subnet")?;
         let instance = self
             .client(region)
-            .await
             .run_instances()
             .image_id(ami_id)
             .instance_type(instance_type)
@@ -319,7 +315,6 @@ impl Aws {
     async fn terminate_instance(&self, instance_id: &str, region: &str) -> Result<()> {
         let _ = self
             .client(region)
-            .await
             .terminate_instances()
             .instance_ids(instance_id)
             .send()
@@ -337,7 +332,6 @@ impl Aws {
 
         Ok(self
             .client(region)
-            .await
             .describe_security_groups()
             .filters(filter)
             .send()
@@ -362,7 +356,6 @@ impl Aws {
 
         Ok(self
             .client(region)
-            .await
             .describe_subnets()
             .filters(type_filter)
             .filters(project_filter)
@@ -397,7 +390,6 @@ impl Aws {
             .build();
         let res = self
             .client(region)
-            .await
             .describe_snapshots()
             .owner_ids("self")
             .filters(job_filter)
@@ -441,7 +433,6 @@ impl Aws {
             .build();
         let res = self
             .client(region)
-            .await
             .describe_images()
             .owners("self")
             .filters(job_filter)
@@ -489,7 +480,6 @@ impl Aws {
             .build();
         let res = self
             .client(region)
-            .await
             .describe_instances()
             .filters(job_filter)
             .filters(operator_filter)
@@ -545,7 +535,6 @@ impl Aws {
     pub async fn get_instance_state(&self, instance_id: &str, region: &str) -> Result<String> {
         Ok(self
             .client(region)
-            .await
             .describe_instances()
             .filters(
                 Filter::builder()
@@ -606,7 +595,6 @@ impl Aws {
 
         let resp = self
             .client(region)
-            .await
             .allocate_address()
             .domain(DomainType::Vpc)
             .tag_specifications(tags)
@@ -651,7 +639,6 @@ impl Aws {
         Ok(
             match self
                 .client(region)
-                .await
                 .describe_addresses()
                 .filters(job_filter)
                 .filters(operator_filter)
@@ -712,7 +699,6 @@ impl Aws {
         region: &str,
     ) -> Result<()> {
         self.client(region)
-            .await
             .associate_address()
             .allocation_id(alloc_id)
             .instance_id(instance_id)
@@ -724,7 +710,6 @@ impl Aws {
 
     async fn disassociate_address(&self, association_id: &str, region: &str) -> Result<()> {
         self.client(region)
-            .await
             .disassociate_address()
             .association_id(association_id)
             .send()
@@ -735,7 +720,6 @@ impl Aws {
 
     async fn release_address(&self, alloc_id: &str, region: &str) -> Result<()> {
         self.client(region)
-            .await
             .release_address()
             .allocation_id(alloc_id)
             .send()
@@ -872,7 +856,7 @@ impl Aws {
                     }
                 }
 
-                let uploader = SnapshotUploader::new(self.ebs_client(region).await.clone());
+                let uploader = SnapshotUploader::new(self.ebs_client(region).clone());
                 let managed_tag = aws_sdk_ebs::types::Tag::builder()
                     .key("managedBy")
                     .value("marlin")
@@ -919,7 +903,7 @@ impl Aws {
                     .await
                     .context("Failed to upload snapshot from image file")?;
                 info!(snapshot_id, "Snapshot uploaded");
-                let waiter = SnapshotWaiter::new(self.client(region).await.clone());
+                let waiter = SnapshotWaiter::new(self.client(region).clone());
                 waiter
                     .wait_for_completed(snapshot_id.as_str())
                     .await
@@ -941,7 +925,6 @@ impl Aws {
                 InstanceType::from_str(instance_type).context("cannot parse instance type")?;
             let resp = self
                 .client(region)
-                .await
                 .describe_instance_types()
                 .instance_types(instance_type.clone())
                 .send()
@@ -961,7 +944,6 @@ impl Aws {
             }
             let resp = self
                 .client(region)
-                .await
                 .register_image()
                 .name(format!("marlin/oyster/job-{}", job.id))
                 .architecture(FromStr::from_str(&architecture)?)
@@ -1039,7 +1021,6 @@ impl Aws {
             InstanceType::from_str(instance_type).context("cannot parse instance type")?;
         let resp = self
             .client(region)
-            .await
             .describe_instance_types()
             .instance_types(instance_type.clone())
             .send()
@@ -1163,7 +1144,6 @@ impl Aws {
     ) -> Result<u64> {
         let res = self
             .client(region)
-            .await
             .describe_instance_types()
             .instance_types(instance_type)
             .send()
@@ -1222,7 +1202,6 @@ impl Aws {
         let rl_filter = Filter::builder().name("tag:type").values("limiter").build();
         let res = self
             .client(region)
-            .await
             .describe_instances()
             .filters(project_filter)
             .filters(rl_filter)
@@ -1284,7 +1263,6 @@ impl Aws {
                             .value(&rl_instance_id)
                             .build();
                         self.client(region)
-                            .await
                             .create_tags()
                             .resources(instance_id)
                             .tags(tag_rl_id)
@@ -1345,7 +1323,6 @@ impl Aws {
             return Ok(());
         }
         self.client(region)
-            .await
             .deregister_image()
             .image_id(ami_id)
             .send()
@@ -1365,7 +1342,6 @@ impl Aws {
         }
         info!(snapshot_id, "Deleting snapshot");
         self.client(region)
-            .await
             .delete_snapshot()
             .snapshot_id(snapshot_id)
             .send()
