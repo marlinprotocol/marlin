@@ -159,12 +159,7 @@ impl Aws {
         Ok(!self
             .client(region)
             .describe_key_pairs()
-            .filters(
-                Filter::builder()
-                    .name("key-name")
-                    .values(&self.key_name)
-                    .build(),
-            )
+            .filters(filter!("key-name", &self.key_name))
             .send()
             .await
             .context("Failed to query key pairs")?
@@ -285,22 +280,10 @@ impl Aws {
         region: &str,
         with_association: bool,
     ) -> Result<(bool, String, String, String)> {
-        let job_filter = Filter::builder()
-            .name("tag:jobId")
-            .values(job.id.to_string())
-            .build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
+        let job_filter = filter!("tag:jobId", job.id.to_string());
+        let operator_filter = filter!("tag:operator", &job.operator);
+        let chain_filter = filter!("tag:chainID", &job.chain);
+        let contract_filter = filter!("tag:contractAddress", &job.contract);
 
         Ok(
             match self
@@ -402,12 +385,7 @@ impl Aws {
         Ok(self
             .client(region)
             .describe_instances()
-            .filters(
-                Filter::builder()
-                    .name("instance-id")
-                    .values(instance_id)
-                    .build(),
-            )
+            .filters(filter!("instance-id", instance_id))
             .send()
             .await
             .context("could not describe instances")?
@@ -508,15 +486,12 @@ impl Aws {
     }
 
     pub async fn get_security_group(&self, region: &str) -> Result<String> {
-        let filter = Filter::builder()
-            .name("tag:project")
-            .values("marlin-cvm")
-            .build();
+        let project_filter = filter!("tag:project", "marlin-cvm");
 
         Ok(self
             .client(region)
             .describe_security_groups()
-            .filters(filter)
+            .filters(project_filter)
             .send()
             .await
             .context("could not describe security groups")?
@@ -530,12 +505,8 @@ impl Aws {
     }
 
     pub async fn get_subnet(&self, region: &str) -> Result<String> {
-        let project_filter = Filter::builder()
-            .name("tag:project")
-            .values("marlin-cvm")
-            .build();
-
-        let type_filter = Filter::builder().name("tag:type").values("cvm").build();
+        let project_filter = filter!("tag:project", "marlin-cvm");
+        let type_filter = filter!("tag:type", "cvm");
 
         Ok(self
             .client(region)
@@ -555,22 +526,11 @@ impl Aws {
     }
 
     async fn get_job_snapshot_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = Filter::builder()
-            .name("tag:jobId")
-            .values(job.id.to_string())
-            .build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
+        let job_filter = filter!("tag:jobId", job.id.to_string());
+        let operator_filter = filter!("tag:operator", &job.operator);
+        let chain_filter = filter!("tag:chainID", &job.chain);
+        let contract_filter = filter!("tag:contractAddress", &job.contract);
+
         let res = self
             .client(region)
             .describe_snapshots()
@@ -598,22 +558,11 @@ impl Aws {
     }
 
     async fn get_job_ami_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = Filter::builder()
-            .name("tag:jobId")
-            .values(job.id.to_string())
-            .build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
+        let job_filter = filter!("tag:jobId", job.id.to_string());
+        let operator_filter = filter!("tag:operator", &job.operator);
+        let chain_filter = filter!("tag:chainID", &job.chain);
+        let contract_filter = filter!("tag:contractAddress", &job.contract);
+
         let res = self
             .client(region)
             .describe_images()
@@ -645,22 +594,11 @@ impl Aws {
         job: &JobId,
         region: &str,
     ) -> Result<(bool, String, String, String, String)> {
-        let job_filter = Filter::builder()
-            .name("tag:jobId")
-            .values(job.id.to_string())
-            .build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
+        let job_filter = filter!("tag:jobId", job.id.to_string());
+        let operator_filter = filter!("tag:operator", &job.operator);
+        let chain_filter = filter!("tag:chainID", &job.chain);
+        let contract_filter = filter!("tag:contractAddress", &job.contract);
+
         let res = self
             .client(region)
             .describe_instances()
@@ -719,12 +657,7 @@ impl Aws {
         Ok(self
             .client(region)
             .describe_instances()
-            .filters(
-                Filter::builder()
-                    .name("instance-id")
-                    .values(instance_id)
-                    .build(),
-            )
+            .filters(filter!("instance-id", instance_id))
             .send()
             .await
             .context("could not describe instances")?
@@ -1175,16 +1108,14 @@ impl Aws {
         // get all the rate limiter vm from region
         // check available bandwidth
         // bandwidth is in kbit/sec
-        let project_filter = Filter::builder()
-            .name("tag:project")
-            .values("marlin-cvm")
-            .build();
-        let rl_filter = Filter::builder().name("tag:type").values("limiter").build();
+        let project_filter = filter!("tag:project", "marlin-cvm");
+        let type_filter = filter!("tag:type", "limiter");
+
         let res = self
             .client(region)
             .describe_instances()
             .filters(project_filter)
-            .filters(rl_filter)
+            .filters(type_filter)
             .send()
             .await
             .context("could not describe rate limit instances")?;
