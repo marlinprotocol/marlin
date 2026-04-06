@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Read, Write};
+use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context, Result};
@@ -22,18 +22,19 @@ use whoami::username;
 
 use crate::market::{InfraProvider, JobId};
 
+// AWS backed infra provider
 #[derive(Clone)]
 pub struct Aws {
     clients: HashMap<String, aws_sdk_ec2::Client>,
     ebs_clients: HashMap<String, aws_sdk_ebs::Client>,
     key_name: String,
-    // Path cannot be cloned, hence String
-    key_location: String,
-    pub_key_location: String,
+    key_location: PathBuf,
+    pubkey_location: PathBuf,
     whitelist: Option<&'static [String]>,
     blacklist: Option<&'static [String]>,
 }
 
+// Initialization
 impl Aws {
     pub async fn new(
         aws_profile: String,
@@ -55,15 +56,15 @@ impl Aws {
         }
 
         let username = username();
-        let key_location = format!("/home/{username}/.ssh/{key_name}.pem");
-        let pub_key_location = format!("/home/{username}/.ssh/{key_name}.pub");
+        let key_location = format!("/home/{username}/.ssh/{key_name}.pem").into();
+        let pubkey_location = format!("/home/{username}/.ssh/{key_name}.pub").into();
 
         Aws {
             clients,
             ebs_clients,
             key_name,
             key_location,
-            pub_key_location,
+            pubkey_location,
             whitelist,
             blacklist,
         }
@@ -76,22 +77,50 @@ impl Aws {
     async fn ebs_client(&self, region: &str) -> &aws_sdk_ebs::Client {
         &self.ebs_clients[region]
     }
+}
 
-    pub async fn generate_key_pair(&self) -> Result<()> {
-        let priv_check = Path::new(&self.key_location).exists();
-        let pub_check = Path::new(&self.pub_key_location).exists();
+// Key setup
+impl Aws {
+    pub async fn key_setup(&self, regions: &[String]) -> Result<()> {
+        self.generate_key_pair()
+            .context("Failed to generate key pair")?;
+
+        for region in regions {
+            let key_check = self
+                .check_key_pair(region)
+                .await
+                .with_context(|| format!("Failed to check key pair in {region}"))?;
+
+            if !key_check {
+                self.import_key_pair(region)
+                    .await
+                    .with_context(|| format!("Failed to import key pair in {region}"))?;
+            } else {
+                info!(
+                    region,
+                    "Found existing keypair and pem file, skipping key setup"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_key_pair(&self) -> Result<()> {
+        let priv_check = self.key_location.exists();
+        let pub_check = self.pubkey_location.exists();
 
         if priv_check && pub_check {
             // both exist, we are done
             Ok(())
         } else if priv_check {
             // only private key exists, generate public key
-            let private_key = PrivateKey::read_openssh_file(Path::new(&self.key_location))
+            let private_key = PrivateKey::read_openssh_file(&self.key_location)
                 .context("Failed to read private key file")?;
 
             private_key
                 .public_key()
-                .write_openssh_file(Path::new(&self.pub_key_location))
+                .write_openssh_file(&self.pubkey_location)
                 .context("Failed to write public key file")?;
 
             Ok(())
@@ -104,57 +133,16 @@ impl Aws {
                 .context("Failed to generate private key")?;
 
             private_key
-                .write_openssh_file(Path::new(&self.key_location), LineEnding::default())
+                .write_openssh_file(&self.key_location, LineEnding::default())
                 .context("Failed to write private key file")?;
 
             private_key
                 .public_key()
-                .write_openssh_file(Path::new(&self.pub_key_location))
+                .write_openssh_file(&self.pubkey_location)
                 .context("Failed to write public key file")?;
 
             Ok(())
         }
-    }
-
-    pub async fn key_setup(&self, region: String) -> Result<()> {
-        let key_check = self
-            .check_key_pair(&region)
-            .await
-            .context("failed to check key pair")?;
-
-        if !key_check {
-            self.import_key_pair(&region)
-                .await
-                .with_context(|| format!("Failed to import key pair in {region}"))?;
-        } else {
-            info!(
-                region,
-                "Found existing keypair and pem file, skipping key setup"
-            );
-        }
-
-        Ok(())
-    }
-
-    pub async fn import_key_pair(&self, region: &str) -> Result<()> {
-        let f = File::open(&self.pub_key_location).context("Failed to open pub key file")?;
-        let mut reader = BufReader::new(f);
-        let mut buffer = Vec::new();
-
-        reader
-            .read_to_end(&mut buffer)
-            .context("Failed to read pub key file")?;
-
-        self.client(region)
-            .await
-            .import_key_pair()
-            .key_name(&self.key_name)
-            .public_key_material(aws_sdk_ec2::primitives::Blob::new(buffer))
-            .send()
-            .await
-            .context("Failed to import key pair")?;
-
-        Ok(())
     }
 
     async fn check_key_pair(&self, region: &str) -> Result<bool> {
@@ -175,6 +163,23 @@ impl Aws {
             .is_empty())
     }
 
+    async fn import_key_pair(&self, region: &str) -> Result<()> {
+        let pubkey = std::fs::read(&self.pubkey_location).context("Failed to read pubkey file")?;
+
+        self.client(region)
+            .await
+            .import_key_pair()
+            .key_name(&self.key_name)
+            .public_key_material(aws_sdk_ec2::primitives::Blob::new(pubkey))
+            .send()
+            .await
+            .context("Failed to import key pair")?;
+
+        Ok(())
+    }
+}
+
+impl Aws {
     /* SSH UTILITY */
 
     pub async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
