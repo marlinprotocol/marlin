@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -12,7 +11,6 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use coldsnap::{SnapshotUploader, SnapshotWaiter};
 use rand_core::OsRng;
 use regex::Regex;
-use ssh2::Session;
 use ssh_key::sha2::{Digest, Sha256};
 use ssh_key::{Algorithm, LineEnding, PrivateKey};
 use tokio::time::{sleep, Duration};
@@ -197,43 +195,6 @@ impl Aws {
             .context("Failed to import key pair")?;
 
         Ok(())
-    }
-}
-
-// SSH
-// TODO: Eventually remove, we will use http calls to the rate limtier instead of ssh
-impl Aws {
-    async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
-        let tcp = TcpStream::connect(ip_address)?;
-
-        let mut sess = Session::new()?;
-
-        sess.set_tcp_stream(tcp);
-        sess.handshake()?;
-        sess.userauth_pubkey_file("root", None, Path::new(&self.key_location), None)?;
-        info!(ip_address, "SSH connection established");
-        Ok(sess)
-    }
-
-    fn ssh_exec(sess: &Session, command: &str) -> Result<(String, String)> {
-        let mut channel = sess
-            .channel_session()
-            .context("Failed to get channel session")?;
-        let mut stdout = String::new();
-        let mut stderr = String::new();
-        channel
-            .exec(command)
-            .context("Failed to execute command: {command}")?;
-        channel
-            .read_to_string(&mut stdout)
-            .context("Failed to read stdout")?;
-        channel
-            .stderr()
-            .read_to_string(&mut stderr)
-            .context("Failed to read stderr")?;
-        channel.wait_close().context("Failed to wait for close")?;
-
-        Ok((stdout, stderr))
     }
 }
 
