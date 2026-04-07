@@ -19,7 +19,6 @@ use crate::market::{InfraProvider, JobId};
 #[derive(Clone)]
 pub struct Aws {
     clients: HashMap<String, aws_sdk_ec2::Client>,
-    ebs_clients: HashMap<String, aws_sdk_ebs::Client>,
     key_name: String,
     key_location: PathBuf,
     pubkey_location: PathBuf,
@@ -37,7 +36,6 @@ impl Aws {
         blacklist: Option<&'static [String]>,
     ) -> Aws {
         let mut clients = HashMap::<String, aws_sdk_ec2::Client>::with_capacity(regions.len());
-        let mut ebs_clients = HashMap::<String, aws_sdk_ebs::Client>::with_capacity(regions.len());
         for region in regions {
             let config = aws_config::from_env()
                 .profile_name(&aws_profile)
@@ -45,7 +43,6 @@ impl Aws {
                 .load()
                 .await;
             clients.insert(region.clone(), aws_sdk_ec2::Client::new(&config));
-            ebs_clients.insert(region.clone(), aws_sdk_ebs::Client::new(&config));
         }
 
         let username = username();
@@ -54,7 +51,6 @@ impl Aws {
 
         Aws {
             clients,
-            ebs_clients,
             key_name,
             key_location,
             pubkey_location,
@@ -65,10 +61,6 @@ impl Aws {
 
     fn client(&self, region: &str) -> &aws_sdk_ec2::Client {
         &self.clients[region]
-    }
-
-    fn ebs_client(&self, region: &str) -> &aws_sdk_ebs::Client {
-        &self.ebs_clients[region]
     }
 }
 
