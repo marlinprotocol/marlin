@@ -292,7 +292,7 @@ struct JobState<'a> {
     min_rate: u64,
     bandwidth: u64,
 
-    eif_url: String,
+    image_url: String,
     instance_type: String,
     region: String,
     init_params: Box<[u8]>,
@@ -326,7 +326,7 @@ impl<'a> JobState<'a> {
             rate: 1,
             min_rate: u64::MAX,
             bandwidth: 0,
-            eif_url: String::new(),
+            image_url: String::new(),
             instance_type: "c6a.xlarge".to_string(),
             region: "ap-south-1".to_string(),
             init_params: Box::new([0; 0]),
@@ -415,7 +415,7 @@ impl<'a> JobState<'a> {
                     self.instance_type.as_str(),
                     &self.region,
                     self.bandwidth,
-                    &self.eif_url,
+                    &self.image_url,
                     &self.init_params,
                 )
                 .await;
@@ -657,10 +657,10 @@ impl<'a> JobState<'a> {
             info!(self.region, "Job region set");
         }
 
-        let Some(url) = metadata_json["url"].as_str() else {
-            return Err(anyhow!("EIF url not found! Exiting job"));
+        let Some(image_url) = metadata_json["image_url"].as_str() else {
+            return Err(anyhow!("Image url not found! Exiting job"));
         };
-        self.eif_url = url.to_string();
+        self.image_url = image_url.to_string();
 
         let Ok(init_params) =
             BASE64_STANDARD.decode(metadata_json["init_params"].as_str().unwrap_or(""))
@@ -1419,7 +1419,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_eif_url_not_found() {
+    async fn test_image_url_not_found() {
         let start_time = Instant::now();
         let job_id = 1;
 
