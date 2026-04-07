@@ -752,7 +752,7 @@ impl InfraProvider for Aws {
             .context("could not spin up enclave")
     }
 
-    async fn spin_down(&mut self, job: &JobId, region: &str, _bandwidth: u64) -> Result<()> {
+    async fn spin_down(&mut self, job: &JobId, region: &str) -> Result<()> {
         self.spin_down_impl(job, region)
             .await
             .context("could not spin down enclave")
