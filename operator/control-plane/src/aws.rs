@@ -487,6 +487,7 @@ impl Aws {
         self.client(region)
             .terminate_instances()
             .instance_ids(instance_id)
+            .force(true)
             .send()
             .await
             .context("could not terminate instance")?;
