@@ -139,13 +139,13 @@ pub async fn main_task(
             // might happen that job is inactive here while not on contract
             // so events still come in without an active job
             // just ignore for now
-            if let Some(sender) = sender {
-                if let Err(err) = sender.send(event).await {
-                    // might happen if job exits after we retrieved the channel
-                    // just ignore for now
-                    // log so we know frequency
-                    error!(?err, "Channel sender error");
-                }
+            if let Some(sender) = sender
+                && let Err(err) = sender.send(event).await
+            {
+                // might happen if job exits after we retrieved the channel
+                // just ignore for now
+                // log so we know frequency
+                error!(?err, "Channel sender error");
             }
 
             last_processed_id = event_id;

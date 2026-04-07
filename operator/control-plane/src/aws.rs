@@ -623,7 +623,7 @@ impl Aws {
         // get and configure rate limiter
         // allocate Elastic IP
         // associate Elastic IP
-        self.add_rate_limiter(job, cvm_ip, &rl_ip, bandwidth)
+        self.add_rate_limiter(job, cvm_ip, rl_ip, bandwidth)
             .await
             .context("could not configure rate limiter")?;
 
