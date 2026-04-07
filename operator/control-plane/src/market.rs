@@ -3,7 +3,7 @@ use std::future::Future;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, bail};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
@@ -636,34 +636,34 @@ impl<'a> JobState<'a> {
             serde_json::from_str::<Value>(&metadata).context("Error reading metadata")?;
 
         let Some(instance) = metadata_json["instance"].as_str() else {
-            return Err(anyhow!("Instance type not set"));
+            bail!("Instance type not set");
         };
         if update && self.instance_type != instance {
-            return Err(anyhow!("Instance type change not allowed"));
+            bail!("Instance type change not allowed");
         } else {
             self.instance_type = instance.to_string();
             info!(self.instance_type, "Instance type set");
         }
 
         let Some(region) = metadata_json["region"].as_str() else {
-            return Err(anyhow!("Job region not set"));
+            bail!("Job region not set");
         };
         if update && self.region != region {
-            return Err(anyhow!("Region change not allowed"));
+            bail!("Region change not allowed");
         } else {
             self.region = region.to_string();
             info!(self.region, "Job region set");
         }
 
         let Some(image) = metadata_json["image"].as_str() else {
-            return Err(anyhow!("Image not found! Exiting job"));
+            bail!("Image not found! Exiting job");
         };
         self.image = image.to_string();
 
         let Ok(init_params) =
             BASE64_STANDARD.decode(metadata_json["init_params"].as_str().unwrap_or(""))
         else {
-            return Err(anyhow!("failed to decode init params"));
+            bail!("failed to decode init params");
         };
         self.init_params = init_params.into_boxed_slice();
 

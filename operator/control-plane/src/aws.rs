@@ -601,14 +601,15 @@ impl Aws {
 
         let res = self
             .post_spin_up(job, &instance_id, &cvm_ip, &rl_ip, region, bandwidth)
-            .await;
+            .await
+            .context("error during post spin up");
 
         if let Err(err) = res {
-            error!(?err, "Error during post spin up");
+            error!(?err);
             self.spin_down_instance(&instance_id, job, &cvm_ip, region, &rl_ip)
                 .await
                 .context("could not spin down instance after error during post spin up")?;
-            return Err(err).context("error during post spin up");
+            return Err(err);
         }
         Ok(instance_id)
     }
@@ -767,12 +768,12 @@ impl InfraProvider for Aws {
             .context("could not get job elastic ip")?
         else {
             // not found
-            return Err(anyhow!("IP not found"));
+            bail!("IP not found");
         };
 
         if association_id.is_none() {
             // not associated
-            return Err(anyhow!("IP not associated"));
+            bail!("IP not associated");
         }
 
         Ok(elastic_ip)
