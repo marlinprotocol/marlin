@@ -3,13 +3,12 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{Context, Result, anyhow};
-use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType, Tag};
+use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType};
 use aws_types::region::Region;
 use base64::{Engine, prelude::BASE64_STANDARD};
-use regex::Regex;
 use ssh_key::{Algorithm, LineEnding, PrivateKey, rand_core::OsRng};
 use tokio::time::{Duration, sleep};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 use whoami::username;
 
 use crate::market::{InfraProvider, JobId};
@@ -559,16 +558,9 @@ impl Aws {
             } else if state == "stopping" || state == "stopped" {
                 // instance unhealthy, terminate
                 info!(instance, "Found existing unhealthy instance");
-                self.spin_down_instance(
-                    &instance,
-                    job,
-                    &private_ip,
-                    region,
-                    bandwidth,
-                    &rl_instance_id,
-                )
-                .await
-                .context("failed to terminate instance")?;
+                self.spin_down_instance(&instance, job, &private_ip, region, &rl_instance_id)
+                    .await
+                    .context("failed to terminate instance")?;
 
                 // set to false so new one can be provisioned
                 exist = false;
@@ -612,7 +604,7 @@ impl Aws {
 
         if let Err(err) = res {
             error!(?err, "Error during post spin up");
-            self.spin_down_instance(&instance_id, job, &private_ip, region, bandwidth, "")
+            self.spin_down_instance(&instance_id, job, &private_ip, region, "")
                 .await
                 .context("could not spin down instance after error during post spin up")?;
             return Err(err).context("error during post spin up");
@@ -653,54 +645,7 @@ impl Aws {
         Ok(())
     }
 
-    async fn get_instance_bandwidth_limit(
-        &self,
-        instance_type: InstanceType,
-        region: &str,
-    ) -> Result<u64> {
-        let res = self
-            .client(region)
-            .describe_instance_types()
-            .instance_types(instance_type)
-            .send()
-            .await
-            .context("could not describe instance types")?;
-        let mut bandwidth_limit_res: &str = "";
-        let instance_types = res.instance_types();
-        for instance in instance_types {
-            bandwidth_limit_res = instance
-                .network_info()
-                .ok_or(anyhow!("error fetching instance network info"))?
-                .network_performance()
-                .ok_or(anyhow!("error fetching instance network performance"))?;
-            info!(bandwidth_limit_res);
-        }
-        // bandwidth_limit is string like "Up to 12.5 Gigabit", "Up to 10 Gigabit", "10 Gigabit"
-        // We need to parse this string and return bandwidth in bit/sec
-        let re = Regex::new(r"^(?i)(?:Up to\s+)?([\d\.]+)\s+Gigabit$").context(anyhow!(
-            "Failed to initialise bandwidth capturing regular expression"
-        ))?;
-        let captures = re
-            .captures(bandwidth_limit_res)
-            .ok_or(anyhow!("Could not parse bandwidth limit from string"))?;
-
-        let bandwidth_limit_str = captures
-            .get(1)
-            .ok_or(anyhow!("Could not capture bandwidth limit value"))?
-            .as_str();
-
-        let value: f64 = bandwidth_limit_str
-            .parse()
-            .context("Could not parse bandwidth limit value to float")?;
-
-        const MULTIPLIER: f64 = 1_000_000_000.0; // Gigabit to bit
-
-        let bandwidth_limit_bps = (value * MULTIPLIER).round() as u64;
-
-        Ok(bandwidth_limit_bps)
-    }
-
-    async fn spin_down_impl(&self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
+    async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
         let (exist, instance, state, rl_instance_id, private_ip) = self
             .get_job_instance(job, region)
             .await
@@ -714,16 +659,9 @@ impl Aws {
 
         // cleanup instance and related resources
         info!(instance, "Terminating existing instance");
-        self.spin_down_instance(
-            &instance,
-            job,
-            &private_ip,
-            region,
-            bandwidth,
-            &rl_instance_id,
-        )
-        .await
-        .context("failed to terminate instance")?;
+        self.spin_down_instance(&instance, job, &private_ip, region, &rl_instance_id)
+            .await
+            .context("failed to terminate instance")?;
 
         Ok(())
     }
@@ -735,7 +673,6 @@ impl Aws {
         job: &JobId,
         private_ip: &str,
         region: &str,
-        bandwidth: u64,
         rl_instance_id: &str,
     ) -> Result<()> {
         // Check elastic ip association and cleanup
@@ -815,8 +752,8 @@ impl InfraProvider for Aws {
             .context("could not spin up enclave")
     }
 
-    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
-        self.spin_down_impl(job, region, bandwidth)
+    async fn spin_down(&mut self, job: &JobId, region: &str, _bandwidth: u64) -> Result<()> {
+        self.spin_down_impl(job, region)
             .await
             .context("could not spin down enclave")
     }
