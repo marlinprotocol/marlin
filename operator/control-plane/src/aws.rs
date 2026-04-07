@@ -616,7 +616,7 @@ impl Aws {
         instance_type: &str,
         region: &str,
         bandwidth: u64,
-        image_url: &str,
+        image: &str,
         init_params: &[u8],
     ) -> Result<()> {
         let (mut exist, instance, state, rl_instance_id, private_ip) = self
@@ -667,7 +667,7 @@ impl Aws {
                 .await
                 .context("failed to get job snapshot")?;
             if !snapshot_exist {
-                // 1. Download image in image_url to a tmp file
+                // 1. Download image in image to a tmp file
                 // 2. check blacklist/whitelist
                 // 3. Upload image as snapshot
 
@@ -677,10 +677,10 @@ impl Aws {
                     tmp_file_path
                 ))?;
 
-                // Download the image from the image_url
-                let resp = reqwest::get(image_url).await.context(format!(
+                // Download the image from the image
+                let resp = reqwest::get(image).await.context(format!(
                     "Failed to start download file from {} for job ID {}",
-                    image_url, job.id
+                    image, job.id
                 ))?;
                 let mut stream = resp.bytes_stream();
 
@@ -1269,19 +1269,12 @@ impl InfraProvider for Aws {
         instance_type: &str,
         region: &str,
         bandwidth: u64,
-        image_url: &str,
+        image: &str,
         init_params: &[u8],
     ) -> Result<()> {
-        self.spin_up_impl(
-            job,
-            instance_type,
-            region,
-            bandwidth,
-            image_url,
-            init_params,
-        )
-        .await
-        .context("could not spin up enclave")
+        self.spin_up_impl(job, instance_type, region, bandwidth, image, init_params)
+            .await
+            .context("could not spin up enclave")
     }
 
     async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {

@@ -292,7 +292,7 @@ struct JobState<'a> {
     min_rate: u64,
     bandwidth: u64,
 
-    image_url: String,
+    image: String,
     instance_type: String,
     region: String,
     init_params: Box<[u8]>,
@@ -326,7 +326,7 @@ impl<'a> JobState<'a> {
             rate: 1,
             min_rate: u64::MAX,
             bandwidth: 0,
-            image_url: String::new(),
+            image: String::new(),
             instance_type: "c6a.xlarge".to_string(),
             region: "ap-south-1".to_string(),
             init_params: Box::new([0; 0]),
@@ -415,7 +415,7 @@ impl<'a> JobState<'a> {
                     self.instance_type.as_str(),
                     &self.region,
                     self.bandwidth,
-                    &self.image_url,
+                    &self.image,
                     &self.init_params,
                 )
                 .await;
@@ -657,10 +657,10 @@ impl<'a> JobState<'a> {
             info!(self.region, "Job region set");
         }
 
-        let Some(image_url) = metadata_json["image_url"].as_str() else {
-            return Err(anyhow!("Image url not found! Exiting job"));
+        let Some(image) = metadata_json["image"].as_str() else {
+            return Err(anyhow!("Image not found! Exiting job"));
         };
-        self.image_url = image_url.to_string();
+        self.image = image.to_string();
 
         let Ok(init_params) =
             BASE64_STANDARD.decode(metadata_json["init_params"].as_str().unwrap_or(""))
@@ -898,7 +898,7 @@ pub trait InfraProvider {
         instance_type: &str,
         region: &str,
         bandwidth: u64,
-        image_url: &str,
+        image: &str,
         init_params: &[u8],
     ) -> impl Future<Output = Result<()>> + Send;
 
@@ -928,18 +928,11 @@ where
         instance_type: &str,
         region: &str,
         bandwidth: u64,
-        image_url: &str,
+        image: &str,
         init_params: &[u8],
     ) -> Result<()> {
         (**self)
-            .spin_up(
-                job,
-                instance_type,
-                region,
-                bandwidth,
-                image_url,
-                init_params,
-            )
+            .spin_up(job, instance_type, region, bandwidth, image, init_params)
             .await
     }
 
@@ -1081,7 +1074,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (301, Action::Close(301)),
@@ -1108,7 +1101,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1131,7 +1124,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (301, Action::Close(301)),
@@ -1158,7 +1151,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1181,7 +1174,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (301, Action::Close(301)),
@@ -1208,7 +1201,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1231,7 +1224,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (40, Action::Deposit(40, 500)),
@@ -1261,7 +1254,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1284,7 +1277,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-east-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-east-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (505, Action::Close(505)),
@@ -1320,7 +1313,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"not_region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"not_region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (505, Action::Close(505)),
@@ -1356,7 +1349,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"not_instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"not_instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (505, Action::Close(505)),
@@ -1392,7 +1385,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.vsmall\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.vsmall\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (505, Action::Close(505)),
@@ -1423,12 +1416,12 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_image_url_not_found() {
+    async fn test_image_not_found() {
         let start_time = Instant::now();
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"not_url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"not_image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (505, Action::Close(505)),
@@ -1464,7 +1457,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,29000000)),
             (505, Action::Close(505)),
@@ -1500,7 +1493,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 0)),
             (0, Action::RateRevised(0,31000000)),
             (505, Action::Close(505)),
@@ -1538,7 +1531,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (350, Action::Withdraw(350, 30000)),
@@ -1566,7 +1559,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1589,7 +1582,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (350, Action::RateRevised(350, 29000000)),
@@ -1617,7 +1610,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1640,7 +1633,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (500, Action::Close(500)),
@@ -1670,7 +1663,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1693,7 +1686,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (500, Action::Close(500)),
@@ -1732,7 +1725,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (500, Action::Close(500)),
@@ -1771,7 +1764,7 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             (500, Action::Close(500)),
@@ -1801,7 +1794,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -1982,15 +1975,15 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_eif_update_before_spin_up() {
+    async fn test_image_update_before_spin_up() {
         let start_time = Instant::now();
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2015,7 +2008,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/updated-enclave.eif".into(),
+                    image: "ami-fedcba".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2038,10 +2031,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2066,7 +2059,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2089,11 +2082,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.large\"}".to_string())),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.large\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2127,10 +2120,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2155,7 +2148,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2178,10 +2171,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2206,7 +2199,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2224,15 +2217,15 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_eif_update_after_spin_up() {
+    async fn test_image_update_after_spin_up() {
         let start_time = Instant::now();
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2257,7 +2250,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2269,7 +2262,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/updated-enclave.eif".into(),
+                    image: "ami-fedcba".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2292,11 +2285,11 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/updated-enclave.eif\",\"instance\":\"c6a.large\"}".to_string())),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.large\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2321,7 +2314,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2344,10 +2337,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2372,7 +2365,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2384,7 +2377,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2407,10 +2400,10 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (0, Action::Deposit(0, 31000)),
             (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"url\":\"https://example.com/enclave.eif\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
             (505, Action::Close(505)),
         ];
 
@@ -2435,7 +2428,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2447,7 +2440,7 @@ mod tests {
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
                     bandwidth: 76,
-                    image_url: "https://example.com/enclave.eif".into(),
+                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),

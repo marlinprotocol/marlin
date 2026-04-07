@@ -90,29 +90,29 @@ async fn run() -> Result<()> {
 
     let regions: Vec<String> = cli.regions.split(',').map(|r| r.into()).collect();
 
-    let eif_whitelist = if !cli.whitelist.is_empty() {
-        let eif_whitelist_vec: Vec<String> = parse_file(cli.whitelist)
+    let image_whitelist = if !cli.whitelist.is_empty() {
+        let image_whitelist_vec: Vec<String> = parse_file(cli.whitelist)
             .await
-            .context("Failed to parse eif whitelist")?;
+            .context("Failed to parse image whitelist")?;
         // leak memory to get static references
         // will be cleaned up once program exits
         // alternative to OnceCell equivalents
-        let eif_whitelist = &*Box::leak(eif_whitelist_vec.into_boxed_slice());
+        let image_whitelist = &*Box::leak(image_whitelist_vec.into_boxed_slice());
 
-        Some(eif_whitelist)
+        Some(image_whitelist)
     } else {
         None
     };
-    let eif_blacklist = if !cli.blacklist.is_empty() {
-        let eif_blacklist_vec: Vec<String> = parse_file(cli.blacklist)
+    let image_blacklist = if !cli.blacklist.is_empty() {
+        let image_blacklist_vec: Vec<String> = parse_file(cli.blacklist)
             .await
-            .context("Failed to parse eif blacklist")?;
+            .context("Failed to parse image blacklist")?;
         // leak memory to get static references
         // will be cleaned up once program exits
         // alternative to OnceCell equivalents
-        let eif_blacklist = &*Box::leak(eif_blacklist_vec.into_boxed_slice());
+        let image_blacklist = &*Box::leak(image_blacklist_vec.into_boxed_slice());
 
-        Some(eif_blacklist)
+        Some(image_blacklist)
     } else {
         None
     };
@@ -121,8 +121,8 @@ async fn run() -> Result<()> {
         cli.profile,
         &regions,
         cli.key_name,
-        eif_whitelist,
-        eif_blacklist,
+        image_whitelist,
+        image_blacklist,
     )
     .await;
 
