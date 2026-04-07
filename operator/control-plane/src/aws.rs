@@ -358,12 +358,12 @@ impl Aws {
 
 // Instances
 impl Aws {
-    // returns (exist, instance_id, state, private_ip)
+    // returns (instance_id, state, private_ip)
     async fn get_job_instance(
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<(bool, String, String, String)> {
+    ) -> Result<Option<(String, String, String)>> {
         let job_filter = filter!("tag:jobId", job.id.to_string());
         let operator_filter = filter!("tag:operator", &job.operator);
         let chain_filter = filter!("tag:chainID", &job.chain);
@@ -383,14 +383,13 @@ impl Aws {
         let reservations = res.reservations();
 
         if reservations.is_empty() {
-            Ok((false, "".to_owned(), "".to_owned(), "".to_owned()))
+            Ok(None)
         } else {
             let instance = reservations[0]
                 .instances()
                 .first()
                 .ok_or(anyhow!("instance not found"))?;
-            Ok((
-                true,
+            Ok(Some((
                 instance
                     .instance_id()
                     .ok_or(anyhow!("could not parse ip address"))?
@@ -406,7 +405,7 @@ impl Aws {
                     .private_ip_address()
                     .ok_or(anyhow!("could not parse private ip"))?
                     .to_string(),
-            ))
+            )))
         }
     }
 
@@ -533,42 +532,39 @@ impl Aws {
     ) -> Result<()> {
         whitelist_blacklist_check(image, self.whitelist, self.blacklist);
 
-        let (mut exist, instance, state, cvm_ip) = self
+        if let Some((instance, state, cvm_ip)) = self
             .get_job_instance(job, region)
             .await
-            .context("failed to get job instance")?;
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .await
-            .context("failed to get rate limiter ip")?;
-
-        if exist {
+            .context("failed to get job instance")?
+        {
             // instance exists already
             if state == "pending" || state == "running" {
                 // instance exists and is already running, we are done
                 info!(instance, "Found existing healthy instance");
+
+                return Ok(());
             } else if state == "stopping" || state == "stopped" {
                 // instance unhealthy, terminate
+                // should never happen but eh be safe
                 info!(instance, "Found existing unhealthy instance");
+
+                let rl_ip = self
+                    .get_rate_limiter_ip(region)
+                    .await
+                    .context("failed to get rate limiter ip")?;
+
                 self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
                     .await
                     .context("failed to terminate instance")?;
-
-                // set to false so new one can be provisioned
-                exist = false;
             } else {
                 // state is shutting-down or terminated
-                // set to false so new one can be provisioned
-                exist = false;
             }
         }
 
-        if !exist {
-            // either no old instance or old instance was not enough, launch new one
-            self.spin_up_instance(job, instance_type, region, init_params, image, bandwidth)
-                .await
-                .context("failed to spin up instance")?;
-        }
+        // either no old instance or old instance was not enough, launch new one
+        self.spin_up_instance(job, instance_type, region, init_params, image, bandwidth)
+            .await
+            .context("failed to spin up instance")?;
 
         Ok(())
     }
@@ -640,23 +636,28 @@ impl Aws {
     }
 
     async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
-        let (exist, instance, state, cvm_ip) = self
+        let Some((instance, state, cvm_ip)) = self
             .get_job_instance(job, region)
             .await
-            .context("failed to get job instance")?;
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .await
-            .context("failed to get rate limiter ip")?;
+            .context("failed to get job instance")?
+        else {
+            // instance does not exist, we are done
+            info!("Instance does not exist");
+            return Ok(());
+        };
 
-        if !exist || state == "shutting-down" || state == "terminated" {
+        if state == "shutting-down" || state == "terminated" {
             // instance does not really exist anyway, we are done
-            info!("Instance does not exist or is already terminated");
+            info!("Instance is already terminated");
             return Ok(());
         }
 
         // cleanup instance and related resources
         info!(instance, "Terminating existing instance");
+        let rl_ip = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
         self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
             .await
             .context("failed to terminate instance")?;
@@ -775,15 +776,15 @@ impl InfraProvider for Aws {
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        let (exists, _, state, _) = self
+        if let Some((_, state, _)) = self
             .get_job_instance(job, region)
             .await
-            .context("could not get instance id for job")?;
+            .context("could not get instance id for job")?
+            && (state == "running" || state == "pending")
+        {
+            return Ok(true);
+        };
 
-        if !exists || (state != "running" && state != "pending") {
-            return Ok(false);
-        }
-        // TODO: check wether state == pending is fine or not
-        Ok(true)
+        Ok(false)
     }
 }
