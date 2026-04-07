@@ -6,9 +6,8 @@ use anyhow::{anyhow, Context, Result};
 use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType, Tag};
 use aws_types::region::Region;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use rand_core::OsRng;
 use regex::Regex;
-use ssh_key::{Algorithm, LineEnding, PrivateKey};
+use ssh_key::{Algorithm, LineEnding, PrivateKey, rand_core::OsRng};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
 use whoami::username;
@@ -45,7 +44,7 @@ impl Aws {
             clients.insert(region.clone(), aws_sdk_ec2::Client::new(&config));
         }
 
-        let username = username();
+        let username = username().expect("could not retrieve user name");
         let key_location = format!("/home/{username}/.ssh/{key_name}.pem").into();
         let pubkey_location = format!("/home/{username}/.ssh/{key_name}.pub").into();
 
@@ -139,7 +138,9 @@ impl Aws {
             Ok(())
         } else if pub_check {
             // only public key exists, error out to avoid overwriting it
-            Err(anyhow!("Found public key file without corresponding private key file, exiting to prevent overwriting it"))
+            Err(anyhow!(
+                "Found public key file without corresponding private key file, exiting to prevent overwriting it"
+            ))
         } else {
             // neither exist, generate private key and public key
             let private_key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)
