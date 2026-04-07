@@ -90,32 +90,21 @@ async fn run() -> Result<()> {
 
     let regions: Vec<String> = cli.regions.split(',').map(|r| r.into()).collect();
 
-    let image_whitelist = if !cli.whitelist.is_empty() {
-        let image_whitelist_vec: Vec<String> = parse_file(cli.whitelist)
-            .await
-            .context("Failed to parse image whitelist")?;
-        // leak memory to get static references
-        // will be cleaned up once program exits
-        // alternative to OnceCell equivalents
-        let image_whitelist = &*Box::leak(image_whitelist_vec.into_boxed_slice());
+    let image_whitelist_vec = parse_file(cli.whitelist)
+        .await
+        .context("Failed to parse image whitelist")?;
+    // leak memory to get static references
+    // will be cleaned up once program exits
+    // alternative to OnceCell equivalents
+    let image_whitelist = &*Box::leak(image_whitelist_vec.into_boxed_slice());
 
-        Some(image_whitelist)
-    } else {
-        None
-    };
-    let image_blacklist = if !cli.blacklist.is_empty() {
-        let image_blacklist_vec: Vec<String> = parse_file(cli.blacklist)
-            .await
-            .context("Failed to parse image blacklist")?;
-        // leak memory to get static references
-        // will be cleaned up once program exits
-        // alternative to OnceCell equivalents
-        let image_blacklist = &*Box::leak(image_blacklist_vec.into_boxed_slice());
-
-        Some(image_blacklist)
-    } else {
-        None
-    };
+    let image_blacklist_vec = parse_file(cli.blacklist)
+        .await
+        .context("Failed to parse image blacklist")?;
+    // leak memory to get static references
+    // will be cleaned up once program exits
+    // alternative to OnceCell equivalents
+    let image_blacklist = &*Box::leak(image_blacklist_vec.into_boxed_slice());
 
     let aws = aws::Aws::new(
         cli.profile,
@@ -137,10 +126,10 @@ async fn run() -> Result<()> {
         .await
         .context("failed to parse bandwidth rates file")?;
 
-    let address_whitelist_vec: Vec<String> = parse_file(cli.address_whitelist)
+    let address_whitelist_vec = parse_file(cli.address_whitelist)
         .await
         .context("Failed to parse address whitelist")?;
-    let address_blacklist_vec: Vec<String> = parse_file(cli.address_blacklist)
+    let address_blacklist_vec = parse_file(cli.address_blacklist)
         .await
         .context("Failed to parse address blacklist")?;
 

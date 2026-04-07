@@ -22,8 +22,8 @@ pub struct Aws {
     key_name: String,
     key_location: PathBuf,
     pubkey_location: PathBuf,
-    whitelist: Option<&'static [String]>,
-    blacklist: Option<&'static [String]>,
+    whitelist: &'static [String],
+    blacklist: &'static [String],
 }
 
 // Initialization
@@ -32,8 +32,8 @@ impl Aws {
         aws_profile: String,
         regions: &[String],
         key_name: String,
-        whitelist: Option<&'static [String]>,
-        blacklist: Option<&'static [String]>,
+        whitelist: &'static [String],
+        blacklist: &'static [String],
     ) -> Aws {
         let mut clients = HashMap::<String, aws_sdk_ec2::Client>::with_capacity(regions.len());
         for region in regions {
@@ -543,6 +543,8 @@ impl Aws {
         image: &str,
         init_params: &[u8],
     ) -> Result<()> {
+        whitelist_blacklist_check(image, self.whitelist, self.blacklist);
+
         let (mut exist, instance, state, rl_instance_id, private_ip) = self
             .get_job_instance_id(job, region)
             .await
@@ -931,6 +933,32 @@ impl Aws {
 
         Ok(())
     }
+}
+
+fn whitelist_blacklist_check(image: &str, whitelist: &[String], blacklist: &[String]) -> bool {
+    // check whitelist
+    if !whitelist.is_empty() {
+        info!("Checking whitelist...");
+        if whitelist.iter().any(|s| s == image) {
+            info!("ALLOWED!");
+        } else {
+            info!("NOT ALLOWED!");
+            return false;
+        }
+    }
+
+    // check blacklist
+    if !blacklist.is_empty() {
+        info!("Checking blacklist...");
+        if blacklist.iter().any(|s| s == image) {
+            info!("NOT ALLOWED!");
+            return false;
+        } else {
+            info!("ALLOWED!");
+        }
+    }
+
+    true
 }
 
 impl InfraProvider for Aws {
