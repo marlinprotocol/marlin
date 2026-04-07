@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType};
 use aws_types::region::Region;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use ssh_key::{Algorithm, LineEnding, PrivateKey, rand_core::OsRng};
 use tokio::time::{Duration, sleep};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use whoami::username;
 
 use crate::market::{InfraProvider, JobId};
@@ -538,7 +538,9 @@ impl Aws {
         image: &str,
         init_params: &[u8],
     ) -> Result<()> {
-        whitelist_blacklist_check(image, self.whitelist, self.blacklist);
+        if !whitelist_blacklist_check(image, self.whitelist, self.blacklist) {
+            bail!("failed whitelist/blacklist check");
+        }
 
         if let Some((instance, is_healthy, cvm_ip)) = self
             .get_job_instance(job, region)
@@ -710,26 +712,27 @@ impl Aws {
     }
 }
 
+#[must_use]
 fn whitelist_blacklist_check(image: &str, whitelist: &[String], blacklist: &[String]) -> bool {
     // check whitelist
     if !whitelist.is_empty() {
-        info!("Checking whitelist...");
+        debug!("Checking whitelist...");
         if whitelist.iter().any(|s| s == image) {
-            info!("ALLOWED!");
+            debug!("ALLOWED!");
         } else {
-            info!("NOT ALLOWED!");
+            debug!("NOT ALLOWED!");
             return false;
         }
     }
 
     // check blacklist
     if !blacklist.is_empty() {
-        info!("Checking blacklist...");
+        debug!("Checking blacklist...");
         if blacklist.iter().any(|s| s == image) {
-            info!("NOT ALLOWED!");
+            debug!("NOT ALLOWED!");
             return false;
         } else {
-            info!("ALLOWED!");
+            debug!("ALLOWED!");
         }
     }
 

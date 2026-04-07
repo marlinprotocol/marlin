@@ -815,6 +815,7 @@ fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, 
     }
 }
 
+#[must_use]
 fn whitelist_blacklist_check(
     owner: String,
     address_whitelist: &[String],
