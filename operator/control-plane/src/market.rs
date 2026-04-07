@@ -728,19 +728,23 @@ impl JobRegistry {
             return Ok(0);
         }
 
-        let mut conn = PgConnection::establish(&self.db_url)
-            .context("failed to connect to the provided db url")?;
+        let backoff_policy = ExponentialBackoff::from_millis(1).factor(1000).take(30);
+        Retry::spawn(backoff_policy, async || {
+            let mut conn = PgConnection::establish(&self.db_url)
+                .context("failed to connect to the provided db url")?;
 
-        diesel::insert_into(schema::terminated_jobs::table)
-            .values(
-                job_ids
-                    .into_iter()
-                    .map(|x| schema::terminated_jobs::job_id.eq(x as i64))
-                    .collect::<Vec<_>>(),
-            )
-            .on_conflict_do_nothing()
-            .execute(&mut conn)
-            .context("failed to insert terminated jobs")
+            diesel::insert_into(schema::terminated_jobs::table)
+                .values(
+                    job_ids
+                        .iter()
+                        .map(|x| schema::terminated_jobs::job_id.eq(*x as i64))
+                        .collect::<Vec<_>>(),
+                )
+                .on_conflict_do_nothing()
+                .execute(&mut conn)
+                .context("failed to insert terminated jobs")
+        })
+        .await
     }
 
     pub async fn run_periodic_save(self, interval_secs: u64) {
