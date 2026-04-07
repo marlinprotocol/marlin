@@ -314,120 +314,8 @@ impl Aws {
 
 // Instances
 impl Aws {
-    // launch instance with given params and return instance id and private ip
-    async fn launch_instance(
-        &self,
-        job: &JobId,
-        instance_type: InstanceType,
-        region: &str,
-        init_params: &[u8],
-        image: &str,
-    ) -> Result<(String, String)> {
-        let tags = tag_spec!(
-            ResourceType::Instance,
-            "Name" => format!("JobRunner {}", job.id),
-            "managedBy" => "marlin",
-            "project" => "marlin-cvm",
-            "jobId" => job.id.to_string(),
-            "operator" => &job.operator,
-            "chainID" => &job.chain,
-            "contractAddress" => &job.contract,
-        );
-
-        let subnet = self
-            .get_subnet(region)
-            .await
-            .context("could not get subnet")?;
-        let sec_group = self
-            .get_security_group(region)
-            .await
-            .context("could not get subnet")?;
-        let run_instances_response = self
-            .client(region)
-            .run_instances()
-            .image_id(image)
-            .instance_type(instance_type)
-            .min_count(1)
-            .max_count(1)
-            .tag_specifications(tags)
-            .security_group_ids(sec_group)
-            .subnet_id(subnet)
-            .user_data(BASE64_STANDARD.encode(init_params))
-            .send()
-            .await
-            .context("could not run instance")?;
-        let instance = run_instances_response
-            // response parsing from here
-            .instances()
-            .first()
-            .ok_or(anyhow!("no instance found"))?;
-
-        let instance_id = instance
-            .instance_id()
-            .ok_or(anyhow!("could not parse instance id"))?
-            .to_string();
-
-        let private_ip = instance
-            .private_ip_address()
-            .ok_or(anyhow!("could not parse private ip"))?
-            .to_string();
-        Ok((instance_id, private_ip))
-    }
-
-    async fn terminate_instance(&self, instance_id: &str, region: &str) -> Result<()> {
-        let _ = self
-            .client(region)
-            .terminate_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .context("could not terminate instance")?;
-
-        Ok(())
-    }
-
-    async fn get_security_group(&self, region: &str) -> Result<String> {
-        let project_filter = filter!("tag:project", "marlin-cvm");
-
-        Ok(self
-            .client(region)
-            .describe_security_groups()
-            .filters(project_filter)
-            .send()
-            .await
-            .context("could not describe security groups")?
-            // response parsing from here
-            .security_groups()
-            .first()
-            .ok_or(anyhow!("no security group found"))?
-            .group_id()
-            .ok_or(anyhow!("could not parse group id"))?
-            .to_string())
-    }
-
-    async fn get_subnet(&self, region: &str) -> Result<String> {
-        let project_filter = filter!("tag:project", "marlin-cvm");
-        let type_filter = filter!("tag:type", "cvm");
-
-        Ok(self
-            .client(region)
-            .describe_subnets()
-            .filters(type_filter)
-            .filters(project_filter)
-            .send()
-            .await
-            .context("could not describe subnets")?
-            // response parsing from here
-            .subnets()
-            .first()
-            .ok_or(anyhow!("no subnet found"))?
-            .subnet_id()
-            .ok_or(anyhow!("Could not parse subnet id"))?
-            .to_string())
-    }
-
-    // return (exist, instance_id, state, rl_instance_id, private_ip)
-    async fn get_job_instance_id(
+    // returns (exist, instance_id, state, rl_instance_id, private_ip)
+    async fn get_job_instance(
         &self,
         job: &JobId,
         region: &str,
@@ -489,6 +377,117 @@ impl Aws {
                     .to_string(),
             ))
         }
+    }
+
+    // returns (instance id, private ip)
+    async fn launch_instance(
+        &self,
+        job: &JobId,
+        instance_type: InstanceType,
+        region: &str,
+        init_params: &[u8],
+        image: &str,
+    ) -> Result<(String, String)> {
+        let tags = tag_spec!(
+            ResourceType::Instance,
+            "Name" => format!("JobRunner {}", job.id),
+            "managedBy" => "marlin",
+            "project" => "marlin-cvm",
+            "jobId" => job.id.to_string(),
+            "operator" => &job.operator,
+            "chainID" => &job.chain,
+            "contractAddress" => &job.contract,
+        );
+
+        let subnet = self
+            .get_subnet(region)
+            .await
+            .context("could not get subnet")?;
+        let sec_group = self
+            .get_security_group(region)
+            .await
+            .context("could not get security group")?;
+        let run_instances_response = self
+            .client(region)
+            .run_instances()
+            .image_id(image)
+            .instance_type(instance_type)
+            .min_count(1)
+            .max_count(1)
+            .tag_specifications(tags)
+            .security_group_ids(sec_group)
+            .subnet_id(subnet)
+            .user_data(BASE64_STANDARD.encode(init_params))
+            .send()
+            .await
+            .context("could not run instance")?;
+        let instance = run_instances_response
+            // response parsing from here
+            .instances()
+            .first()
+            .ok_or(anyhow!("no instance found"))?;
+
+        let instance_id = instance
+            .instance_id()
+            .ok_or(anyhow!("could not parse instance id"))?
+            .to_string();
+        let private_ip = instance
+            .private_ip_address()
+            .ok_or(anyhow!("could not parse private ip"))?
+            .to_string();
+
+        Ok((instance_id, private_ip))
+    }
+
+    async fn terminate_instance(&self, instance_id: &str, region: &str) -> Result<()> {
+        self.client(region)
+            .terminate_instances()
+            .instance_ids(instance_id)
+            .send()
+            .await
+            .context("could not terminate instance")?;
+
+        Ok(())
+    }
+
+    async fn get_security_group(&self, region: &str) -> Result<String> {
+        let project_filter = filter!("tag:project", "marlin-cvm");
+
+        Ok(self
+            .client(region)
+            .describe_security_groups()
+            .filters(project_filter)
+            .send()
+            .await
+            .context("could not describe security groups")?
+            // response parsing from here
+            .security_groups()
+            .first()
+            .ok_or(anyhow!("no security group found"))?
+            .group_id()
+            .ok_or(anyhow!("could not parse group id"))?
+            .to_string())
+    }
+
+    async fn get_subnet(&self, region: &str) -> Result<String> {
+        let project_filter = filter!("tag:project", "marlin-cvm");
+        let type_filter = filter!("tag:type", "cvm");
+
+        Ok(self
+            .client(region)
+            .describe_subnets()
+            .filters(type_filter)
+            .filters(project_filter)
+            .send()
+            .await
+            .context("could not describe subnets")?
+            // response parsing from here
+            .subnets()
+            .first()
+            .ok_or(anyhow!("no subnet found"))?
+            .subnet_id()
+            .ok_or(anyhow!("Could not parse subnet id"))?
+            .to_string())
     }
 
     async fn spin_up_impl(
