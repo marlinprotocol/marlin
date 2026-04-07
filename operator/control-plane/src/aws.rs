@@ -358,16 +358,23 @@ impl Aws {
 
 // Instances
 impl Aws {
-    // returns (instance_id, state, private_ip)
+    // returns (instance_id, is_healthy, private_ip)
     async fn get_job_instance(
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<Option<(String, String, String)>> {
+    ) -> Result<Option<(String, bool, String)>> {
         let job_filter = filter!("tag:jobId", job.id.to_string());
         let operator_filter = filter!("tag:operator", &job.operator);
         let chain_filter = filter!("tag:chainID", &job.chain);
         let contract_filter = filter!("tag:contractAddress", &job.contract);
+        let state_filter = filter!(
+            "instance-state-name",
+            "pending",
+            "running",
+            "stopping",
+            "stopped"
+        );
 
         let res = self
             .client(region)
@@ -376,6 +383,7 @@ impl Aws {
             .filters(operator_filter)
             .filters(contract_filter)
             .filters(chain_filter)
+            .filters(state_filter)
             .send()
             .await
             .context("could not describe instances")?;
@@ -389,18 +397,18 @@ impl Aws {
                 .instances()
                 .first()
                 .ok_or(anyhow!("instance not found"))?;
+            let state = instance
+                .state()
+                .ok_or(anyhow!("could not parse instance state"))?
+                .name()
+                .ok_or(anyhow!("could not parse instance state name"))?
+                .as_str();
             Ok(Some((
                 instance
                     .instance_id()
                     .ok_or(anyhow!("could not parse ip address"))?
                     .to_string(),
-                instance
-                    .state()
-                    .ok_or(anyhow!("could not parse instance state"))?
-                    .name()
-                    .ok_or(anyhow!("could not parse instance state name"))?
-                    .as_str()
-                    .to_owned(),
+                state == "pending" || state == "running",
                 instance
                     .private_ip_address()
                     .ok_or(anyhow!("could not parse private ip"))?
@@ -532,18 +540,18 @@ impl Aws {
     ) -> Result<()> {
         whitelist_blacklist_check(image, self.whitelist, self.blacklist);
 
-        if let Some((instance, state, cvm_ip)) = self
+        if let Some((instance, is_healthy, cvm_ip)) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?
         {
             // instance exists already
-            if state == "pending" || state == "running" {
+            if is_healthy {
                 // instance exists and is already running, we are done
                 info!(instance, "Found existing healthy instance");
 
                 return Ok(());
-            } else if state == "stopping" || state == "stopped" {
+            } else {
                 // instance unhealthy, terminate
                 // should never happen but eh be safe
                 info!(instance, "Found existing unhealthy instance");
@@ -556,8 +564,6 @@ impl Aws {
                 self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
                     .await
                     .context("failed to terminate instance")?;
-            } else {
-                // state is shutting-down or terminated
             }
         }
 
@@ -636,7 +642,7 @@ impl Aws {
     }
 
     async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
-        let Some((instance, state, cvm_ip)) = self
+        let Some((instance, _, cvm_ip)) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?
@@ -645,12 +651,6 @@ impl Aws {
             info!("Instance does not exist");
             return Ok(());
         };
-
-        if state == "shutting-down" || state == "terminated" {
-            // instance does not really exist anyway, we are done
-            info!("Instance is already terminated");
-            return Ok(());
-        }
 
         // cleanup instance and related resources
         info!(instance, "Terminating existing instance");
@@ -776,13 +776,12 @@ impl InfraProvider for Aws {
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        if let Some((_, state, _)) = self
+        if let Some((_, is_healthy, _)) = self
             .get_job_instance(job, region)
             .await
             .context("could not get instance id for job")?
-            && (state == "running" || state == "pending")
         {
-            return Ok(true);
+            return Ok(is_healthy);
         };
 
         Ok(false)
