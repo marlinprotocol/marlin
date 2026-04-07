@@ -1,20 +1,15 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context, Result};
 use aws_sdk_ec2::types::*;
 use aws_types::region::Region;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use coldsnap::{SnapshotUploader, SnapshotWaiter};
 use rand_core::OsRng;
 use regex::Regex;
-use ssh_key::sha2::{Digest, Sha256};
 use ssh_key::{Algorithm, LineEnding, PrivateKey};
 use tokio::time::{sleep, Duration};
-use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
 use whoami::username;
 
@@ -459,69 +454,6 @@ impl Aws {
             .to_string())
     }
 
-    async fn get_job_snapshot_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = filter!("tag:jobId", job.id.to_string());
-        let operator_filter = filter!("tag:operator", &job.operator);
-        let chain_filter = filter!("tag:chainID", &job.chain);
-        let contract_filter = filter!("tag:contractAddress", &job.contract);
-
-        let res = self
-            .client(region)
-            .describe_snapshots()
-            .owner_ids("self")
-            .filters(job_filter)
-            .filters(operator_filter)
-            .filters(contract_filter)
-            .filters(chain_filter)
-            .send()
-            .await
-            .context("could not describe instances")?;
-
-        let own_snapshot = res.snapshots().iter().max_by_key(|x| &x.start_time);
-        if let Some(snapshot) = own_snapshot {
-            Ok((
-                true,
-                snapshot
-                    .snapshot_id()
-                    .ok_or(anyhow!("could not parse snapshot id"))?
-                    .to_string(),
-            ))
-        } else {
-            Ok((false, "".to_owned()))
-        }
-    }
-
-    async fn get_job_ami_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = filter!("tag:jobId", job.id.to_string());
-        let operator_filter = filter!("tag:operator", &job.operator);
-        let chain_filter = filter!("tag:chainID", &job.chain);
-        let contract_filter = filter!("tag:contractAddress", &job.contract);
-
-        let res = self
-            .client(region)
-            .describe_images()
-            .owners("self")
-            .filters(job_filter)
-            .filters(operator_filter)
-            .filters(contract_filter)
-            .filters(chain_filter)
-            .send()
-            .await
-            .context("could not describe instances")?;
-
-        let own_ami = res.images().iter().max_by_key(|x| &x.name);
-        if let Some(ami) = own_ami {
-            Ok((
-                true,
-                ami.image_id()
-                    .ok_or(anyhow!("could not parse image id"))?
-                    .to_string(),
-            ))
-        } else {
-            Ok((false, "".to_owned()))
-        }
-    }
-
     // return (exist, instance_id, state, rl_instance_id, private_ip)
     pub async fn get_job_instance_id(
         &self,
@@ -929,42 +861,6 @@ impl Aws {
         .await
         .context("failed to terminate instance")?;
 
-        Ok(())
-    }
-
-    async fn deregister_ami(&self, job: &JobId, region: &str) -> Result<()> {
-        let (ami_exist, ami_id) = self
-            .get_job_ami_id(job, region)
-            .await
-            .context("failed to get job ami")?;
-        if !ami_exist {
-            return Ok(());
-        }
-        self.client(region)
-            .deregister_image()
-            .image_id(ami_id)
-            .send()
-            .await
-            .context("could not deregister ami")?;
-        Ok(())
-    }
-
-    async fn delete_snapshot(&self, job: &JobId, region: &str) -> Result<()> {
-        let (ss_exist, snapshot_id) = self
-            .get_job_snapshot_id(job, region)
-            .await
-            .context("failed to get job snapshot")?;
-        if !ss_exist {
-            info!("No snapshot to delete");
-            return Ok(());
-        }
-        info!(snapshot_id, "Deleting snapshot");
-        self.client(region)
-            .delete_snapshot()
-            .snapshot_id(snapshot_id)
-            .send()
-            .await
-            .context("could not delete snapshot")?;
         Ok(())
     }
 
