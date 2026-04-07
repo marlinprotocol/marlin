@@ -354,7 +354,7 @@ impl Aws {
         instance_type: InstanceType,
         region: &str,
         init_params: &[u8],
-        ami_id: &str,
+        image: &str,
     ) -> Result<(String, String)> {
         let tags = tag_spec!(
             ResourceType::Instance,
@@ -378,7 +378,7 @@ impl Aws {
         let instance = self
             .client(region)
             .run_instances()
-            .image_id(ami_id)
+            .image_id(image)
             .instance_type(instance_type)
             .min_count(1)
             .max_count(1)
@@ -652,221 +652,11 @@ impl Aws {
             }
         }
 
-        // Check AMI corresponding to given job. If dosen't exist then check if snapshot exists.
-        // If doesn't exist download image upload as snapshot and register AMI. If snapshot exists register AMI from it.
-
-        let (ami_exist, mut ami_id) = self
-            .get_job_ami_id(job, region)
-            .await
-            .context("failed to get job ami")?;
-
-        if !ami_exist {
-            // check snapshot exists
-            let (snapshot_exist, mut snapshot_id) = self
-                .get_job_snapshot_id(job, region)
-                .await
-                .context("failed to get job snapshot")?;
-            if !snapshot_exist {
-                // 1. Download image in image to a tmp file
-                // 2. check blacklist/whitelist
-                // 3. Upload image as snapshot
-
-                let tmp_file_path = format!("/tmp/image-{}.raw", job.id);
-                let mut tmp_file = File::create(&tmp_file_path).context(format!(
-                    "Failed to create temporary file for image {}",
-                    tmp_file_path
-                ))?;
-
-                // Download the image from the image
-                let resp = reqwest::get(image).await.context(format!(
-                    "Failed to start download file from {} for job ID {}",
-                    image, job.id
-                ))?;
-                let mut stream = resp.bytes_stream();
-
-                while let Some(item) = stream.next().await {
-                    let chunk = item.context(format!(
-                        "Failed to read chunk from response stream for job ID {}",
-                        job.id
-                    ))?;
-                    tmp_file.write_all(&chunk).context(format!(
-                        "Failed to write chunk to temporary file for job ID {}",
-                        job.id
-                    ))?;
-                }
-
-                tmp_file.flush().context(format!(
-                    "Failed to flush temporary file for job ID {}",
-                    job.id
-                ))?;
-
-                let mut hasher = Sha256::new();
-                let mut file = File::open(&tmp_file_path)
-                    .context("Failed to open temporary file for hashing")?;
-                let mut buffer = [0; 8192];
-                loop {
-                    let n = file
-                        .read(&mut buffer)
-                        .context("Failed to read temporary file")?;
-                    if n == 0 {
-                        break;
-                    }
-                    hasher.update(&buffer[..n]);
-                }
-                let file_hash = hex::encode(hasher.finalize());
-
-                if let Some(whitelist_list) = self.whitelist {
-                    let mut allowed = false;
-                    for entry in whitelist_list {
-                        if entry.contains(&file_hash) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if !allowed {
-                        return Err(anyhow!("Image hash {} not found in whitelist", file_hash));
-                    }
-                }
-
-                if let Some(blacklist_list) = self.blacklist {
-                    for entry in blacklist_list {
-                        if entry.contains(&file_hash) {
-                            return Err(anyhow!("Image hash {} found in blacklist", file_hash));
-                        }
-                    }
-                }
-
-                let uploader = SnapshotUploader::new(self.ebs_client(region).clone());
-                let managed_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("managedBy")
-                    .value("marlin")
-                    .build();
-                let project_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("project")
-                    .value("marlin-cvm")
-                    .build();
-                let job_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("jobId")
-                    .value(job.id.to_string())
-                    .build();
-                let operator_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("operator")
-                    .value(&job.operator)
-                    .build();
-                let chain_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("chainID")
-                    .value(&job.chain)
-                    .build();
-                let contract_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("contractAddress")
-                    .value(&job.contract)
-                    .build();
-
-                let snapshot_tags = vec![
-                    managed_tag,
-                    project_tag,
-                    job_tag,
-                    operator_tag,
-                    contract_tag,
-                    chain_tag,
-                ];
-                snapshot_id = uploader
-                    .upload_from_file(
-                        Path::new(&tmp_file_path),
-                        None,
-                        None,
-                        Some(snapshot_tags),
-                        None,
-                        None,
-                        None,
-                    )
-                    .await
-                    .context("Failed to upload snapshot from image file")?;
-                info!(snapshot_id, "Snapshot uploaded");
-                let waiter = SnapshotWaiter::new(self.client(region).clone());
-                waiter
-                    .wait_for_completed(snapshot_id.as_str())
-                    .await
-                    .context("Failed to wait for snapshot completion")?;
-                info!(snapshot_id, "Snapshot is now completed");
-            }
-            // Register AMI from snapshot
-
-            let block_dev_mapping = BlockDeviceMapping::builder()
-                .device_name("/dev/xvda")
-                .ebs(
-                    EbsBlockDevice::builder()
-                        .snapshot_id(snapshot_id.clone())
-                        .build(),
-                )
-                .build();
-
-            let instance_type =
-                InstanceType::from_str(instance_type).context("cannot parse instance type")?;
-            let resp = self
-                .client(region)
-                .describe_instance_types()
-                .instance_types(instance_type.clone())
-                .send()
-                .await
-                .context("could not describe instance types")?;
-            let mut architecture = "arm64".to_string();
-            let isntance_types = resp.instance_types();
-            for instance in isntance_types {
-                let supported_architectures = instance
-                    .processor_info()
-                    .ok_or(anyhow!("error fetching instance processor info"))?
-                    .supported_architectures();
-                if let Some(arch) = supported_architectures.iter().next() {
-                    arch.as_str().clone_into(&mut architecture);
-                    info!(architecture);
-                }
-            }
-            let resp = self
-                .client(region)
-                .register_image()
-                .name(format!("marlin/oyster/job-{}", job.id))
-                .architecture(FromStr::from_str(&architecture)?)
-                .root_device_name("/dev/xvda")
-                .block_device_mappings(block_dev_mapping)
-                .tpm_support(TpmSupportValues::V20)
-                .ena_support(true)
-                .virtualization_type("hvm".to_string())
-                .boot_mode(BootModeValues::Uefi)
-                .tag_specifications(tag_spec!(
-                    ResourceType::Image,
-                    "managedBy" => "marlin",
-                    "project" => "marlin-cvm",
-                    "jobId" => job.id.to_string(),
-                    "operator" => &job.operator,
-                    "chainID" => &job.chain,
-                    "contractAddress" => &job.contract,
-                ))
-                .send()
-                .await
-                .context(format!(
-                    "Failed to register AMI from snapshot {} for job {}",
-                    snapshot_id, job.id
-                ))?;
-
-            ami_id = resp
-                .image_id()
-                .ok_or(anyhow!("could not parse image id"))?
-                .to_string();
-        }
-
         if !exist {
             // either no old instance or old instance was not enough, launch new one
-            self.spin_up_instance(
-                job,
-                instance_type,
-                region,
-                init_params,
-                ami_id.as_str(),
-                bandwidth,
-            )
-            .await
-            .context("failed to spin up instance")?;
+            self.spin_up_instance(job, instance_type, region, init_params, image, bandwidth)
+                .await
+                .context("failed to spin up instance")?;
         }
 
         Ok(())
@@ -878,13 +668,13 @@ impl Aws {
         instance_type: &str,
         region: &str,
         init_params: &[u8],
-        ami_id: &str,
+        image: &str,
         bandwidth: u64,
     ) -> Result<String> {
         let instance_type =
             InstanceType::from_str(instance_type).context("cannot parse instance type")?;
         let (instance_id, private_ip) = self
-            .launch_instance(job, instance_type, region, init_params, ami_id)
+            .launch_instance(job, instance_type, region, init_params, image)
             .await
             .context("could not launch instance")?;
         sleep(Duration::from_secs(100)).await;
@@ -1138,13 +928,6 @@ impl Aws {
         )
         .await
         .context("failed to terminate instance")?;
-
-        self.deregister_ami(job, region)
-            .await
-            .context("failed to deregister ami")?;
-        self.delete_snapshot(job, region)
-            .await
-            .context("failed to delete snapshot")?;
 
         Ok(())
     }
