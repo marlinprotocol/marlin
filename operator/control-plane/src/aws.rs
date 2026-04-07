@@ -358,12 +358,12 @@ impl Aws {
 
 // Instances
 impl Aws {
-    // returns (exist, instance_id, state, rl_instance_id, private_ip)
+    // returns (exist, instance_id, state, private_ip)
     async fn get_job_instance(
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<(bool, String, String, String, String)> {
+    ) -> Result<(bool, String, String, String)> {
         let job_filter = filter!("tag:jobId", job.id.to_string());
         let operator_filter = filter!("tag:operator", &job.operator);
         let chain_filter = filter!("tag:chainID", &job.chain);
@@ -383,24 +383,12 @@ impl Aws {
         let reservations = res.reservations();
 
         if reservations.is_empty() {
-            Ok((
-                false,
-                "".to_owned(),
-                "".to_owned(),
-                "".to_owned(),
-                "".to_owned(),
-            ))
+            Ok((false, "".to_owned(), "".to_owned(), "".to_owned()))
         } else {
             let instance = reservations[0]
                 .instances()
                 .first()
                 .ok_or(anyhow!("instance not found"))?;
-            let mut rl_instance_id = String::new();
-            for tag in instance.tags() {
-                if tag.key().unwrap_or("") == "rlInstanceId" {
-                    rl_instance_id = tag.value().unwrap_or("").to_string();
-                }
-            }
             Ok((
                 true,
                 instance
@@ -414,7 +402,6 @@ impl Aws {
                     .ok_or(anyhow!("could not parse instance state name"))?
                     .as_str()
                     .to_owned(),
-                rl_instance_id,
                 instance
                     .private_ip_address()
                     .ok_or(anyhow!("could not parse private ip"))?
@@ -546,10 +533,14 @@ impl Aws {
     ) -> Result<()> {
         whitelist_blacklist_check(image, self.whitelist, self.blacklist);
 
-        let (mut exist, instance, state, rl_instance_id, private_ip) = self
+        let (mut exist, instance, state, private_ip) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?;
+        let rl_instance_id = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
 
         if exist {
             // instance exists already
@@ -647,10 +638,14 @@ impl Aws {
     }
 
     async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
-        let (exist, instance, state, rl_instance_id, private_ip) = self
+        let (exist, instance, state, private_ip) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?;
+        let rl_instance_id = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
 
         if !exist || state == "shutting-down" || state == "terminated" {
             // instance does not really exist anyway, we are done
@@ -778,7 +773,7 @@ impl InfraProvider for Aws {
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        let (exists, _, state, _, _) = self
+        let (exists, _, state, _) = self
             .get_job_instance(job, region)
             .await
             .context("could not get instance id for job")?;
