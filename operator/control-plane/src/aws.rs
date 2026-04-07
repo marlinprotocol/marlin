@@ -312,6 +312,51 @@ impl Aws {
     }
 }
 
+// Rate limiter
+impl Aws {
+    async fn get_rate_limiter_ip(&self, region: &str) -> Result<String> {
+        let project_filter = filter!("tag:project", "marlin-cvm");
+        let type_filter = filter!("tag:type", "limiter");
+
+        let describe_instances_output = self
+            .client(region)
+            .describe_instances()
+            .filters(project_filter)
+            .filters(type_filter)
+            .send()
+            .await
+            .context("could not describe rate limit instances")?;
+        let instance = describe_instances_output
+            .reservations()
+            .first()
+            .ok_or(anyhow!("no reservations found"))?
+            .instances()
+            .first()
+            .ok_or(anyhow!("no instances found"))?;
+
+        let ip = instance
+            .private_ip_address()
+            .ok_or(anyhow!("could not parse instance ip"))?
+            .to_string();
+
+        Ok(ip)
+    }
+
+    async fn add_rate_limiter(
+        &self,
+        _job: &JobId,
+        _cvm_ip: &str,
+        _rl_ip: &str,
+        _bandwidth: u64, // in kbit/sec
+    ) -> Result<()> {
+        todo!("configure with http calls");
+    }
+
+    async fn remove_rate_limiter(&self, _job: &JobId, _cvm_ip: &str, _rl_ip: &str) -> Result<()> {
+        todo!("configure with http calls");
+    }
+}
+
 // Instances
 impl Aws {
     // returns (exist, instance_id, state, rl_instance_id, private_ip)
@@ -502,7 +547,7 @@ impl Aws {
         whitelist_blacklist_check(image, self.whitelist, self.blacklist);
 
         let (mut exist, instance, state, rl_instance_id, private_ip) = self
-            .get_job_instance_id(job, region)
+            .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?;
 
@@ -579,16 +624,20 @@ impl Aws {
         &self,
         job: &JobId,
         instance_id: &str,
-        private_ip: &str,
+        cvm_ip: &str,
         region: &str,
         bandwidth: u64,
     ) -> Result<()> {
-        // select and configure rate limiter
+        // get and configure rate limiter
         // allocate Elastic IP
         // associate Elastic IP
-        self.select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
+        let rl_ip = self
+            .get_rate_limiter_ip(region)
             .await
-            .context("could not select rate limiter")?;
+            .context("failed to get rate limiter ip")?;
+        self.add_rate_limiter(job, cvm_ip, &rl_ip, bandwidth)
+            .await
+            .context("could not configure rate limiter")?;
 
         let (_, alloc_id, ip, _) = self
             .get_or_allocate_ip_for_job(job, region)
@@ -602,48 +651,6 @@ impl Aws {
             .context("could not associate ip address")?;
 
         Ok(())
-    }
-
-    async fn configure_rate_limiter(
-        &self,
-        _job: &JobId,
-        _private_ip: &str,
-        _rl_instance_id: &str,
-        _bandwidth: u64, // in kbit/sec
-        _instance_bandwidth_limit: u64,
-        _region: &str,
-    ) -> Result<()> {
-        todo!("configure with http calls");
-
-        // // SSH into Rate Limiter instance and configure tc
-        // let rl_ip = self
-        //     .get_instance_ip(rl_instance_id, region)
-        //     .await
-        //     .context("could not get rate limiter instance ip")?;
-        //
-        // let sess = &self
-        //     .ssh_connect(&(rl_ip + ":22"))
-        //     .await
-        //     .context("error establishing ssh connection")?;
-        //
-        // // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
-        // let add_rl_cmd = format!(
-        //     "add_rl {} {} {} {}",
-        //     job.id,
-        //     private_ip,
-        //     bandwidth * 1000,
-        //     instance_bandwidth_limit
-        // );
-        //
-        // let (_, stderr) =
-        //     Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
-        //
-        // if !stderr.is_empty() {
-        //     error!(stderr = ?stderr, "Error setting up Rate Limiter");
-        //     return Err(anyhow!(stderr)).context("Error setting up Rate Limiter");
-        // }
-        //
-        // Ok(())
     }
 
     async fn get_instance_bandwidth_limit(
@@ -693,102 +700,9 @@ impl Aws {
         Ok(bandwidth_limit_bps)
     }
 
-    async fn select_rate_limiter(
-        &self,
-        job: &JobId,
-        instance_id: &str,
-        private_ip: &str,
-        region: &str,
-        bandwidth: u64,
-    ) -> Result<()> {
-        // get all the rate limiter vm from region
-        // check available bandwidth
-        // bandwidth is in kbit/sec
-        let project_filter = filter!("tag:project", "marlin-cvm");
-        let type_filter = filter!("tag:type", "limiter");
-
-        let res = self
-            .client(region)
-            .describe_instances()
-            .filters(project_filter)
-            .filters(type_filter)
-            .send()
-            .await
-            .context("could not describe rate limit instances")?;
-
-        let reservations = res.reservations();
-        for reservation in reservations {
-            for instance in reservation.instances() {
-                let rl_instance_id = instance
-                    .instance_id()
-                    .ok_or(anyhow!("could not parse instance id"))?
-                    .to_string();
-                // attach a secondary IP to instance
-                if instance.network_interfaces.is_none() {
-                    debug!(
-                        "No network interfaces found Rate Limit instance [{}]",
-                        rl_instance_id
-                    );
-                    continue;
-                }
-                let instance_bandwidth_limit = self
-                    .get_instance_bandwidth_limit(
-                        instance
-                            .instance_type()
-                            .ok_or(anyhow!("could not parse instance type"))?
-                            .clone(),
-                        region,
-                    )
-                    .await
-                    .context("could not get instance bandwidth limit")?;
-                for eni in instance.network_interfaces() {
-                    if let Some(eni_id) = eni.network_interface_id() {
-                        if eni.mac_address().is_none() {
-                            debug!("MAC address not found for ENI {}. Skipping ENI", eni_id);
-                            continue;
-                        };
-                        if self
-                            .configure_rate_limiter(
-                                job,
-                                private_ip,
-                                &rl_instance_id,
-                                bandwidth,
-                                instance_bandwidth_limit,
-                                region,
-                            )
-                            .await
-                            .is_err()
-                        {
-                            warn!(
-                                "Error configuring Rate Limit instance [{}], ENI [{}]",
-                                rl_instance_id, eni_id
-                            );
-                            continue;
-                        }
-                        let tag_rl_id = Tag::builder()
-                            .key("rlInstanceId")
-                            .value(&rl_instance_id)
-                            .build();
-                        self.client(region)
-                            .create_tags()
-                            .resources(instance_id)
-                            .tags(tag_rl_id)
-                            .send()
-                            .await
-                            .context("could not tag job instance with rl instance id")?; // TODO: revert rate limiter config on failure
-                        return Ok(());
-                    }
-                }
-            }
-        }
-        Err(anyhow!(
-            "no rate limiter instance found with enough available bandwidth"
-        ))
-    }
-
     async fn spin_down_impl(&self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
         let (exist, instance, state, rl_instance_id, private_ip) = self
-            .get_job_instance_id(job, region)
+            .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?;
 
@@ -812,37 +726,6 @@ impl Aws {
         .context("failed to terminate instance")?;
 
         Ok(())
-    }
-
-    async fn remove_rate_limiter_config(
-        &self,
-        _job: &JobId,
-        _private_ip: &str,
-        _rl_instance_id: &str,
-        _bandwidth: u64, // in kbit/sec
-        _region: &str,
-    ) -> Result<()> {
-        todo!("configure with http calls");
-
-        // let rl_ip = self
-        //     .get_instance_ip(rl_instance_id, region)
-        //     .await
-        //     .context("could not get rate limiter instance ip")?;
-        //
-        // let sess = &self
-        //     .ssh_connect(&(rl_ip + ":22"))
-        //     .await
-        //     .context("error establishing ssh connection")?;
-        //
-        // let remove_rl_cmd = format!("remove_rl {} {} {}", job.id, private_ip, bandwidth * 1000);
-        //
-        // let (_, stderr) =
-        //     Self::ssh_exec(sess, &remove_rl_cmd).context("Failed to run remove_rl command")?;
-        //
-        // if !stderr.is_empty() {
-        //     error!(stderr = ?stderr, "Error removing Rate Limiter configuration");
-        // }
-        // Ok(())
     }
 
     // TODO: handle all error cases
@@ -878,7 +761,7 @@ impl Aws {
         }
 
         if !rl_instance_id.is_empty() {
-            self.remove_rate_limiter_config(job, private_ip, rl_instance_id, bandwidth, region)
+            self.remove_rate_limiter(job, private_ip, rl_instance_id)
                 .await
                 .context("could not remove rate limiter config")?;
         }
@@ -958,7 +841,7 @@ impl InfraProvider for Aws {
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
         let (exists, _, state, _, _) = self
-            .get_job_instance_id(job, region)
+            .get_job_instance(job, region)
             .await
             .context("could not get instance id for job")?;
 
