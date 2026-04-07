@@ -588,16 +588,20 @@ impl Aws {
             .launch_instance(job, instance_type, region, init_params, image)
             .await
             .context("could not launch instance")?;
+        let rl_ip = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
+
         sleep(Duration::from_secs(100)).await;
 
         let res = self
-            .post_spin_up(job, &instance_id, &cvm_ip, region, bandwidth)
+            .post_spin_up(job, &instance_id, &cvm_ip, &rl_ip, region, bandwidth)
             .await;
 
         if let Err(err) = res {
             error!(?err, "Error during post spin up");
-            // TODO: RL IP?
-            self.spin_down_instance(&instance_id, job, &cvm_ip, region, "")
+            self.spin_down_instance(&instance_id, job, &cvm_ip, region, &rl_ip)
                 .await
                 .context("could not spin down instance after error during post spin up")?;
             return Err(err).context("error during post spin up");
@@ -610,16 +614,13 @@ impl Aws {
         job: &JobId,
         instance_id: &str,
         cvm_ip: &str,
+        rl_ip: &str,
         region: &str,
         bandwidth: u64,
     ) -> Result<()> {
         // get and configure rate limiter
         // allocate Elastic IP
         // associate Elastic IP
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .await
-            .context("failed to get rate limiter ip")?;
         self.add_rate_limiter(job, cvm_ip, &rl_ip, bandwidth)
             .await
             .context("could not configure rate limiter")?;
