@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context, Result};
-use aws_sdk_ec2::types::*;
+use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType, Tag};
 use aws_types::region::Region;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use rand_core::OsRng;
