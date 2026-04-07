@@ -175,7 +175,7 @@ async fn list_handler(
 ) -> Result<Json<Vec<StatusEntry>>, (StatusCode, String)> {
     // Read from maps to get live status including tokens
     let _guard = state.lock.lock().await;
-    
+
     match get_list_from_maps(&state.config_map_path, &state.state_map_path) {
         Ok(entries) => Ok(Json(entries)),
         Err(e) => {
@@ -197,7 +197,7 @@ fn get_list_from_maps(config_path: &str, state_path: &str) -> Result<Vec<StatusE
     for item in config_map.iter() {
         let (key, config) = item?;
         let ip = Ipv4Addr::from(u32::from_be(key));
-        
+
         let (tokens, last_time) = match state_map.get(&key, 0) {
             Ok(s) => (Some(s.tokens), Some(s.last_time)),
             Err(_) => (None, None),
@@ -332,7 +332,7 @@ fn load_entries(map_path: &str, state_map_path: &str, file_path: &PathBuf) -> Re
             tokens: START_CAPACITY,
         };
         state_map.insert(key, state, 0)?;
-        
+
         info!("Loaded {}", entry.ip);
     }
     info!("Loaded all entries from file {:?}", file_path);
