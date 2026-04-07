@@ -533,11 +533,11 @@ impl Aws {
     ) -> Result<()> {
         whitelist_blacklist_check(image, self.whitelist, self.blacklist);
 
-        let (mut exist, instance, state, private_ip) = self
+        let (mut exist, instance, state, cvm_ip) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?;
-        let rl_instance_id = self
+        let rl_ip = self
             .get_rate_limiter_ip(region)
             .await
             .context("failed to get rate limiter ip")?;
@@ -550,7 +550,7 @@ impl Aws {
             } else if state == "stopping" || state == "stopped" {
                 // instance unhealthy, terminate
                 info!(instance, "Found existing unhealthy instance");
-                self.spin_down_instance(&instance, job, &private_ip, region, &rl_instance_id)
+                self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
                     .await
                     .context("failed to terminate instance")?;
 
@@ -584,19 +584,20 @@ impl Aws {
     ) -> Result<String> {
         let instance_type =
             InstanceType::from_str(instance_type).context("cannot parse instance type")?;
-        let (instance_id, private_ip) = self
+        let (instance_id, cvm_ip) = self
             .launch_instance(job, instance_type, region, init_params, image)
             .await
             .context("could not launch instance")?;
         sleep(Duration::from_secs(100)).await;
 
         let res = self
-            .post_spin_up(job, &instance_id, &private_ip, region, bandwidth)
+            .post_spin_up(job, &instance_id, &cvm_ip, region, bandwidth)
             .await;
 
         if let Err(err) = res {
             error!(?err, "Error during post spin up");
-            self.spin_down_instance(&instance_id, job, &private_ip, region, "")
+            // TODO: RL IP?
+            self.spin_down_instance(&instance_id, job, &cvm_ip, region, "")
                 .await
                 .context("could not spin down instance after error during post spin up")?;
             return Err(err).context("error during post spin up");
@@ -638,11 +639,11 @@ impl Aws {
     }
 
     async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
-        let (exist, instance, state, private_ip) = self
+        let (exist, instance, state, cvm_ip) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?;
-        let rl_instance_id = self
+        let rl_ip = self
             .get_rate_limiter_ip(region)
             .await
             .context("failed to get rate limiter ip")?;
@@ -655,7 +656,7 @@ impl Aws {
 
         // cleanup instance and related resources
         info!(instance, "Terminating existing instance");
-        self.spin_down_instance(&instance, job, &private_ip, region, &rl_instance_id)
+        self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
             .await
             .context("failed to terminate instance")?;
 
@@ -667,9 +668,9 @@ impl Aws {
         &self,
         instance_id: &str,
         job: &JobId,
-        private_ip: &str,
+        cvm_ip: &str,
         region: &str,
-        rl_instance_id: &str,
+        rl_ip: &str,
     ) -> Result<()> {
         // Check elastic ip association and cleanup
         // check elastic ip and release
@@ -693,8 +694,8 @@ impl Aws {
             info!("Elastic IP released");
         }
 
-        if !rl_instance_id.is_empty() {
-            self.remove_rate_limiter(job, private_ip, rl_instance_id)
+        if !rl_ip.is_empty() {
+            self.remove_rate_limiter(job, cvm_ip, rl_ip)
                 .await
                 .context("could not remove rate limiter config")?;
         }
