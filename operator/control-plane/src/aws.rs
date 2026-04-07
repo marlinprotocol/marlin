@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType, Tag};
 use aws_types::region::Region;
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::{Engine, prelude::BASE64_STANDARD};
 use regex::Regex;
 use ssh_key::{Algorithm, LineEnding, PrivateKey, rand_core::OsRng};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tracing::{debug, error, info, warn};
 use whoami::username;
 

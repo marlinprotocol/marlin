@@ -3,9 +3,9 @@ use std::future::Future;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Context, Result};
-use base64::prelude::BASE64_STANDARD;
+use anyhow::{Context, Result, anyhow};
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use indexer_framework::events::JobEvent;
 use indexer_framework::models::{JobEventName, JobEventRecord};
@@ -15,9 +15,9 @@ use serde_json::Value;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::sleep;
 use tokio::time::{Duration, Instant};
-use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
-use tracing::{error, info, info_span, Instrument};
+use tokio_retry::strategy::ExponentialBackoff;
+use tracing::{Instrument, error, info, info_span};
 
 // IMPORTANT: do not import SystemTime, use a SystemContext
 
@@ -976,11 +976,11 @@ mod tests {
 
     use indexer_framework::models::JobEventRecord;
     use tokio::sync::mpsc;
-    use tokio::time::{sleep, Duration, Instant};
+    use tokio::time::{Duration, Instant, sleep};
 
     use crate::market;
     use crate::test::{
-        self, compute_address_word, compute_instance_id, Action, TestAws, TestAwsOutcome,
+        self, Action, TestAws, TestAwsOutcome, compute_address_word, compute_instance_id,
     };
 
     use super::{JobResult, SystemContext};
@@ -1030,7 +1030,7 @@ mod tests {
         let job_logs: Vec<(u64, JobEventRecord)> = logs
             .into_iter()
             .enumerate()
-            .map(|x| (x.1 .0, test::get_event(x.1 .1, x.0 as i64, job_num)))
+            .map(|x| (x.1.0, test::get_event(x.1.1, x.0 as i64, job_num)))
             .collect();
 
         let (tx, rx) = mpsc::channel::<JobEventRecord>(10);

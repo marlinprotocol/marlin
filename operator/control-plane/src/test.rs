@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hasher};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use indexer_framework::events::{
     JobClosed, JobDeposited, JobMetadataUpdated, JobOpened, JobRateRevised, JobSettled, JobWithdrew,
 };

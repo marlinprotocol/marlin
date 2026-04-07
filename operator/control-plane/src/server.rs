@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
 
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
