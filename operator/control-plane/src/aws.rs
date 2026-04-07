@@ -311,31 +311,10 @@ impl Aws {
     }
 }
 
+// Instances
 impl Aws {
-    /* AWS EC2 UTILITY */
-
-    pub async fn get_instance_ip(&self, instance_id: &str, region: &str) -> Result<String> {
-        Ok(self
-            .client(region)
-            .describe_instances()
-            .filters(filter!("instance-id", instance_id))
-            .send()
-            .await
-            .context("could not describe instances")?
-            // response parsing from here
-            .reservations()
-            .first()
-            .ok_or(anyhow!("no reservation found"))?
-            .instances()
-            .first()
-            .ok_or(anyhow!("no instances with the given id"))?
-            .public_ip_address()
-            .ok_or(anyhow!("could not parse ip address"))?
-            .to_string())
-    }
-
     // launch instance with given params and return instance id and private ip
-    pub async fn launch_instance(
+    async fn launch_instance(
         &self,
         job: &JobId,
         instance_type: InstanceType,
@@ -362,7 +341,7 @@ impl Aws {
             .get_security_group(region)
             .await
             .context("could not get subnet")?;
-        let instance = self
+        let run_instances_response = self
             .client(region)
             .run_instances()
             .image_id(image)
@@ -375,12 +354,12 @@ impl Aws {
             .user_data(BASE64_STANDARD.encode(init_params))
             .send()
             .await
-            .context("could not run instance")?
+            .context("could not run instance")?;
+        let instance = run_instances_response
             // response parsing from here
             .instances()
             .first()
-            .ok_or(anyhow!("no instance found"))?
-            .clone();
+            .ok_or(anyhow!("no instance found"))?;
 
         let instance_id = instance
             .instance_id()
@@ -406,7 +385,7 @@ impl Aws {
         Ok(())
     }
 
-    pub async fn get_security_group(&self, region: &str) -> Result<String> {
+    async fn get_security_group(&self, region: &str) -> Result<String> {
         let project_filter = filter!("tag:project", "marlin-cvm");
 
         Ok(self
@@ -425,7 +404,7 @@ impl Aws {
             .to_string())
     }
 
-    pub async fn get_subnet(&self, region: &str) -> Result<String> {
+    async fn get_subnet(&self, region: &str) -> Result<String> {
         let project_filter = filter!("tag:project", "marlin-cvm");
         let type_filter = filter!("tag:type", "cvm");
 
@@ -447,7 +426,7 @@ impl Aws {
     }
 
     // return (exist, instance_id, state, rl_instance_id, private_ip)
-    pub async fn get_job_instance_id(
+    async fn get_job_instance_id(
         &self,
         job: &JobId,
         region: &str,
@@ -511,29 +490,6 @@ impl Aws {
         }
     }
 
-    pub async fn get_instance_state(&self, instance_id: &str, region: &str) -> Result<String> {
-        Ok(self
-            .client(region)
-            .describe_instances()
-            .filters(filter!("instance-id", instance_id))
-            .send()
-            .await
-            .context("could not describe instances")?
-            // response parsing from here
-            .reservations()
-            .first()
-            .ok_or(anyhow!("no reservation found"))?
-            .instances()
-            .first()
-            .ok_or(anyhow!("no instances with the given id"))?
-            .state()
-            .ok_or(anyhow!("could not parse instance state"))?
-            .name()
-            .ok_or(anyhow!("could not parse instance state name"))?
-            .as_str()
-            .into())
-    }
-
     async fn spin_up_impl(
         &mut self,
         job: &JobId,
@@ -588,7 +544,7 @@ impl Aws {
         Ok(())
     }
 
-    pub async fn spin_up_instance(
+    async fn spin_up_instance(
         &self,
         job: &JobId,
         instance_type: &str,
@@ -690,7 +646,7 @@ impl Aws {
         // Ok(())
     }
 
-    pub async fn get_instance_bandwidth_limit(
+    async fn get_instance_bandwidth_limit(
         &self,
         instance_type: InstanceType,
         region: &str,
