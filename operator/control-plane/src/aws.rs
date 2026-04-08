@@ -358,12 +358,12 @@ impl Aws {
 
 // Instances
 impl Aws {
-    // returns (instance_id, is_healthy, private_ip)
+    // returns (instance_id, is_healthy, private_ip, ami)
     async fn get_job_instance(
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<Option<(String, bool, String)>> {
+    ) -> Result<Option<(String, bool, String, String)>> {
         let job_filter = filter!("tag:jobId", job.id.to_string());
         let operator_filter = filter!("tag:operator", &job.operator);
         let chain_filter = filter!("tag:chainID", &job.chain);
@@ -412,6 +412,10 @@ impl Aws {
                 instance
                     .private_ip_address()
                     .ok_or(anyhow!("could not parse private ip"))?
+                    .to_string(),
+                instance
+                    .image_id()
+                    .ok_or(anyhow!("could not parse image id"))?
                     .to_string(),
             )))
         }
@@ -532,10 +536,6 @@ impl Aws {
 
 // Spin up/down
 //
-// Ordering and proper cleanup is VERY important. Following the ordering
-// lets us optimize steps by checking if a previous step is done or not.
-// E.g. if instance does not exist, EIP also would not exist.
-//
 // Spin up ordering:
 // Launch instance
 // Add rate limiting
@@ -550,6 +550,7 @@ impl Aws {
 impl Aws {
     // might be called when the job is not healthy
     // might be called when the job params change
+    // ensure desired instance exists and hand over to post_launch
     async fn spin_up_impl(
         &mut self,
         job: &JobId,
@@ -559,6 +560,7 @@ impl Aws {
         image: &str,
         init_params: &[u8],
     ) -> Result<()> {
+        // NOTE: should this be in market itself?
         if !whitelist_blacklist_check(image, self.whitelist, self.blacklist) {
             bail!("failed whitelist/blacklist check");
         }
@@ -568,7 +570,7 @@ impl Aws {
             .await
             .context("failed to get rate limiter ip")?;
 
-        if let Some((instance, is_healthy, cvm_ip)) = self
+        if let Some((instance, is_healthy, cvm_ip, _cvm_image)) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?
@@ -671,7 +673,7 @@ impl Aws {
     }
 
     async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
-        let Some((instance, _, cvm_ip)) = self
+        let Some((instance, _, cvm_ip, _)) = self
             .get_job_instance(job, region)
             .await
             .context("failed to get job instance")?
@@ -806,7 +808,7 @@ impl InfraProvider for Aws {
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        if let Some((_, is_healthy, _)) = self
+        if let Some((_, is_healthy, _, _)) = self
             .get_job_instance(job, region)
             .await
             .context("could not get instance id for job")?
