@@ -352,8 +352,8 @@ impl Aws {
         Ok(ip)
     }
 
-    fn get_rate_limiter_ip(&self, region: &str) -> String {
-        self.rl_ips[region].clone()
+    fn get_rate_limiter_ip(&self, region: &str) -> &str {
+        &self.rl_ips[region]
     }
 
     async fn add_rate_limiter(&self, cvm_ip: &str, region: &str, bandwidth: u64) -> Result<()> {
