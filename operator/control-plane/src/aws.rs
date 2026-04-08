@@ -7,8 +7,7 @@ use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType};
 use aws_types::region::Region;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use ssh_key::{Algorithm, LineEnding, PrivateKey, rand_core::OsRng};
-use tokio::time::{Duration, sleep};
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 use whoami::username;
 
 use crate::market::{InfraProvider, JobId};
@@ -192,7 +191,7 @@ impl Aws {
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<(bool, String, String, Option<String>)> {
+    ) -> Result<(bool, String, String, Option<(String, String)>)> {
         if let Some((alloc_id, public_ip, association_id)) = self
             .get_ip_for_job(job, region)
             .await
@@ -237,7 +236,7 @@ impl Aws {
         &self,
         job: &JobId,
         region: &str,
-    ) -> Result<Option<(String, String, Option<String>)>> {
+    ) -> Result<Option<(String, String, Option<(String, String)>)>> {
         let job_filter = filter!("tag:jobId", job.id.to_string());
         let operator_filter = filter!("tag:operator", &job.operator);
         let chain_filter = filter!("tag:chainID", &job.chain);
@@ -270,7 +269,10 @@ impl Aws {
                 .allocation_id()
                 .ok_or(anyhow!("could not parse allocation id"))?
                 .to_string(),
-            address.association_id().map(String::from),
+            address
+                .association_id()
+                .map(String::from)
+                .zip(address.instance_id().map(String::from)),
         )))
     }
 
@@ -570,104 +572,64 @@ impl Aws {
             .await
             .context("failed to get rate limiter ip")?;
 
-        if let Some((instance, is_healthy, cvm_ip, _cvm_image)) = self
-            .get_job_instance(job, region)
-            .await
-            .context("failed to get job instance")?
-        {
-            // instance exists already
-            if is_healthy {
-                // instance exists and is already running, we are done
-                info!(instance, "Found existing healthy instance");
-
-                return Ok(());
-            } else {
-                // instance unhealthy, terminate
-                // should never happen but eh be safe
-                info!(instance, "Found existing unhealthy instance");
-
-                self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
-                    .await
-                    .context("failed to terminate instance")?;
-            }
-        }
-
-        // either no old instance or old instance was not enough, launch new one
-        self.spin_up_instance(
-            job,
-            instance_type,
-            region,
-            init_params,
-            image,
-            bandwidth,
-            &rl_ip,
-        )
-        .await
-        .context("failed to spin up instance")?;
-
-        Ok(())
-    }
-
-    async fn spin_up_instance(
-        &self,
-        job: &JobId,
-        instance_type: &str,
-        region: &str,
-        init_params: &[u8],
-        image: &str,
-        bandwidth: u64,
-        rl_ip: &str,
-    ) -> Result<String> {
-        let instance_type =
-            InstanceType::from_str(instance_type).context("cannot parse instance type")?;
-        let (instance_id, cvm_ip) = self
-            .launch_instance(job, instance_type, region, init_params, image)
-            .await
-            .context("could not launch instance")?;
-
-        sleep(Duration::from_secs(100)).await;
-
-        let res = self
-            .post_spin_up(job, &instance_id, &cvm_ip, &rl_ip, region, bandwidth)
-            .await
-            .context("error during post spin up");
-
-        if let Err(err) = res {
-            error!(?err);
-            self.spin_down_instance(&instance_id, job, &cvm_ip, region, &rl_ip)
+        let (instance_id, cvm_ip) = 'block: {
+            if let Some((instance_id, is_healthy, cvm_ip, cvm_image)) = self
+                .get_job_instance(job, region)
                 .await
-                .context("could not spin down instance after error during post spin up")?;
-            return Err(err);
-        }
-        Ok(instance_id)
-    }
+                .context("failed to get job instance")?
+            {
+                // instance exists already
+                if is_healthy && cvm_image == image {
+                    // instance exists and is already running our desired ami
+                    info!(instance_id, "Found existing instance");
 
-    async fn post_spin_up(
-        &self,
-        job: &JobId,
-        instance_id: &str,
-        cvm_ip: &str,
-        rl_ip: &str,
-        region: &str,
-        bandwidth: u64,
-    ) -> Result<()> {
-        // get and configure rate limiter
-        // allocate Elastic IP
-        // associate Elastic IP
-        self.add_rate_limiter(job, cvm_ip, rl_ip, bandwidth)
+                    break 'block (instance_id, cvm_ip);
+                } else {
+                    // instance unhealthy or not running our image
+                    // terminate and launch new one later
+                    info!(
+                        instance_id,
+                        cvm_image, "Found existing unhealthy/mismatched instance"
+                    );
+
+                    // retain the EIP to reuse during spin up
+                    // TODO: call post_release_eip
+                }
+            }
+
+            // launch new
+            let instance_type =
+                InstanceType::from_str(instance_type).context("cannot parse instance type")?;
+            self.launch_instance(job, instance_type, region, init_params, image)
+                .await
+                .context("could not launch instance")?
+        };
+
+        // at this point, we should have an instance with the right image
+
+        // add rate limit config
+        self.add_rate_limiter(job, &cvm_ip, &rl_ip, bandwidth)
             .await
-            .context("could not configure rate limiter")?;
+            .context("failed to add rate limit")?;
 
-        let (_, alloc_id, ip, _) = self
+        // get or allocate eip
+        // it is possible eip was left over from post_release_eip above
+        let (_, alloc_id, _, assoc) = self
             .get_or_allocate_ip_for_job(job, region)
             .await
             .context("error allocating ip address")?;
 
-        info!(ip, "Elastic Ip allocated");
-
-        self.associate_address(instance_id, &alloc_id, region)
-            .await
-            .context("could not associate ip address")?;
+        // associate ip if needed
+        if let Some((_, eip_instance_id)) = assoc
+            && eip_instance_id == instance_id
+        {
+            // ip is already associated, do nothing
+        } else {
+            // (re)associate ip
+            self.associate_address(&instance_id, &alloc_id, region)
+                .await
+                .context("could not associate ip address")?;
+        }
 
         Ok(())
     }
@@ -710,12 +672,12 @@ impl Aws {
         // check rate limiter config and cleanup
         // terminate instance if exist
 
-        if let Some((alloc_id, _, association_id)) = self
+        if let Some((alloc_id, _, association)) = self
             .get_ip_for_job(job, region)
             .await
             .context("could not get elastic ip of job")?
         {
-            if let Some(association_id) = association_id {
+            if let Some((association_id, _)) = association {
                 self.disassociate_address(&association_id, region)
                     .await
                     .context("could not disassociate address")?;
