@@ -517,7 +517,7 @@ impl<'a> JobState<'a> {
                     "SETTLED",
                 );
                 // update solvency metrics
-                self.balance -= event.amount;
+                self.balance = self.balance.saturating_sub(event.amount);
                 self.last_settled = Duration::from_secs(event.timestamp);
                 info!(
                     event.amount,
@@ -559,7 +559,7 @@ impl<'a> JobState<'a> {
                     "WITHDREW",
                 );
                 // update solvency metrics
-                self.balance -= event.amount;
+                self.balance = self.balance.saturating_sub(event.amount);
                 info!(
                     event.amount,
                     self.rate,
