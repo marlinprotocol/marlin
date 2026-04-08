@@ -260,12 +260,24 @@ fn add_entry(
     // 2. Update Config Map
     let mut config_map = get_config_map(map_path)?;
     let key = ip_to_key(ip);
+    let mut state_map = get_state_map(state_map_path)?;
+
+    // short circuit
+    if let Ok(existing_config) = config_map.get(&key, 0) {
+        if existing_config.rate == rate && state_map.get(&key, 0).is_ok() {
+            info!(
+                "Rate for {} is unchanged in config map, skipping map update",
+                ip
+            );
+            return Ok(());
+        }
+    }
+
     let config = RateConfig { rate, fill_time };
     config_map.insert(key, config, 0)?; // 0 flags
     info!("Added {} to config map", ip);
 
     // 3. Update State Map
-    let mut state_map = get_state_map(state_map_path)?;
     let state = BucketState {
         lock: 0,
         last_time: 0,
