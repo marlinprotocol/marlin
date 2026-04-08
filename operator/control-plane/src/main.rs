@@ -113,7 +113,8 @@ async fn run() -> Result<()> {
         image_whitelist,
         image_blacklist,
     )
-    .await;
+    .await
+    .context("Failed to initialize AWS")?;
 
     aws.key_setup(&regions)
         .await

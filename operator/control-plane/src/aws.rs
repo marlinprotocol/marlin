@@ -21,6 +21,7 @@ pub struct Aws {
     pubkey_location: PathBuf,
     whitelist: &'static [String],
     blacklist: &'static [String],
+    rl_ips: HashMap<String, String>,
 }
 
 // Initialization
@@ -31,7 +32,7 @@ impl Aws {
         key_name: String,
         whitelist: &'static [String],
         blacklist: &'static [String],
-    ) -> Aws {
+    ) -> Result<Aws> {
         let mut clients = HashMap::<String, aws_sdk_ec2::Client>::with_capacity(regions.len());
         for region in regions {
             let config = aws_config::from_env()
@@ -42,18 +43,26 @@ impl Aws {
             clients.insert(region.clone(), aws_sdk_ec2::Client::new(&config));
         }
 
-        let username = username().expect("could not retrieve user name");
+        let username = username().context("could not retrieve user name")?;
         let key_location = format!("/home/{username}/.ssh/{key_name}.pem").into();
         let pubkey_location = format!("/home/{username}/.ssh/{key_name}.pub").into();
 
-        Aws {
+        let mut aws = Aws {
             clients,
             key_name,
             key_location,
             pubkey_location,
             whitelist,
             blacklist,
+            rl_ips: HashMap::new(),
+        };
+
+        for region in regions {
+            let ip = aws.fetch_rate_limiter_ip(region).await?;
+            aws.rl_ips.insert(region.clone(), ip);
         }
+
+        Ok(aws)
     }
 
     fn client(&self, region: &str) -> &aws_sdk_ec2::Client {
@@ -315,7 +324,7 @@ impl Aws {
 
 // Rate limiter
 impl Aws {
-    async fn get_rate_limiter_ip(&self, region: &str) -> Result<String> {
+    async fn fetch_rate_limiter_ip(&self, region: &str) -> Result<String> {
         let project_filter = filter!("tag:project", "marlin-cvm");
         let type_filter = filter!("tag:type", "limiter");
 
@@ -341,6 +350,13 @@ impl Aws {
             .to_string();
 
         Ok(ip)
+    }
+
+    fn get_rate_limiter_ip(&self, region: &str) -> Result<String> {
+        self.rl_ips
+            .get(region)
+            .cloned()
+            .ok_or_else(|| anyhow!("rate limiter ip not found for region"))
     }
 
     async fn add_rate_limiter(
@@ -607,7 +623,6 @@ impl Aws {
 
         let rl_ip = self
             .get_rate_limiter_ip(region)
-            .await
             .context("failed to get rate limiter ip")?;
 
         // add rate limit config
@@ -669,7 +684,6 @@ impl Aws {
 
         let rl_ip = self
             .get_rate_limiter_ip(region)
-            .await
             .context("failed to get rate limiter ip")?;
 
         // remove rate limit
