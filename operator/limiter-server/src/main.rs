@@ -257,34 +257,25 @@ fn add_entry(
     write_file(file_path, &entries)?;
     info!("Updated file {:?}", file_path);
 
+    let key = ip_to_key(ip);
+
     // 2. Update Config Map
     let mut config_map = get_config_map(map_path)?;
-    let key = ip_to_key(ip);
-    let mut state_map = get_state_map(state_map_path)?;
-
-    // short circuit
-    if let Ok(existing_config) = config_map.get(&key, 0) {
-        if existing_config.rate == rate && state_map.get(&key, 0).is_ok() {
-            info!(
-                "Rate for {} is unchanged in config map, skipping map update",
-                ip
-            );
-            return Ok(());
-        }
-    }
-
     let config = RateConfig { rate, fill_time };
     config_map.insert(key, config, 0)?; // 0 flags
     info!("Added {} to config map", ip);
 
     // 3. Update State Map
-    let state = BucketState {
-        lock: 0,
-        last_time: 0,
-        tokens: START_CAPACITY,
-    };
-    state_map.insert(key, state, 0)?;
-    info!("Initialized state for {} in state map", ip);
+    let mut state_map = get_state_map(state_map_path)?;
+    if state_map.get(&key, 0).is_err() {
+        let state = BucketState {
+            lock: 0,
+            last_time: 0,
+            tokens: START_CAPACITY,
+        };
+        state_map.insert(key, state, 0)?;
+        info!("Initialized state for {} in state map", ip);
+    }
 
     Ok(())
 }
@@ -338,12 +329,14 @@ fn load_entries(map_path: &str, state_map_path: &str, file_path: &PathBuf) -> Re
         };
         config_map.insert(key, config, 0)?;
 
-        let state = BucketState {
-            lock: 0,
-            last_time: 0,
-            tokens: START_CAPACITY,
-        };
-        state_map.insert(key, state, 0)?;
+        if state_map.get(&key, 0).is_err() {
+            let state = BucketState {
+                lock: 0,
+                last_time: 0,
+                tokens: START_CAPACITY,
+            };
+            state_map.insert(key, state, 0)?;
+        }
 
         info!("Loaded {}", entry.ip);
     }
@@ -365,6 +358,8 @@ fn read_file(path: &PathBuf) -> Result<Vec<Entry>> {
 
 fn write_file(path: &PathBuf, entries: &[Entry]) -> Result<()> {
     let content = serde_json::to_string_pretty(entries)?;
-    fs::write(path, content)?;
+    let tmp_path = path.with_extension("tmp");
+    fs::write(&tmp_path, content)?;
+    fs::rename(tmp_path, path)?;
     Ok(())
 }
