@@ -352,25 +352,69 @@ impl Aws {
         Ok(ip)
     }
 
-    fn get_rate_limiter_ip(&self, region: &str) -> Result<String> {
-        self.rl_ips
-            .get(region)
-            .cloned()
-            .ok_or_else(|| anyhow!("rate limiter ip not found for region"))
+    fn get_rate_limiter_ip(&self, region: &str) -> String {
+        self.rl_ips[region].clone()
     }
 
-    async fn add_rate_limiter(
-        &self,
-        _job: &JobId,
-        _cvm_ip: &str,
-        _rl_ip: &str,
-        _bandwidth: u64, // in kbit/sec
-    ) -> Result<()> {
-        todo!("configure with http calls");
+    async fn add_rate_limiter(&self, cvm_ip: &str, region: &str, bandwidth: u64) -> Result<()> {
+        let rl_ip = self.get_rate_limiter_ip(region);
+        let url = format!("http://{}:3000/add", rl_ip);
+
+        let client = reqwest::Client::new();
+        let req_body = serde_json::json!({
+            "ip": cvm_ip,
+            "rate": bandwidth
+        });
+
+        let res = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(req_body.to_string())
+            .send()
+            .await
+            .context("failed to send add rate limiter request")?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            bail!(
+                "add rate limiter request failed with status: {}, body: {}",
+                status,
+                text
+            );
+        }
+
+        Ok(())
     }
 
-    async fn remove_rate_limiter(&self, _job: &JobId, _cvm_ip: &str, _rl_ip: &str) -> Result<()> {
-        todo!("configure with http calls");
+    async fn remove_rate_limiter(&self, cvm_ip: &str, region: &str) -> Result<()> {
+        let rl_ip = self.get_rate_limiter_ip(region);
+        let url = format!("http://{}:3000/remove", rl_ip);
+
+        let client = reqwest::Client::new();
+        let req_body = serde_json::json!({
+            "ip": cvm_ip
+        });
+
+        let res = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(req_body.to_string())
+            .send()
+            .await
+            .context("failed to send remove rate limiter request")?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            bail!(
+                "remove rate limiter request failed with status: {}, body: {}",
+                status,
+                text
+            );
+        }
+
+        Ok(())
     }
 }
 
@@ -621,12 +665,8 @@ impl Aws {
 
         // at this point, we should have an instance with the right image
 
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .context("failed to get rate limiter ip")?;
-
         // add rate limit config
-        self.add_rate_limiter(job, &cvm_ip, &rl_ip, bandwidth)
+        self.add_rate_limiter(&cvm_ip, region, bandwidth)
             .await
             .context("failed to add rate limit")?;
 
@@ -682,12 +722,8 @@ impl Aws {
             return Ok(());
         };
 
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .context("failed to get rate limiter ip")?;
-
         // remove rate limit
-        self.remove_rate_limiter(job, &cvm_ip, &rl_ip)
+        self.remove_rate_limiter(&cvm_ip, region)
             .await
             .context("failed to remove rate limit")?;
 
