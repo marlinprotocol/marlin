@@ -665,6 +665,10 @@ impl<'a> JobState<'a> {
         else {
             bail!("failed to decode init params");
         };
+        // restrict to 8 KB to stay under aws limits
+        if init_params.len() > 8192 {
+            bail!("init params should be under 8192 length");
+        };
         self.init_params = init_params.into_boxed_slice();
 
         Ok(())
