@@ -1,7 +1,7 @@
 mod handlers;
 mod schema;
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use alloy::primitives::Address;
 use alloy::providers::Provider;
@@ -20,11 +20,10 @@ pub trait LogsProvider {
     fn logs(&self, start_block: u64, end_block: u64) -> Result<impl IntoIterator<Item = Log>>;
 }
 
-#[derive(Clone)]
 pub struct AlloyProvider {
     pub url: Url,
     pub contract: Address,
-    pub rt: Arc<tokio::runtime::Runtime>,
+    pub rt: tokio::runtime::Runtime,
 }
 
 impl LogsProvider for AlloyProvider {

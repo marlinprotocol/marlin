@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
 
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -26,7 +26,7 @@ type HandlerResult<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Deserialize)]
 struct GetIPRequest {
-    id: Option<String>,
+    id: Option<u64>,
     region: Option<String>,
 }
 
@@ -63,7 +63,7 @@ async fn handle_ip_request(
     let client = &state.0;
 
     let ip = client
-        .get_job_ip(
+        .get_ip(
             &JobId {
                 id: query.id.unwrap(),
                 operator: state.4.operator,
@@ -158,8 +158,6 @@ mod tests {
 
     use std::net::SocketAddr;
 
-    use alloy_primitives::hex::ToHexExt;
-    use alloy_primitives::U256;
     use anyhow;
     use serde_json::json;
 
@@ -171,11 +169,9 @@ mod tests {
         let mut aws: TestAws = Default::default();
 
         for id in 1..4 {
-            let temp_job_id = U256::from(id).to_be_bytes::<32>().encode_hex_with_prefix();
             let instance_metadata = InstanceMetadata::new(0).await;
 
-            aws.instances
-                .insert(temp_job_id.clone(), instance_metadata.clone());
+            aws.instances.insert(id, instance_metadata.clone());
         }
 
         let regions: &'static [String] =
@@ -184,7 +180,7 @@ mod tests {
         let bandwidth_rates: &'static [GBRateCard] = Box::leak(vec![].into_boxed_slice());
         let port = 8081;
 
-        let job_id = U256::from(1).to_be_bytes::<32>().encode_hex_with_prefix();
+        let job_id = 1;
 
         tokio::spawn(serve(
             aws.clone(),
@@ -227,11 +223,9 @@ mod tests {
         let mut aws: TestAws = Default::default();
 
         for id in 1..4 {
-            let temp_job_id = U256::from(id).to_be_bytes::<32>().encode_hex_with_prefix();
             let instance_metadata = InstanceMetadata::new(0).await;
 
-            aws.instances
-                .insert(temp_job_id.clone(), instance_metadata.clone());
+            aws.instances.insert(id, instance_metadata.clone());
         }
 
         let regions: &'static [String] =
@@ -240,7 +234,7 @@ mod tests {
         let bandwidth_rates: &'static [GBRateCard] = Box::leak(vec![].into_boxed_slice());
         let port = 8082;
 
-        let job_id = U256::from(5).to_be_bytes::<32>().encode_hex_with_prefix();
+        let job_id = 5;
 
         tokio::spawn(serve(
             aws.clone(),
@@ -284,7 +278,7 @@ mod tests {
         let bandwidth_rates: &'static [GBRateCard] = Box::leak(vec![].into_boxed_slice());
         let port = 8083;
 
-        let job_id = U256::from(1).to_be_bytes::<32>().encode_hex_with_prefix();
+        let job_id = 1;
 
         tokio::spawn(serve(
             aws.clone(),
@@ -336,21 +330,21 @@ mod tests {
                 rate_cards: vec![
                     RateCard {
                         instance: String::from("m5a.16xlarge"),
-                        min_rate: U256::from(810833333333333_i64),
+                        min_rate: 810833333333333_u64,
                         cpu: 64,
                         memory: 256,
                         arch: String::from("amd64"),
                     },
                     RateCard {
                         instance: String::from("c6g.16xlarge"),
-                        min_rate: U256::from(640722222222222_i64),
+                        min_rate: 640722222222222_u64,
                         cpu: 64,
                         memory: 128,
                         arch: String::from("arm64"),
                     },
                     RateCard {
                         instance: String::from("c6i.4xlarge"),
-                        min_rate: U256::from(207777777777777_i64),
+                        min_rate: 207777777777777_u64,
                         cpu: 16,
                         memory: 32,
                         arch: String::from("amd64"),
@@ -363,7 +357,7 @@ mod tests {
         let bandwidth_rates: &'static [GBRateCard] = Box::leak(vec![].into_boxed_slice());
         let port = 8084;
 
-        let job_id = U256::from(1).to_be_bytes::<32>().encode_hex_with_prefix();
+        let job_id = 1;
 
         tokio::spawn(serve(
             aws.clone(),
@@ -408,24 +402,24 @@ mod tests {
                 GBRateCard {
                     region: String::from("US East (Ohio)"),
                     region_code: String::from("us-east-2"),
-                    rate: U256::from(90000000000000000_i64),
+                    rate: 90000000000000000_u64,
                 },
                 GBRateCard {
                     region: String::from("US East (N. Virginia)"),
                     region_code: String::from("us-east-1"),
-                    rate: U256::from(90000000000000000_i64),
+                    rate: 90000000000000000_u64,
                 },
                 GBRateCard {
                     region: String::from("US West (N. California)"),
                     region_code: String::from("us-west-1"),
-                    rate: U256::from(90000000000000000_i64),
+                    rate: 90000000000000000_u64,
                 },
             ]
             .into_boxed_slice(),
         );
         let port = 8085;
 
-        let job_id = U256::from(1).to_be_bytes::<32>().encode_hex_with_prefix();
+        let job_id = 1;
 
         tokio::spawn(serve(
             aws.clone(),

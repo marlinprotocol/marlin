@@ -1,17 +1,6 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    _sqlx_migrations (version) {
-        version -> Int8,
-        description -> Text,
-        installed_on -> Timestamptz,
-        success -> Bool,
-        checksum -> Bytea,
-        execution_time -> Int8,
-    }
-}
-
-diesel::table! {
     indexer_state (id) {
         id -> Int4,
         last_processed_block -> Int8,
@@ -102,7 +91,6 @@ diesel::joinable!(rate_revisions -> jobs (job));
 diesel::joinable!(settlements -> jobs (job));
 
 diesel::allow_tables_to_appear_in_same_query!(
-    _sqlx_migrations,
     indexer_state,
     job_events,
     job_transactions,

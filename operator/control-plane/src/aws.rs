@@ -1,280 +1,508 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufReader, Read, Write};
-use std::net::TcpStream;
-use std::path::Path;
+use std::path::PathBuf;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Context, Result};
-use aws_sdk_ec2::types::*;
+use anyhow::{Context, Result, anyhow, bail};
+use aws_sdk_ec2::types::{DomainType, InstanceType, ResourceType};
 use aws_types::region::Region;
-use base64::{prelude::BASE64_STANDARD, Engine};
-use coldsnap::{SnapshotUploader, SnapshotWaiter};
-use rand_core::OsRng;
-use regex::Regex;
-use ssh_key::sha2::{Digest, Sha256};
-use ssh_key::{Algorithm, LineEnding, PrivateKey};
-use ssh2::Session;
-use tokio::time::{sleep, Duration};
-use tokio_stream::StreamExt;
-use tracing::{debug, error, info, warn};
+use base64::{Engine, prelude::BASE64_STANDARD};
+use ssh_key::{Algorithm, LineEnding, PrivateKey, rand_core::OsRng};
+use tracing::{debug, info};
 use whoami::username;
 
 use crate::market::{InfraProvider, JobId};
 
+// AWS backed infra provider
 #[derive(Clone)]
 pub struct Aws {
     clients: HashMap<String, aws_sdk_ec2::Client>,
-    ebs_clients: HashMap<String, aws_sdk_ebs::Client>,
     key_name: String,
-    // Path cannot be cloned, hence String
-    key_location: String,
-    pub_key_location: String,
-    whitelist: Option<&'static [String]>,
-    blacklist: Option<&'static [String]>,
+    key_location: PathBuf,
+    pubkey_location: PathBuf,
+    whitelist: &'static [String],
+    blacklist: &'static [String],
+    rl_ips: HashMap<String, String>,
 }
 
+// Initialization
 impl Aws {
     pub async fn new(
         aws_profile: String,
         regions: &[String],
         key_name: String,
-        whitelist: Option<&'static [String]>,
-        blacklist: Option<&'static [String]>,
-    ) -> Aws {
-        let key_location = "/home/".to_owned() + &username() + "/.ssh/" + &key_name + ".pem";
-        let pub_key_location = "/home/".to_owned() + &username() + "/.ssh/" + &key_name + ".pub";
-
-        let mut clients = HashMap::<String, aws_sdk_ec2::Client>::new();
-        let mut ebs_clients = HashMap::<String, aws_sdk_ebs::Client>::new();
+        whitelist: &'static [String],
+        blacklist: &'static [String],
+    ) -> Result<Aws> {
+        let mut clients = HashMap::<String, aws_sdk_ec2::Client>::with_capacity(regions.len());
         for region in regions {
-            clients.insert(region.clone(), {
-                let config = aws_config::from_env()
-                    .profile_name(&aws_profile)
-                    .region(Region::new(region.clone()))
-                    .load()
-                    .await;
-                aws_sdk_ec2::Client::new(&config)
-            });
-            ebs_clients.insert(region.clone(), {
-                let config = aws_config::from_env()
-                    .profile_name(&aws_profile)
-                    .region(Region::new(region.clone()))
-                    .load()
-                    .await;
-                aws_sdk_ebs::Client::new(&config)
-            });
+            let config = aws_config::from_env()
+                .profile_name(&aws_profile)
+                .region(Region::new(region.clone()))
+                .load()
+                .await;
+            clients.insert(region.clone(), aws_sdk_ec2::Client::new(&config));
         }
 
-        Aws {
+        let username = username().context("could not retrieve user name")?;
+        let key_location = format!("/home/{username}/.ssh/{key_name}.pem").into();
+        let pubkey_location = format!("/home/{username}/.ssh/{key_name}.pub").into();
+
+        let mut aws = Aws {
             clients,
-            ebs_clients,
             key_name,
             key_location,
-            pub_key_location,
+            pubkey_location,
             whitelist,
             blacklist,
+            rl_ips: HashMap::new(),
+        };
+
+        for region in regions {
+            let ip = aws.fetch_rate_limiter_ip(region).await?;
+            aws.rl_ips.insert(region.clone(), ip);
         }
+
+        Ok(aws)
     }
 
-    async fn client(&self, region: &str) -> &aws_sdk_ec2::Client {
+    fn client(&self, region: &str) -> &aws_sdk_ec2::Client {
         &self.clients[region]
     }
+}
 
-    async fn ebs_client(&self, region: &str) -> &aws_sdk_ebs::Client {
-        &self.ebs_clients[region]
+// Utility macros
+macro_rules! filter {
+    ($name:expr, $($value:expr),+ $(,)?) => {
+        aws_sdk_ec2::types::Filter::builder()
+            .name($name)
+            $( .values($value) )+
+            .build()
+    };
+}
+
+macro_rules! tag_spec {
+    // Matches the ResourceType, followed by key => value pairs
+    ($resource_type:expr, $( $key:expr => $value:expr ),* $(,)? ) => {
+        aws_sdk_ec2::types::TagSpecification::builder()
+            .resource_type($resource_type)
+            $(
+                // Builds and attaches each tag in line
+                .tags(
+                    aws_sdk_ec2::types::Tag::builder()
+                        .key($key)
+                        .value($value)
+                        .build()
+                )
+            )*
+            .build()
+    };
+}
+
+// Key setup
+impl Aws {
+    pub async fn key_setup(&self, regions: &[String]) -> Result<()> {
+        self.generate_key_pair()
+            .context("Failed to generate key pair")?;
+
+        for region in regions {
+            let key_check = self
+                .check_key_pair(region)
+                .await
+                .with_context(|| format!("Failed to check key pair in {region}"))?;
+
+            if !key_check {
+                self.import_key_pair(region)
+                    .await
+                    .with_context(|| format!("Failed to import key pair in {region}"))?;
+            } else {
+                info!(
+                    region,
+                    "Found existing keypair and pem file, skipping key setup"
+                );
+            }
+        }
+
+        Ok(())
     }
 
-    pub async fn generate_key_pair(&self) -> Result<()> {
-        let priv_check = Path::new(&self.key_location).exists();
-        let pub_check = Path::new(&self.pub_key_location).exists();
+    fn generate_key_pair(&self) -> Result<()> {
+        let priv_check = self.key_location.exists();
+        let pub_check = self.pubkey_location.exists();
 
         if priv_check && pub_check {
             // both exist, we are done
             Ok(())
         } else if priv_check {
             // only private key exists, generate public key
-            let private_key = PrivateKey::read_openssh_file(Path::new(&self.key_location))
+            let private_key = PrivateKey::read_openssh_file(&self.key_location)
                 .context("Failed to read private key file")?;
 
             private_key
                 .public_key()
-                .write_openssh_file(Path::new(&self.pub_key_location))
+                .write_openssh_file(&self.pubkey_location)
                 .context("Failed to write public key file")?;
 
             Ok(())
         } else if pub_check {
             // only public key exists, error out to avoid overwriting it
-            Err(anyhow!("Found public key file without corresponding private key file, exiting to prevent overwriting it"))
+            Err(anyhow!(
+                "Found public key file without corresponding private key file, exiting to prevent overwriting it"
+            ))
         } else {
             // neither exist, generate private key and public key
             let private_key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)
                 .context("Failed to generate private key")?;
 
             private_key
-                .write_openssh_file(Path::new(&self.key_location), LineEnding::default())
+                .write_openssh_file(&self.key_location, LineEnding::default())
                 .context("Failed to write private key file")?;
 
             private_key
                 .public_key()
-                .write_openssh_file(Path::new(&self.pub_key_location))
+                .write_openssh_file(&self.pubkey_location)
                 .context("Failed to write public key file")?;
 
             Ok(())
         }
     }
 
-    pub async fn key_setup(&self, region: String) -> Result<()> {
-        let key_check = self
-            .check_key_pair(&region)
+    async fn check_key_pair(&self, region: &str) -> Result<bool> {
+        Ok(!self
+            .client(region)
+            .describe_key_pairs()
+            .filters(filter!("key-name", &self.key_name))
+            .send()
             .await
-            .context("failed to check key pair")?;
-
-        if !key_check {
-            self.import_key_pair(&region)
-                .await
-                .with_context(|| format!("Failed to import key pair in {region}"))?;
-        } else {
-            info!(
-                region,
-                "Found existing keypair and pem file, skipping key setup"
-            );
-        }
-
-        Ok(())
+            .context("Failed to query key pairs")?
+            .key_pairs()
+            .is_empty())
     }
 
-    pub async fn import_key_pair(&self, region: &str) -> Result<()> {
-        let f = File::open(&self.pub_key_location).context("Failed to open pub key file")?;
-        let mut reader = BufReader::new(f);
-        let mut buffer = Vec::new();
-
-        reader
-            .read_to_end(&mut buffer)
-            .context("Failed to read pub key file")?;
+    async fn import_key_pair(&self, region: &str) -> Result<()> {
+        let pubkey = std::fs::read(&self.pubkey_location).context("Failed to read pubkey file")?;
 
         self.client(region)
-            .await
             .import_key_pair()
             .key_name(&self.key_name)
-            .public_key_material(aws_sdk_ec2::primitives::Blob::new(buffer))
+            .public_key_material(aws_sdk_ec2::primitives::Blob::new(pubkey))
             .send()
             .await
             .context("Failed to import key pair")?;
 
         Ok(())
     }
+}
 
-    async fn check_key_pair(&self, region: &str) -> Result<bool> {
-        Ok(!self
-            .client(region)
+// Elastic IP
+impl Aws {
+    // returns (is_new, ip, alloc_id, (assoc_id, instance_id))
+    async fn get_or_allocate_ip_for_job(
+        &self,
+        job: &JobId,
+        region: &str,
+    ) -> Result<(bool, String, String, Option<(String, String)>)> {
+        if let Some((public_ip, alloc_id, association)) = self
+            .get_ip_for_job(job, region)
             .await
-            .describe_key_pairs()
-            .filters(
-                Filter::builder()
-                    .name("key-name")
-                    .values(&self.key_name)
-                    .build(),
-            )
+            .context("could not get elastic ip for job")?
+        {
+            return Ok((false, public_ip, alloc_id, association));
+        }
+
+        let tags = tag_spec!(
+            ResourceType::ElasticIp,
+            "managedBy" => "marlin",
+            "project" => "marlin-cvm",
+            "jobId" => job.id.to_string(),
+            "operator" => &job.operator,
+            "chainID" => &job.chain,
+            "contractAddress" => &job.contract,
+        );
+
+        let resp = self
+            .client(region)
+            .allocate_address()
+            .domain(DomainType::Vpc)
+            .tag_specifications(tags)
             .send()
             .await
-            .context("failed to query key pairs")?
-            .key_pairs()
-            .is_empty())
+            .context("could not allocate elastic ip")?;
+
+        Ok((
+            true,
+            resp.allocation_id()
+                .ok_or(anyhow!("could not parse allocation id"))?
+                .to_string(),
+            resp.public_ip()
+                .ok_or(anyhow!("could not parse public ip"))?
+                .to_string(),
+            None,
+        ))
     }
 
-     /* SSH UTILITY */
+    // returns (ip, alloc_id, (assoc_id, instance_id)) if it exists
+    async fn get_ip_for_job(
+        &self,
+        job: &JobId,
+        region: &str,
+    ) -> Result<Option<(String, String, Option<(String, String)>)>> {
+        let job_filter = filter!("tag:jobId", job.id.to_string());
+        let operator_filter = filter!("tag:operator", &job.operator);
+        let chain_filter = filter!("tag:chainID", &job.chain);
+        let contract_filter = filter!("tag:contractAddress", &job.contract);
 
-    pub async fn ssh_connect(&self, ip_address: &str) -> Result<Session> {
-        let tcp = TcpStream::connect(ip_address)?;
-
-        let mut sess = Session::new()?;
-
-        sess.set_tcp_stream(tcp);
-        sess.handshake()?;
-        sess.userauth_pubkey_file("root", None, Path::new(&self.key_location), None)?;
-        info!(ip_address, "SSH connection established");
-        Ok(sess)
-    }
-
-    fn ssh_exec(sess: &Session, command: &str) -> Result<(String, String)> {
-        let mut channel = sess
-            .channel_session()
-            .context("Failed to get channel session")?;
-        let mut stdout = String::new();
-        let mut stderr = String::new();
-        channel
-            .exec(command)
-            .context("Failed to execute command: {command}")?;
-        channel
-            .read_to_string(&mut stdout)
-            .context("Failed to read stdout")?;
-        channel
-            .stderr()
-            .read_to_string(&mut stderr)
-            .context("Failed to read stderr")?;
-        channel.wait_close().context("Failed to wait for close")?;
-
-        Ok((stdout, stderr))
-    }
-
-    /* AWS EC2 UTILITY */
-
-    pub async fn get_instance_ip(&self, instance_id: &str, region: &str) -> Result<String> {
-        Ok(self
+        let describe_addresses_output = self
             .client(region)
+            .describe_addresses()
+            .filters(job_filter)
+            .filters(operator_filter)
+            .filters(contract_filter)
+            .filters(chain_filter)
+            .send()
             .await
+            .context("could not describe elastic ips")?;
+        let Some(address) = describe_addresses_output
+            // response parsing starts here
+            .addresses()
+            .first()
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some((
+            address
+                .public_ip()
+                .ok_or(anyhow!("could not parse public ip"))?
+                .to_string(),
+            address
+                .allocation_id()
+                .ok_or(anyhow!("could not parse allocation id"))?
+                .to_string(),
+            address
+                .association_id()
+                .map(String::from)
+                .zip(address.instance_id().map(String::from)),
+        )))
+    }
+
+    async fn associate_address(
+        &self,
+        instance_id: &str,
+        alloc_id: &str,
+        region: &str,
+    ) -> Result<()> {
+        self.client(region)
+            .associate_address()
+            .allocation_id(alloc_id)
+            .instance_id(instance_id)
+            .send()
+            .await
+            .context("could not associate elastic ip")?;
+        Ok(())
+    }
+
+    async fn disassociate_address(&self, association_id: &str, region: &str) -> Result<()> {
+        self.client(region)
+            .disassociate_address()
+            .association_id(association_id)
+            .send()
+            .await
+            .context("could not disassociate elastic ip")?;
+        Ok(())
+    }
+
+    async fn release_address(&self, alloc_id: &str, region: &str) -> Result<()> {
+        self.client(region)
+            .release_address()
+            .allocation_id(alloc_id)
+            .send()
+            .await
+            .context("could not release elastic ip")?;
+        Ok(())
+    }
+}
+
+// Rate limiter
+impl Aws {
+    async fn fetch_rate_limiter_ip(&self, region: &str) -> Result<String> {
+        let project_filter = filter!("tag:project", "marlin-cvm");
+        let type_filter = filter!("tag:type", "limiter");
+
+        let describe_instances_output = self
+            .client(region)
             .describe_instances()
-            .filters(
-                Filter::builder()
-                    .name("instance-id")
-                    .values(instance_id)
-                    .build(),
-            )
+            .filters(project_filter)
+            .filters(type_filter)
             .send()
             .await
-            .context("could not describe instances")?
-            // response parsing from here
+            .context("could not describe rate limit instances")?;
+        let instance = describe_instances_output
             .reservations()
             .first()
-            .ok_or(anyhow!("no reservation found"))?
+            .ok_or(anyhow!("no reservations found"))?
             .instances()
             .first()
-            .ok_or(anyhow!("no instances with the given id"))?
-            .public_ip_address()
-            .ok_or(anyhow!("could not parse ip address"))?
-            .to_string())
+            .ok_or(anyhow!("no instances found"))?;
+
+        let ip = instance
+            .private_ip_address()
+            .ok_or(anyhow!("could not parse instance ip"))?
+            .to_string();
+
+        Ok(ip)
     }
 
-    // launch instance with given params and return instance id and private ip
-    pub async fn launch_instance(
+    fn get_rate_limiter_ip(&self, region: &str) -> &str {
+        &self.rl_ips[region]
+    }
+
+    async fn add_rate_limiter(&self, cvm_ip: &str, region: &str, bandwidth: u64) -> Result<()> {
+        let rl_ip = self.get_rate_limiter_ip(region);
+        let url = format!("http://{}:3000/add", rl_ip);
+
+        let client = reqwest::Client::new();
+        let req_body = serde_json::json!({
+            "ip": cvm_ip,
+            "rate": bandwidth
+        });
+
+        let res = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(req_body.to_string())
+            .send()
+            .await
+            .context("failed to send add rate limiter request")?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            bail!(
+                "add rate limiter request failed with status: {}, body: {}",
+                status,
+                text
+            );
+        }
+
+        Ok(())
+    }
+
+    async fn remove_rate_limiter(&self, cvm_ip: &str, region: &str) -> Result<()> {
+        let rl_ip = self.get_rate_limiter_ip(region);
+        let url = format!("http://{}:3000/remove", rl_ip);
+
+        let client = reqwest::Client::new();
+        let req_body = serde_json::json!({
+            "ip": cvm_ip
+        });
+
+        let res = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(req_body.to_string())
+            .send()
+            .await
+            .context("failed to send remove rate limiter request")?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            bail!(
+                "remove rate limiter request failed with status: {}, body: {}",
+                status,
+                text
+            );
+        }
+
+        Ok(())
+    }
+}
+
+// Instances
+impl Aws {
+    // returns (instance_id, is_healthy, private_ip, ami)
+    async fn get_job_instance(
+        &self,
+        job: &JobId,
+        region: &str,
+    ) -> Result<Option<(String, bool, String, String)>> {
+        let job_filter = filter!("tag:jobId", job.id.to_string());
+        let operator_filter = filter!("tag:operator", &job.operator);
+        let chain_filter = filter!("tag:chainID", &job.chain);
+        let contract_filter = filter!("tag:contractAddress", &job.contract);
+        let state_filter = filter!(
+            "instance-state-name",
+            "pending",
+            "running",
+            "stopping",
+            "stopped"
+        );
+
+        let res = self
+            .client(region)
+            .describe_instances()
+            .filters(job_filter)
+            .filters(operator_filter)
+            .filters(contract_filter)
+            .filters(chain_filter)
+            .filters(state_filter)
+            .send()
+            .await
+            .context("could not describe instances")?;
+        // response parsing from here
+        let reservations = res.reservations();
+
+        if reservations.is_empty() {
+            Ok(None)
+        } else {
+            let instance = reservations[0]
+                .instances()
+                .first()
+                .ok_or(anyhow!("instance not found"))?;
+            let state = instance
+                .state()
+                .ok_or(anyhow!("could not parse instance state"))?
+                .name()
+                .ok_or(anyhow!("could not parse instance state name"))?
+                .as_str();
+            Ok(Some((
+                instance
+                    .instance_id()
+                    .ok_or(anyhow!("could not parse ip address"))?
+                    .to_string(),
+                state == "pending" || state == "running",
+                instance
+                    .private_ip_address()
+                    .ok_or(anyhow!("could not parse private ip"))?
+                    .to_string(),
+                instance
+                    .image_id()
+                    .ok_or(anyhow!("could not parse image id"))?
+                    .to_string(),
+            )))
+        }
+    }
+
+    // returns (instance id, private ip)
+    async fn launch_instance(
         &self,
         job: &JobId,
         instance_type: InstanceType,
         region: &str,
         init_params: &[u8],
-        ami_id: &str,
+        image: &str,
     ) -> Result<(String, String)> {
-        let name_tag = Tag::builder().key("Name").value("JobRunner").build();
-        let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder().key("jobId").value(&job.id).build();
-        let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
-        let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
-        let contract_tag = Tag::builder()
-            .key("contractAddress")
-            .value(&job.contract)
-            .build();
-        let tags = TagSpecification::builder()
-            .resource_type(ResourceType::Instance)
-            .tags(name_tag)
-            .tags(managed_tag)
-            .tags(project_tag)
-            .tags(job_tag)
-            .tags(operator_tag)
-            .tags(contract_tag)
-            .tags(chain_tag)
-            .build();
+        let tags = tag_spec!(
+            ResourceType::Instance,
+            "Name" => format!("JobRunner {}", job.id),
+            "managedBy" => "marlin",
+            "project" => "marlin-cvm",
+            "jobId" => job.id.to_string(),
+            "operator" => &job.operator,
+            "chainID" => &job.chain,
+            "contractAddress" => &job.contract,
+        );
+
         let subnet = self
             .get_subnet(region)
             .await
@@ -282,12 +510,11 @@ impl Aws {
         let sec_group = self
             .get_security_group(region)
             .await
-            .context("could not get subnet")?;
-        let instance = self
+            .context("could not get security group")?;
+        let run_instances_response = self
             .client(region)
-            .await
             .run_instances()
-            .image_id(ami_id)
+            .image_id(image)
             .instance_type(instance_type)
             .min_count(1)
             .max_count(1)
@@ -297,31 +524,30 @@ impl Aws {
             .user_data(BASE64_STANDARD.encode(init_params))
             .send()
             .await
-            .context("could not run instance")?
+            .context("could not run instance")?;
+        let instance = run_instances_response
             // response parsing from here
             .instances()
             .first()
-            .ok_or(anyhow!("no instance found"))?
-            .clone();
+            .ok_or(anyhow!("no instance found"))?;
 
         let instance_id = instance
             .instance_id()
             .ok_or(anyhow!("could not parse instance id"))?
             .to_string();
-
         let private_ip = instance
             .private_ip_address()
             .ok_or(anyhow!("could not parse private ip"))?
             .to_string();
+
         Ok((instance_id, private_ip))
     }
 
     async fn terminate_instance(&self, instance_id: &str, region: &str) -> Result<()> {
-        let _ = self
-            .client(region)
-            .await
+        self.client(region)
             .terminate_instances()
             .instance_ids(instance_id)
+            .force(true)
             .send()
             .await
             .context("could not terminate instance")?;
@@ -329,17 +555,13 @@ impl Aws {
         Ok(())
     }
 
-    pub async fn get_security_group(&self, region: &str) -> Result<String> {
-        let filter = Filter::builder()
-            .name("tag:project")
-            .values("marlin-cvm")
-            .build();
+    async fn get_security_group(&self, region: &str) -> Result<String> {
+        let project_filter = filter!("tag:project", "marlin-cvm");
 
         Ok(self
             .client(region)
-            .await
             .describe_security_groups()
-            .filters(filter)
+            .filters(project_filter)
             .send()
             .await
             .context("could not describe security groups")?
@@ -352,20 +574,12 @@ impl Aws {
             .to_string())
     }
 
-    pub async fn get_subnet(&self, region: &str) -> Result<String> {
-        let project_filter = Filter::builder()
-            .name("tag:project")
-            .values("marlin-cvm")
-            .build();
-
-        let type_filter = Filter::builder()
-            .name("tag:type")
-            .values("cvm")
-            .build();
+    async fn get_subnet(&self, region: &str) -> Result<String> {
+        let project_filter = filter!("tag:project", "marlin-cvm");
+        let type_filter = filter!("tag:type", "cvm");
 
         Ok(self
             .client(region)
-            .await
             .describe_subnets()
             .filters(type_filter)
             .filters(project_filter)
@@ -380,1045 +594,171 @@ impl Aws {
             .ok_or(anyhow!("Could not parse subnet id"))?
             .to_string())
     }
+}
 
-    async fn get_job_snapshot_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
-        let res = self
-            .client(region)
-            .await
-            .describe_snapshots()
-            .owner_ids("self")
-            .filters(job_filter)
-            .filters(operator_filter)
-            .filters(contract_filter)
-            .filters(chain_filter)
-            .send()
-            .await
-            .context("could not describe instances")?;
-
-        let own_snapshot = res.snapshots().iter().max_by_key(|x| &x.start_time);
-        if let Some(snapshot) = own_snapshot {
-            Ok((
-                true,
-                snapshot
-                    .snapshot_id()
-                    .ok_or(anyhow!("could not parse snapshot id"))?
-                    .to_string(),
-            ))
-        } else {
-            Ok((false, "".to_owned()))
-        }
-    }
-
-    async fn get_job_ami_id(&self, job: &JobId, region: &str) -> Result<(bool, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
-        let res = self
-            .client(region)
-            .await
-            .describe_images()
-            .owners("self")
-            .filters(job_filter)
-            .filters(operator_filter)
-            .filters(contract_filter)
-            .filters(chain_filter)
-            .send()
-            .await
-            .context("could not describe instances")?;
-
-        let own_ami = res.images().iter().max_by_key(|x| &x.name);
-        if let Some(ami) = own_ami {
-            Ok((
-                true,
-                ami.image_id()
-                    .ok_or(anyhow!("could not parse image id"))?
-                    .to_string(),
-            ))
-        } else {
-            Ok((false, "".to_owned()))
-        }
-    }
-
-    // return (exist, instance_id, state, rl_instance_id, private_ip)
-    pub async fn get_job_instance_id(
-        &self,
-        job: &JobId,
-        region: &str,
-    ) -> Result<(bool, String, String, String, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
-        let res = self
-            .client(region)
-            .await
-            .describe_instances()
-            .filters(job_filter)
-            .filters(operator_filter)
-            .filters(contract_filter)
-            .filters(chain_filter)
-            .send()
-            .await
-            .context("could not describe instances")?;
-        // response parsing from here
-        let reservations = res.reservations();
-
-        if reservations.is_empty() {
-            Ok((false, "".to_owned(), "".to_owned(), "".to_owned(), "".to_owned()))
-        } else {
-            let instance = reservations[0]
-                .instances()
-                .first()
-                .ok_or(anyhow!("instance not found"))?;
-            let mut rl_instance_id = String::new();
-            for tag in instance.tags() {
-                if tag.key().unwrap_or("") == "rlInstanceId" {
-                    rl_instance_id = tag.value().unwrap_or("").to_string();
-                }
-            }
-            Ok((
-                true,
-                instance
-                    .instance_id()
-                    .ok_or(anyhow!("could not parse ip address"))?
-                    .to_string(),
-                instance
-                    .state()
-                    .ok_or(anyhow!("could not parse instance state"))?
-                    .name()
-                    .ok_or(anyhow!("could not parse instance state name"))?
-                    .as_str()
-                    .to_owned(),
-                rl_instance_id,
-                instance
-                    .private_ip_address()
-                    .ok_or(anyhow!("could not parse private ip"))?
-                    .to_string()
-            ))
-        }
-    }
-
-    pub async fn get_instance_state(&self, instance_id: &str, region: &str) -> Result<String> {
-        Ok(self
-            .client(region)
-            .await
-            .describe_instances()
-            .filters(
-                Filter::builder()
-                    .name("instance-id")
-                    .values(instance_id)
-                    .build(),
-            )
-            .send()
-            .await
-            .context("could not describe instances")?
-            // response parsing from here
-            .reservations()
-            .first()
-            .ok_or(anyhow!("no reservation found"))?
-            .instances()
-            .first()
-            .ok_or(anyhow!("no instances with the given id"))?
-            .state()
-            .ok_or(anyhow!("could not parse instance state"))?
-            .name()
-            .ok_or(anyhow!("could not parse instance state name"))?
-            .as_str()
-            .into())
-    }
-
-    async fn allocate_ip_addr(&self, job: &JobId, region: &str) -> Result<(String, String)> {
-        let (exist, alloc_id, public_ip, _) = self
-            .get_job_elastic_ip(job, region, false)
-            .await
-            .context("could not get elastic ip for job")?;
-
-        if exist {
-            info!(public_ip, "Elastic Ip already exists");
-            return Ok((alloc_id, public_ip));
-        }
-
-        let managed_tag = Tag::builder().key("managedBy").value("marlin").build();
-        let project_tag = Tag::builder().key("project").value("marlin-cvm").build();
-        let job_tag = Tag::builder().key("jobId").value(&job.id).build();
-        let operator_tag = Tag::builder().key("operator").value(&job.operator).build();
-        let chain_tag = Tag::builder().key("chainID").value(&job.chain).build();
-        let contract_tag = Tag::builder()
-            .key("contractAddress")
-            .value(&job.contract)
-            .build();
-        let tags = TagSpecification::builder()
-            .resource_type(ResourceType::ElasticIp)
-            .tags(managed_tag)
-            .tags(project_tag)
-            .tags(job_tag)
-            .tags(operator_tag)
-            .tags(contract_tag)
-            .tags(chain_tag)
-            .build();
-
-        let resp = self
-            .client(region)
-            .await
-            .allocate_address()
-            .domain(DomainType::Vpc)
-            .tag_specifications(tags)
-            .send()
-            .await
-            .context("could not allocate elastic ip")?;
-
-        Ok((
-            resp.allocation_id()
-                .ok_or(anyhow!("could not parse allocation id"))?
-                .to_string(),
-            resp.public_ip()
-                .ok_or(anyhow!("could not parse public ip"))?
-                .to_string(),
-        ))
-    }
-
-    // if with_association is true means, caller expected this elastic associated and return association details
-    async fn get_job_elastic_ip(
-        &self,
-        job: &JobId,
-        region: &str,
-        with_association: bool,
-    ) -> Result<(bool, String, String, String)> {
-        let job_filter = Filter::builder().name("tag:jobId").values(&job.id).build();
-        let operator_filter = Filter::builder()
-            .name("tag:operator")
-            .values(&job.operator)
-            .build();
-        let chain_filter = Filter::builder()
-            .name("tag:chainID")
-            .values(&job.chain)
-            .build();
-        let contract_filter = Filter::builder()
-            .name("tag:contractAddress")
-            .values(&job.contract)
-            .build();
-
-        Ok(
-            match self
-                .client(region)
-                .await
-                .describe_addresses()
-                .filters(job_filter)
-                .filters(operator_filter)
-                .filters(contract_filter)
-                .filters(chain_filter)
-                .send()
-                .await
-                .context("could not describe elastic ips")?
-                // response parsing starts here
-                .addresses()
-                .first()
-            {
-                None => (
-                    false,
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                ),
-                Some(addrs) => {
-                    if with_association == false {
-                        // load private ip, eni id from tags
-                        
-                        (
-                            true,
-                            addrs
-                                .allocation_id()
-                                .ok_or(anyhow!("could not parse allocation id"))?
-                                .to_string(),
-                            addrs
-                                .public_ip()
-                                .ok_or(anyhow!("could not parse public ip"))?
-                                .to_string(),
-                            String::new(),
-                        )
-                    } else if addrs.association_id().is_none() {
-                        (
-                            false,
-                            String::new(),
-                            String::new(),
-                            String::new(),
-                        )
-                    } else {
-                        (
-                            true,
-                            addrs
-                                .allocation_id()
-                                .ok_or(anyhow!("could not parse allocation id"))?
-                                .to_string(),
-                            addrs
-                                .public_ip()
-                                .ok_or(anyhow!("could not parse public ip"))?
-                                .to_string(),
-                            addrs
-                                .association_id()
-                                .ok_or(anyhow!("could not parse association id"))?
-                                .to_string(),
-                        )
-                    }
-                },
-            },
-        )
-    }
-
-    async fn associate_address(
-        &self,
-        instance_id: &str,
-        alloc_id: &str,
-        region: &str,
-    ) -> Result<()> {
-         self.client(region)
-            .await
-            .associate_address()
-            .allocation_id(alloc_id)
-            .instance_id(instance_id)
-            .send()
-            .await
-            .context("could not associate elastic ip")?;
-        Ok(())
-    }
-
-    async fn disassociate_address(&self, association_id: &str, region: &str) -> Result<()> {
-        self.client(region)
-            .await
-            .disassociate_address()
-            .association_id(association_id)
-            .send()
-            .await
-            .context("could not disassociate elastic ip")?;
-        Ok(())
-    }
-
-    async fn release_address(&self, alloc_id: &str, region: &str) -> Result<()> {
-        self.client(region)
-            .await
-            .release_address()
-            .allocation_id(alloc_id)
-            .send()
-            .await
-            .context("could not release elastic ip")?;
-        Ok(())
-    }
-
+// Spin up/down
+//
+// Spin up ordering:
+// Launch instance
+// Add rate limiting
+// Allocate EIP
+// Associate EIP
+//
+// Spin down ordering:
+// Disassociate EIP
+// Release EIP
+// Remove rate limiting
+// Terminate instance
+impl Aws {
+    // might be called when the job is not healthy
+    // might be called when the job params change
+    // basically do not assume anything about the existing state
     async fn spin_up_impl(
         &mut self,
         job: &JobId,
         instance_type: &str,
         region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
         bandwidth: u64,
-        image_url: &str,
+        image: &str,
         init_params: &[u8],
     ) -> Result<()> {
-        let (mut exist, instance, state, rl_instance_id, private_ip) = self
-            .get_job_instance_id(job, region)
-            .await
-            .context("failed to get job instance")?;
-
-        if exist {
-            // instance exists already
-            if state == "pending" || state == "running" {
-                // instance exists and is already running, we are done
-                info!(instance, "Found existing healthy instance");
-            } else if state == "stopping" || state == "stopped" {
-                // instance unhealthy, terminate
-                info!(instance, "Found existing unhealthy instance");
-                self.spin_down_instance(&instance, job, &private_ip, region, bandwidth, &rl_instance_id)
-                    .await
-                    .context("failed to terminate instance")?;
-
-                // set to false so new one can be provisioned
-                exist = false;
-            } else {
-                // state is shutting-down or terminated
-                // set to false so new one can be provisioned
-                exist = false;
-            }
+        // NOTE: should this be in market itself?
+        if !whitelist_blacklist_check(image, self.whitelist, self.blacklist) {
+            bail!("failed whitelist/blacklist check");
         }
 
-        // Check AMI corresponding to given job. If dosen't exist then check if snapshot exists.
-        // If doesn't exist download image upload as snapshot and register AMI. If snapshot exists register AMI from it.
-
-        let (ami_exist, mut ami_id) = self
-            .get_job_ami_id(job, region)
-            .await
-            .context("failed to get job ami")?;
-
-        if !ami_exist {
-            // check snapshot exists
-            let (snapshot_exist, mut snapshot_id) = self
-                .get_job_snapshot_id(job, region)
+        let (instance_id, cvm_ip) = 'block: {
+            if let Some((instance_id, is_healthy, cvm_ip, cvm_image)) = self
+                .get_job_instance(job, region)
                 .await
-                .context("failed to get job snapshot")?;
-            if !snapshot_exist {
-                // 1. Download image in image_url to a tmp file
-                // 2. check blacklist/whitelist
-                // 3. Upload image as snapshot
+                .context("failed to get job instance")?
+            {
+                // instance exists already
+                if is_healthy && cvm_image == image {
+                    // instance exists and is already running our desired ami
+                    info!(instance_id, "Found existing instance");
 
-                let tmp_file_path = format!("/tmp/image-{}.raw", job.id);
-                let mut tmp_file = File::create(&tmp_file_path).context(format!(
-                    "Failed to create temporary file for image {}",
-                    tmp_file_path
-                ))?;
+                    break 'block (instance_id, cvm_ip);
+                } else {
+                    // instance unhealthy or not running our image
+                    // terminate and launch new one later
+                    info!(
+                        instance_id,
+                        cvm_image, "Found existing unhealthy/mismatched instance"
+                    );
 
-                // Download the image from the image_url
-                let resp = reqwest::get(image_url).await.context(format!(
-                    "Failed to start download file from {} for job ID {}",
-                    image_url, job.id
-                ))?;
-                let mut stream = resp.bytes_stream();
-
-                while let Some(item) = stream.next().await {
-                    let chunk = item.context(format!(
-                        "Failed to read chunk from response stream for job ID {}",
-                        job.id
-                    ))?;
-                    tmp_file.write_all(&chunk).context(format!(
-                        "Failed to write chunk to temporary file for job ID {}",
-                        job.id
-                    ))?;
+                    // retain the EIP to reuse during spin up
+                    // still important to disassociate for bandwidth metering
+                    self.spin_down_impl(job, region, false)
+                        .await
+                        .context("failed to terminate instance")?;
                 }
-
-                tmp_file.flush().context(format!(
-                    "Failed to flush temporary file for job ID {}",
-                    job.id
-                ))?;
-
-                let mut hasher = Sha256::new();
-                let mut file = File::open(&tmp_file_path)
-                    .context("Failed to open temporary file for hashing")?;
-                let mut buffer = [0; 8192];
-                loop {
-                    let n = file
-                        .read(&mut buffer)
-                        .context("Failed to read temporary file")?;
-                    if n == 0 {
-                        break;
-                    }
-                    hasher.update(&buffer[..n]);
-                }
-                let file_hash = hex::encode(hasher.finalize());
-
-                if let Some(whitelist_list) = self.whitelist {
-                    let mut allowed = false;
-                    for entry in whitelist_list {
-                        if entry.contains(&file_hash) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if !allowed {
-                        return Err(anyhow!("Image hash {} not found in whitelist", file_hash));
-                    }
-                }
-
-                if let Some(blacklist_list) = self.blacklist {
-                    for entry in blacklist_list {
-                        if entry.contains(&file_hash) {
-                            return Err(anyhow!("Image hash {} found in blacklist", file_hash));
-                        }
-                    }
-                }
-
-                let uploader = SnapshotUploader::new(self.ebs_client(region).await.clone());
-                let managed_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("managedBy")
-                    .value("marlin")
-                    .build();
-                let project_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("project")
-                    .value("marlin-cvm")
-                    .build();
-                let job_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("jobId")
-                    .value(&job.id)
-                    .build();
-                let operator_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("operator")
-                    .value(&job.operator)
-                    .build();
-                let chain_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("chainID")
-                    .value(&job.chain)
-                    .build();
-                let contract_tag = aws_sdk_ebs::types::Tag::builder()
-                    .key("contractAddress")
-                    .value(&job.contract)
-                    .build();
-
-                let snapshot_tags = vec![
-                    managed_tag,
-                    project_tag,
-                    job_tag,
-                    operator_tag,
-                    contract_tag,
-                    chain_tag,
-                ];
-                snapshot_id = uploader
-                    .upload_from_file(
-                        Path::new(&tmp_file_path),
-                        None,
-                        None,
-                        Some(snapshot_tags),
-                        None,
-                        None,
-                        None,
-                    )
-                    .await
-                    .context("Failed to upload snapshot from image file")?;
-                info!(snapshot_id, "Snapshot uploaded");
-                let waiter = SnapshotWaiter::new(self.client(region).await.clone());
-                waiter
-                    .wait_for_completed(snapshot_id.as_str())
-                    .await
-                    .context("Failed to wait for snapshot completion")?;
-                info!(snapshot_id, "Snapshot is now completed");
             }
-            // Register AMI from snapshot
 
-            let block_dev_mapping = BlockDeviceMapping::builder()
-                .device_name("/dev/xvda")
-                .ebs(
-                    EbsBlockDevice::builder()
-                        .snapshot_id(snapshot_id.clone())
-                        .build(),
-                )
-                .build();
-
+            // launch new
             let instance_type =
                 InstanceType::from_str(instance_type).context("cannot parse instance type")?;
-            let resp = self
-                .client(region)
+            self.launch_instance(job, instance_type, region, init_params, image)
                 .await
-                .describe_instance_types()
-                .instance_types(instance_type.clone())
-                .send()
-                .await
-                .context("could not describe instance types")?;
-            let mut architecture = "arm64".to_string();
-            let isntance_types = resp.instance_types();
-            for instance in isntance_types {
-                let supported_architectures = instance
-                    .processor_info()
-                    .ok_or(anyhow!("error fetching instance processor info"))?
-                    .supported_architectures();
-                if let Some(arch) = supported_architectures.iter().next() {
-                    arch.as_str().clone_into(&mut architecture);
-                    info!(architecture);
-                }
-            }
-            let resp = self
-                .client(region)
-                .await
-                .register_image()
-                .name(format!("marlin/oyster/job-{}", job.id))
-                .architecture(FromStr::from_str(&architecture)?)
-                .root_device_name("/dev/xvda")
-                .block_device_mappings(block_dev_mapping)
-                .tpm_support(TpmSupportValues::V20)
-                .ena_support(true)
-                .virtualization_type("hvm".to_string())
-                .boot_mode(BootModeValues::Uefi)
-                .tag_specifications(
-                    TagSpecification::builder()
-                        .resource_type(ResourceType::Image)
-                        .tags(Tag::builder().key("managedBy").value("marlin").build())
-                        .tags(Tag::builder().key("project").value("marlin-cvm").build())
-                        .tags(Tag::builder().key("jobId").value(&job.id).build())
-                        .tags(Tag::builder().key("operator").value(&job.operator).build())
-                        .tags(
-                            Tag::builder()
-                                .key("contractAddress")
-                                .value(&job.contract)
-                                .build(),
-                        )
-                        .tags(Tag::builder().key("chainID").value(&job.chain).build())
-                        .build(),
-                )
-                .send()
-                .await
-                .context(format!(
-                    "Failed to register AMI from snapshot {} for job {}",
-                    snapshot_id, job.id
-                ))?;
+                .context("could not launch instance")?
+        };
 
-            ami_id = resp
-                .image_id()
-                .ok_or(anyhow!("could not parse image id"))?
-                .to_string();
-        }
+        // at this point, we should have an instance with the right image
 
-        if !exist {
-            // either no old instance or old instance was not enough, launch new one
-            self.spin_up_instance(
-                job,
-                instance_type,
-                region,
-                req_mem,
-                req_vcpu,
-                init_params,
-                ami_id.as_str(),
-                bandwidth,
-            )
+        // add rate limit config
+        self.add_rate_limiter(&cvm_ip, region, bandwidth)
             .await
-            .context("failed to spin up instance")?;
-        }
+            .context("failed to add rate limit")?;
 
-        Ok(())
-    }
-
-    pub async fn spin_up_instance(
-        &self,
-        job: &JobId,
-        instance_type: &str,
-        region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
-        init_params: &[u8],
-        ami_id: &str,
-        bandwidth: u64,
-    ) -> Result<String> {
-        let instance_type =
-            InstanceType::from_str(instance_type).context("cannot parse instance type")?;
-        let resp = self
-            .client(region)
-            .await
-            .describe_instance_types()
-            .instance_types(instance_type.clone())
-            .send()
-            .await
-            .context("could not describe instance types")?;
-        let mut v_cpus: i32 = 4;
-        let mut mem: i64 = 8192;
-
-        let instance_types = resp.instance_types();
-        for instance in instance_types {
-            v_cpus = instance
-                .v_cpu_info()
-                .ok_or(anyhow!("error fetching instance v_cpu info"))?
-                .default_v_cpus()
-                .ok_or(anyhow!("error fetching instance v_cpu info"))?;
-            info!(v_cpus);
-            mem = instance
-                .memory_info()
-                .ok_or(anyhow!("error fetching instance memory info"))?
-                .size_in_mib()
-                .ok_or(anyhow!("error fetching instance memory info"))?;
-            info!(mem);
-        }
-
-        if req_mem > mem || req_vcpu > v_cpus {
-            return Err(anyhow!("Required memory or vcpus are more than available"));
-        }
-        let (instance_id, private_ip) = self
-            .launch_instance(job, instance_type, region, init_params, ami_id)
-            .await
-            .context("could not launch instance")?;
-        sleep(Duration::from_secs(100)).await;
-
-        let res = self.post_spin_up(job, &instance_id, &private_ip, region, bandwidth).await;
-
-        if let Err(err) = res {
-            error!(?err, "Error during post spin up");
-            self.spin_down_instance(&instance_id, job, &private_ip, region, bandwidth, "")
-                .await
-                .context("could not spin down instance after error during post spin up")?;
-            return Err(err).context("error during post spin up");
-        }
-        Ok(instance_id)
-    }
-
-    async fn post_spin_up(
-        &self,
-        job: &JobId,
-        instance_id: &str,
-        private_ip: &str,
-        region: &str,
-        bandwidth: u64,
-    ) -> Result<()> {
-        // select and configure rate limiter
-        // allocate Elastic IP
-        // associate Elastic IP
-        self
-            .select_rate_limiter(job, instance_id, private_ip, region, bandwidth)
-            .await
-            .context("could not select rate limiter")?;
-
-        let (alloc_id, ip) = self
-            .allocate_ip_addr(job, region)
+        // get or allocate eip
+        // it is possible eip was left over from post_release_eip above
+        let (_, _, alloc_id, assoc) = self
+            .get_or_allocate_ip_for_job(job, region)
             .await
             .context("error allocating ip address")?;
 
-        info!(ip, "Elastic Ip allocated");
-
-        self.associate_address(instance_id, &alloc_id, region)
-        .await
-        .context("could not associate ip address")?;
-
-        Ok(())
-    }
-
-    async fn configure_rate_limiter(
-        &self,
-        job: &JobId,
-        private_ip: &str,
-        rl_instance_id: &str,
-        bandwidth: u64, // in kbit/sec
-        instance_bandwidth_limit: u64,
-        region: &str,
-    ) -> Result<()> {
-        // SSH into Rate Limiter instance and configure tc
-        let rl_ip = self
-            .get_instance_ip(rl_instance_id, region)
-            .await
-            .context("could not get rate limiter instance ip")?;
-
-        let sess = &self
-            .ssh_connect(&(rl_ip + ":22"))
-            .await
-            .context("error establishing ssh connection")?;
-
-        // Use a script file in rate limit VM, which take sec ip and private ip, bandwidth as args and setup everything
-        let add_rl_cmd = format!(
-            "add_rl {} {} {} {}",
-            job.id, private_ip, bandwidth * 1000, instance_bandwidth_limit
-        );
-
-        let (_, stderr) = Self::ssh_exec(sess, &add_rl_cmd).context("Failed to run add_rl command")?;
-
-        if !stderr.is_empty() {
-            error!(stderr = ?stderr, "Error setting up Rate Limiter");
-            return Err(anyhow!(stderr)).context("Error setting up Rate Limiter");
+        // associate ip if needed
+        if let Some((_, eip_instance_id)) = assoc
+            && eip_instance_id == instance_id
+        {
+            // ip is already associated, do nothing
+        } else {
+            // (re)associate ip
+            self.associate_address(&instance_id, &alloc_id, region)
+                .await
+                .context("could not associate ip address")?;
         }
 
         Ok(())
-
     }
 
-    pub async fn get_instance_bandwidth_limit(&self, instance_type: InstanceType, region: &str) -> Result<u64> {
-        let res = self
-            .client(region)
+    async fn spin_down_impl(&self, job: &JobId, region: &str, do_release: bool) -> Result<()> {
+        // disassociate and release eip if needed
+        if let Some((_, alloc_id, association)) = self
+            .get_ip_for_job(job, region)
             .await
-            .describe_instance_types()
-            .instance_types(instance_type)
-            .send()
-            .await
-            .context("could not describe instance types")?;
-        let mut bandwidth_limit_res: &str = "";
-        let instance_types = res.instance_types();
-        for instance in instance_types {
-            bandwidth_limit_res = instance
-                .network_info()
-                .ok_or(anyhow!("error fetching instance network info"))?
-                .network_performance()
-                .ok_or(anyhow!("error fetching instance network performance"))?;
-            info!(bandwidth_limit_res);
-        }
-        // bandwidth_limit is string like "Up to 12.5 Gigabit", "Up to 10 Gigabit", "10 Gigabit"
-        // We need to parse this string and return bandwidth in bit/sec
-        let re = Regex::new(r"^(?i)(?:Up to\s+)?([\d\.]+)\s+Gigabit$")
-            .context(anyhow!("Failed to initialise bandwidth capturing regular expression"))?;
-        let captures = re
-            .captures(bandwidth_limit_res)
-            .ok_or(anyhow!("Could not parse bandwidth limit from string"))?;
+            .context("could not get elastic ip of job")?
+        {
+            if let Some((association_id, _)) = association {
+                self.disassociate_address(&association_id, region)
+                    .await
+                    .context("could not disassociate address")?;
+            }
 
-        let bandwidth_limit_str = captures
-            .get(1)
-            .ok_or(anyhow!("Could not capture bandwidth limit value"))?
-            .as_str();
-
-        let value: f64 = bandwidth_limit_str
-            .parse()
-            .context("Could not parse bandwidth limit value to float")?;
-
-        const MULTIPLIER: f64 = 1_000_000_000.0; // Gigabit to bit
-
-        let bandwidth_limit_bps = (value * MULTIPLIER).round() as u64;
-
-        Ok(bandwidth_limit_bps)
-    }
-
-    async fn select_rate_limiter(
-        &self,
-        job: &JobId,
-        instance_id: &str,
-        private_ip: &str,
-        region: &str,
-        bandwidth: u64,
-    ) -> Result<()> {
-        // get all the rate limiter vm from region
-        // check available bandwidth
-        // bandwidth is in kbit/sec
-        let project_filter = Filter::builder()
-            .name("tag:project")
-            .values("marlin-cvm")
-            .build();
-        let rl_filter = Filter::builder()
-            .name("tag:type")
-            .values("limiter")
-            .build();
-        let res = self
-            .client(region)
-            .await
-            .describe_instances()
-            .filters(project_filter)
-            .filters(rl_filter)
-            .send()
-            .await
-            .context("could not describe rate limit instances")?;
-
-        let reservations = res.reservations();
-        for reservation in reservations {
-            for instance in reservation.instances() {
-                let rl_instance_id = instance
-                    .instance_id()
-                    .ok_or(anyhow!("could not parse instance id"))?
-                    .to_string();
-                // attach a secondary IP to instance
-                if instance.network_interfaces.is_none() {
-                    debug!(
-                        "No network interfaces found Rate Limit instance [{}]",
-                        rl_instance_id
-                    );
-                    continue;
-                }
-                let instance_bandwidth_limit = self.get_instance_bandwidth_limit(
-                    instance.instance_type().ok_or(anyhow!("could not parse instance type"))?.clone(),
-                    region
-                ).await
-                .context("could not get instance bandwidth limit")?;
-                for eni in instance.network_interfaces() {
-                    if let Some(eni_id) = eni.network_interface_id() {
-                        if eni.mac_address().is_none() {
-                            debug!(
-                                "MAC address not found for ENI {}. Skipping ENI",
-                                eni_id
-                            );
-                            continue;
-                        };
-                        if self.configure_rate_limiter(
-                            job,
-                            private_ip,
-                            &rl_instance_id,
-                            bandwidth,
-                            instance_bandwidth_limit,
-                            region
-                        ).await.is_err() {
-                            warn!(
-                                "Error configuring Rate Limit instance [{}], ENI [{}]",
-                                rl_instance_id,
-                                eni_id
-                            );
-                            continue;
-                        }
-                        let tag_rl_id = Tag::builder()
-                            .key("rlInstanceId")
-                            .value(&rl_instance_id)
-                            .build();
-                        self.client(region)
-                            .await
-                            .create_tags()
-                            .resources(instance_id)
-                            .tags(tag_rl_id)
-                            .send()
-                            .await
-                            .context("could not tag job instance with rl instance id")?; // TODO: revert rate limiter config on failure
-                        return Ok(());
-                    }
-                }
-
+            if do_release {
+                self.release_address(&alloc_id, region)
+                    .await
+                    .context("could not release address")?;
             }
         }
-        Err(anyhow!(
-            "no rate limiter instance found with enough available bandwidth"
-        ))
-    }
 
-    async fn spin_down_impl(&self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
-        let (exist, instance, state, rl_instance_id, private_ip) = self
-            .get_job_instance_id(job, region)
+        let Some((instance_id, _, cvm_ip, _)) = self
+            .get_job_instance(job, region)
             .await
-            .context("failed to get job instance")?;
-
-        if !exist || state == "shutting-down" || state == "terminated" {
-            // instance does not really exist anyway, we are done
-            info!("Instance does not exist or is already terminated");
+            .context("failed to get job instance")?
+        else {
+            // instance does not exist, we are done
+            info!("Instance does not exist");
             return Ok(());
+        };
+
+        // remove rate limit
+        self.remove_rate_limiter(&cvm_ip, region)
+            .await
+            .context("failed to remove rate limit")?;
+
+        // terminate
+        self.terminate_instance(&instance_id, region)
+            .await
+            .context("failed to terminate instance")
+    }
+}
+
+#[must_use]
+fn whitelist_blacklist_check(image: &str, whitelist: &[String], blacklist: &[String]) -> bool {
+    // check whitelist
+    if !whitelist.is_empty() {
+        debug!("Checking whitelist...");
+        if whitelist.iter().any(|s| s == image) {
+            debug!("ALLOWED!");
+        } else {
+            debug!("NOT ALLOWED!");
+            return false;
         }
-
-
-        // cleanup instance and related resources
-        info!(instance, "Terminating existing instance");
-        self.spin_down_instance(&instance, job, &private_ip, region, bandwidth, &rl_instance_id)
-            .await
-            .context("failed to terminate instance")?;
-
-        self.deregister_ami(job, region).await.context("failed to deregister ami")?;
-        self.delete_snapshot(job, region)
-            .await
-            .context("failed to delete snapshot")?;
-
-        Ok(())
     }
 
-    async fn deregister_ami(&self, job: &JobId, region: &str) -> Result<()> {
-        let (ami_exist, ami_id) = self
-            .get_job_ami_id(job, region)
-            .await
-            .context("failed to get job ami")?;
-        if !ami_exist {
-            return Ok(());
+    // check blacklist
+    if !blacklist.is_empty() {
+        debug!("Checking blacklist...");
+        if blacklist.iter().any(|s| s == image) {
+            debug!("NOT ALLOWED!");
+            return false;
+        } else {
+            debug!("ALLOWED!");
         }
-        self.client(region)
-            .await
-            .deregister_image()
-            .image_id(ami_id)
-            .send()
-            .await
-            .context("could not deregister ami")?;
-        Ok(())
     }
 
-    async fn delete_snapshot(&self, job: &JobId, region: &str) -> Result<()> {
-        let (ss_exist, snapshot_id) = self
-            .get_job_snapshot_id(job, region)
-            .await
-            .context("failed to get job snapshot")?;
-        if !ss_exist {
-            info!("No snapshot to delete");
-            return Ok(());
-        }
-        info!(snapshot_id, "Deleting snapshot");
-        self.client(region)
-            .await
-            .delete_snapshot()
-            .snapshot_id(snapshot_id)
-            .send()
-            .await
-            .context("could not delete snapshot")?;
-        Ok(())
-    }
-
-    async fn remove_rate_limiter_config(
-        &self,
-        job: &JobId,
-        private_ip: &str,
-        rl_instance_id: &str,
-        bandwidth: u64, // in kbit/sec
-        region: &str,
-    ) -> Result<()> {
-        let rl_ip = self
-            .get_instance_ip(rl_instance_id, region)
-            .await
-            .context("could not get rate limiter instance ip")?;
-
-        let sess = &self
-            .ssh_connect(&(rl_ip + ":22"))
-            .await
-            .context("error establishing ssh connection")?;
-
-        let remove_rl_cmd = format!(
-            "remove_rl {} {} {}",
-            job.id, private_ip, bandwidth * 1000
-        );
-
-        let (_, stderr) = Self::ssh_exec(sess, &remove_rl_cmd)
-            .context("Failed to run remove_rl command")?;
-
-        if !stderr.is_empty() {
-            error!(stderr = ?stderr, "Error removing Rate Limiter configuration");
-        }
-        Ok(())
-    }
-
-    // TODO: handle all error cases
-    async fn spin_down_instance(
-        &self,
-        instance_id: &str,
-        job: &JobId,
-        private_ip: &str,
-        region: &str,
-        bandwidth: u64,
-        rl_instance_id: &str,
-    ) -> Result<()> {
-        // Check elastic ip association and cleanup
-        // check elastic ip and release
-        // check rate limiter config and cleanup
-        // terminate instance if exist
-
-        let (exist, _, _, association_id) = self
-            .get_job_elastic_ip(job, region, true)
-            .await
-            .context("could not get elastic ip of job")?;
-
-        if exist {
-            self.disassociate_address(association_id.as_str(), region)
-                .await
-                .context("could not disassociate address")?;
-
-        }
-        
-        let (exist, alloc_id, _,  _) = self
-            .get_job_elastic_ip(job, region, false)
-            .await
-            .context("could not get elastic ip of job")?;
-
-        if exist {
-            self.release_address(alloc_id.as_str(), region)
-                .await
-                .context("could not release address")?;
-            info!("Elastic IP released");
-        }
-
-        if !rl_instance_id.is_empty() {
-            self.remove_rate_limiter_config(job, private_ip, &rl_instance_id, bandwidth, region)
-                .await
-                .context("could not remove rate limiter config")?;
-        }
-
-        self.terminate_instance(instance_id, region)
-            .await
-            .context("could not terminate instance")?;
-
-        Ok(())
-    }
+    true
 }
 
 impl InfraProvider for Aws {
@@ -1427,222 +767,48 @@ impl InfraProvider for Aws {
         job: &JobId,
         instance_type: &str,
         region: &str,
-        req_mem: i64,
-        req_vcpu: i32,
         bandwidth: u64,
-        image_url: &str,
+        image: &str,
         init_params: &[u8],
     ) -> Result<()> {
-        self.spin_up_impl(
-            job,
-            instance_type,
-            region,
-            req_mem,
-            req_vcpu,
-            bandwidth,
-            image_url,
-            init_params,
-        )
-        .await
-        .context("could not spin up enclave")
+        self.spin_up_impl(job, instance_type, region, bandwidth, image, init_params)
+            .await
+            .context("could not spin up enclave")
     }
 
-    async fn spin_down(&mut self, job: &JobId, region: &str, bandwidth: u64) -> Result<()> {
-        self.spin_down_impl(job, region, bandwidth)
+    async fn spin_down(&mut self, job: &JobId, region: &str) -> Result<()> {
+        self.spin_down_impl(job, region, true)
             .await
             .context("could not spin down enclave")
     }
 
-    async fn get_job_ip(&self, job: &JobId, region: &str) -> Result<String> {
-
-        let instance = self
-            .get_job_instance_id(job, region)
+    async fn get_ip(&self, job: &JobId, region: &str) -> Result<String> {
+        let Some((elastic_ip, _, association)) = self
+            .get_ip_for_job(job, region)
             .await
-            .context("could not get instance id for job instance ip")?;
+            .context("could not get job elastic ip")?
+        else {
+            // not found
+            bail!("IP not found");
+        };
 
-        if !instance.0 {
-            return Err(anyhow!("Instance not found for job - {}", job.id));
+        if association.is_none() {
+            // not associated
+            bail!("IP not associated");
         }
 
-        let instance_ip = self
-            .get_instance_ip(&instance.1, region)
-            .await
-            .context("could not get instance ip")?;
-
-        let (found, _, elastic_ip, _) = self
-            .get_job_elastic_ip(job, region, true)
-            .await
-            .context("could not get job elastic ip")?;
-
-        // it is possible for the two above to differ while the instance is initializing (maybe
-        // terminating?), better to error out instead of potentially showing a temporary IP
-        if found && instance_ip == elastic_ip {
-            return Ok(instance_ip);
-        }
-
-        Err(anyhow!("Instance is still initializing"))
+        Ok(elastic_ip)
     }
 
     async fn check_enclave_running(&mut self, job: &JobId, region: &str) -> Result<bool> {
-        let (exists, _, state, _, _) = self
-            .get_job_instance_id(job, region)
+        if let Some((_, is_healthy, _, _)) = self
+            .get_job_instance(job, region)
             .await
-            .context("could not get instance id for job")?;
-
-        if !exists || (state != "running" && state != "pending") {
-            return Ok(false);
-        }
-        // TODO: check wether state == pending is fine or not
-        Ok(true)
-    }
-}
-
-// write a test module for AWS struct spin up function
-#[cfg(test)]
-mod tests {
-    use tracing_subscriber::EnvFilter;
-
-    use super::*;
-    use crate::market::InfraProvider;
-    use crate::market::JobId;
-
-    #[tokio::test]
-    async fn test_aws_spin_up_down() {
-        let mut filter = EnvFilter::new("info,aws_config=warn");
-        if let Ok(var) = std::env::var("RUST_LOG") {
-            filter = filter.add_directive(var.parse().unwrap());
-        }
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_env_filter(filter)
-            .init();
-
-        let mut aws = Aws::new(
-            "cp".to_string(),
-            &["ap-southeast-2".to_string()],
-            "rlgen".to_string(),
-            None,
-            None,
-        )
-        .await;
-        let job_id = uuid::Uuid::new_v4().to_string();
-        let job = JobId {
-            id: "test-job-".to_string() + &job_id,
-            operator: "test-operator".to_string(),
-            chain: "test-chain".to_string(),
-            contract: "test-contract".to_string(),
+            .context("could not get instance id for job")?
+        {
+            return Ok(is_healthy);
         };
-        let region = "ap-southeast-2";
-        let instance_type = "t4g.micro";
-        let req_mem = 1024;
-        let req_vcpu = 2;
-        let bandwidth = 100;
-        let image_url = "https://example.com";
-        let init_params = b"test-init-params";
 
-        // Spin up
-        let spin_up_result = aws
-            .spin_up(
-                &job,
-                instance_type,
-                region,
-                req_mem,
-                req_vcpu,
-                bandwidth,
-                image_url,
-                init_params,
-            )
-            .await;
-        assert!(
-            spin_up_result.is_ok(),
-            "Spin up failed: {:?}",
-            spin_up_result.err()
-        );
-
-        // Check if running
-        // let is_running = aws
-        //     .check_enclave_running(&job, region)
-        //     .await
-        //     .expect("Failed to check if enclave is running");
-        // assert!(is_running, "Enclave should be running after spin up");
-
-        // Get job IP
-        let job_ip_result = aws.get_job_ip(&job, region).await;
-        assert!(
-            job_ip_result.is_ok(),
-            "Get job IP failed: {:?}",
-            job_ip_result.err()
-        );
-        let job_ip = job_ip_result.unwrap();
-        println!("Job IP: {}", job_ip);
-
-        print!("Sleeping for 30 seconds...");
-        sleep(Duration::from_secs(30)).await;
-
-        // Spin down
-        let spin_down_result = aws.spin_down(&job, region, bandwidth).await;
-        assert!(
-            spin_down_result.is_ok(),
-            "Spin down failed: {:?}",
-            spin_down_result.err()
-        );
-
-        // Check if not running
-        let is_running_after_down = aws
-            .check_enclave_running(&job, region)
-            .await
-            .expect("Failed to check if enclave is running after spin down");
-        assert!(
-            !is_running_after_down,
-            "Enclave should not be running after spin down"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_bandwidth_limit() {
-        let region = "ap-southeast-2";
-        let aws = Aws::new(
-            "cp".to_string(),
-            &["ap-southeast-2".to_string()],
-            "rlgen".to_string(),
-            None,
-            None,
-        )
-        .await;
-        let instance_type = InstanceType::C6aXlarge;
-        let bandwidth_limit_result = aws
-            .get_instance_bandwidth_limit(instance_type, region)
-            .await;
-        assert!(
-            bandwidth_limit_result.is_ok(),
-            "Get instance bandwidth limit failed: {:?}",
-            bandwidth_limit_result.err()
-        );
-        let bandwidth_limit = bandwidth_limit_result.unwrap();
-        println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
-
-        let instance_type = InstanceType::M6a12xlarge;
-        let bandwidth_limit_result = aws
-            .get_instance_bandwidth_limit(instance_type, region)
-            .await;
-        assert!(
-            bandwidth_limit_result.is_ok(),
-            "Get instance bandwidth limit failed: {:?}",
-            bandwidth_limit_result.err()
-        );
-        let bandwidth_limit = bandwidth_limit_result.unwrap();
-        println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
-
-        let instance_type = InstanceType::M5Xlarge;
-        let bandwidth_limit_result = aws
-            .get_instance_bandwidth_limit(instance_type, region)
-            .await;
-        assert!(
-            bandwidth_limit_result.is_ok(),
-            "Get instance bandwidth limit failed: {:?}",
-            bandwidth_limit_result.err()
-        );
-        let bandwidth_limit = bandwidth_limit_result.unwrap();
-        println!("Instance Bandwidth Limit: {} bps", bandwidth_limit);
+        Ok(false)
     }
 }
