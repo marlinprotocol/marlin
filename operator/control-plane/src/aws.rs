@@ -528,7 +528,28 @@ impl Aws {
             .ok_or(anyhow!("Could not parse subnet id"))?
             .to_string())
     }
+}
 
+// Spin up/down
+//
+// Ordering and proper cleanup is VERY important. Following the ordering
+// lets us optimize steps by checking if a previous step is done or not.
+// E.g. if instance does not exist, EIP also would not exist.
+//
+// Spin up ordering:
+// Launch instance
+// Add rate limiting
+// Allocate EIP
+// Associate EIP
+//
+// Spin down ordering:
+// Disassociate EIP
+// Release EIP
+// Remove rate limiting
+// Terminate instance
+impl Aws {
+    // might be called when the job is not healthy
+    // might be called when the job params change
     async fn spin_up_impl(
         &mut self,
         job: &JobId,
@@ -541,6 +562,11 @@ impl Aws {
         if !whitelist_blacklist_check(image, self.whitelist, self.blacklist) {
             bail!("failed whitelist/blacklist check");
         }
+
+        let rl_ip = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
 
         if let Some((instance, is_healthy, cvm_ip)) = self
             .get_job_instance(job, region)
@@ -558,11 +584,6 @@ impl Aws {
                 // should never happen but eh be safe
                 info!(instance, "Found existing unhealthy instance");
 
-                let rl_ip = self
-                    .get_rate_limiter_ip(region)
-                    .await
-                    .context("failed to get rate limiter ip")?;
-
                 self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
                     .await
                     .context("failed to terminate instance")?;
@@ -570,9 +591,17 @@ impl Aws {
         }
 
         // either no old instance or old instance was not enough, launch new one
-        self.spin_up_instance(job, instance_type, region, init_params, image, bandwidth)
-            .await
-            .context("failed to spin up instance")?;
+        self.spin_up_instance(
+            job,
+            instance_type,
+            region,
+            init_params,
+            image,
+            bandwidth,
+            &rl_ip,
+        )
+        .await
+        .context("failed to spin up instance")?;
 
         Ok(())
     }
@@ -585,6 +614,7 @@ impl Aws {
         init_params: &[u8],
         image: &str,
         bandwidth: u64,
+        rl_ip: &str,
     ) -> Result<String> {
         let instance_type =
             InstanceType::from_str(instance_type).context("cannot parse instance type")?;
@@ -592,10 +622,6 @@ impl Aws {
             .launch_instance(job, instance_type, region, init_params, image)
             .await
             .context("could not launch instance")?;
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .await
-            .context("failed to get rate limiter ip")?;
 
         sleep(Duration::from_secs(100)).await;
 
