@@ -552,7 +552,7 @@ impl Aws {
 impl Aws {
     // might be called when the job is not healthy
     // might be called when the job params change
-    // ensure desired instance exists and hand over to post_launch
+    // basically do not assume anything about the existing state
     async fn spin_up_impl(
         &mut self,
         job: &JobId,
@@ -566,11 +566,6 @@ impl Aws {
         if !whitelist_blacklist_check(image, self.whitelist, self.blacklist) {
             bail!("failed whitelist/blacklist check");
         }
-
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .await
-            .context("failed to get rate limiter ip")?;
 
         let (instance_id, cvm_ip) = 'block: {
             if let Some((instance_id, is_healthy, cvm_ip, cvm_image)) = self
@@ -593,7 +588,10 @@ impl Aws {
                     );
 
                     // retain the EIP to reuse during spin up
-                    // TODO: call post_release_eip
+                    // still important to disassociate for bandwidth metering
+                    self.spin_down_impl(job, region, false)
+                        .await
+                        .context("failed to terminate instance")?;
                 }
             }
 
@@ -606,6 +604,11 @@ impl Aws {
         };
 
         // at this point, we should have an instance with the right image
+
+        let rl_ip = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
 
         // add rate limit config
         self.add_rate_limiter(job, &cvm_ip, &rl_ip, bandwidth)
@@ -634,44 +637,8 @@ impl Aws {
         Ok(())
     }
 
-    async fn spin_down_impl(&self, job: &JobId, region: &str) -> Result<()> {
-        let Some((instance, _, cvm_ip, _)) = self
-            .get_job_instance(job, region)
-            .await
-            .context("failed to get job instance")?
-        else {
-            // instance does not exist, we are done
-            info!("Instance does not exist");
-            return Ok(());
-        };
-
-        // cleanup instance and related resources
-        info!(instance, "Terminating existing instance");
-        let rl_ip = self
-            .get_rate_limiter_ip(region)
-            .await
-            .context("failed to get rate limiter ip")?;
-        self.spin_down_instance(&instance, job, &cvm_ip, region, &rl_ip)
-            .await
-            .context("failed to terminate instance")?;
-
-        Ok(())
-    }
-
-    // TODO: handle all error cases
-    async fn spin_down_instance(
-        &self,
-        instance_id: &str,
-        job: &JobId,
-        cvm_ip: &str,
-        region: &str,
-        rl_ip: &str,
-    ) -> Result<()> {
-        // Check elastic ip association and cleanup
-        // check elastic ip and release
-        // check rate limiter config and cleanup
-        // terminate instance if exist
-
+    async fn spin_down_impl(&self, job: &JobId, region: &str, do_release: bool) -> Result<()> {
+        // disassociate and release eip if needed
         if let Some((alloc_id, _, association)) = self
             .get_ip_for_job(job, region)
             .await
@@ -683,23 +650,37 @@ impl Aws {
                     .context("could not disassociate address")?;
             }
 
-            self.release_address(&alloc_id, region)
-                .await
-                .context("could not release address")?;
-            info!("Elastic IP released");
+            if do_release {
+                self.release_address(&alloc_id, region)
+                    .await
+                    .context("could not release address")?;
+            }
         }
 
-        if !rl_ip.is_empty() {
-            self.remove_rate_limiter(job, cvm_ip, rl_ip)
-                .await
-                .context("could not remove rate limiter config")?;
-        }
-
-        self.terminate_instance(instance_id, region)
+        let Some((instance_id, _, cvm_ip, _)) = self
+            .get_job_instance(job, region)
             .await
-            .context("could not terminate instance")?;
+            .context("failed to get job instance")?
+        else {
+            // instance does not exist, we are done
+            info!("Instance does not exist");
+            return Ok(());
+        };
 
-        Ok(())
+        let rl_ip = self
+            .get_rate_limiter_ip(region)
+            .await
+            .context("failed to get rate limiter ip")?;
+
+        // remove rate limit
+        self.remove_rate_limiter(job, &cvm_ip, &rl_ip)
+            .await
+            .context("failed to remove rate limit")?;
+
+        // terminate
+        self.terminate_instance(&instance_id, region)
+            .await
+            .context("failed to terminate instance")
     }
 }
 
@@ -746,7 +727,7 @@ impl InfraProvider for Aws {
     }
 
     async fn spin_down(&mut self, job: &JobId, region: &str) -> Result<()> {
-        self.spin_down_impl(job, region)
+        self.spin_down_impl(job, region, true)
             .await
             .context("could not spin down enclave")
     }
