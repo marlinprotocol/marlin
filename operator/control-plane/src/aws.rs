@@ -195,18 +195,18 @@ impl Aws {
 
 // Elastic IP
 impl Aws {
-    // returns (is_new, alloc_id, ip, assoc_id)
+    // returns (is_new, ip, alloc_id, (assoc_id, instance_id))
     async fn get_or_allocate_ip_for_job(
         &self,
         job: &JobId,
         region: &str,
     ) -> Result<(bool, String, String, Option<(String, String)>)> {
-        if let Some((alloc_id, public_ip, association_id)) = self
+        if let Some((public_ip, alloc_id, association)) = self
             .get_ip_for_job(job, region)
             .await
             .context("could not get elastic ip for job")?
         {
-            return Ok((false, alloc_id, public_ip, association_id));
+            return Ok((false, public_ip, alloc_id, association));
         }
 
         let tags = tag_spec!(
@@ -240,7 +240,7 @@ impl Aws {
         ))
     }
 
-    // returns (ip, allocation_id, association_id) if it exists
+    // returns (ip, alloc_id, (assoc_id, instance_id)) if it exists
     async fn get_ip_for_job(
         &self,
         job: &JobId,
@@ -672,7 +672,7 @@ impl Aws {
 
         // get or allocate eip
         // it is possible eip was left over from post_release_eip above
-        let (_, alloc_id, _, assoc) = self
+        let (_, _, alloc_id, assoc) = self
             .get_or_allocate_ip_for_job(job, region)
             .await
             .context("error allocating ip address")?;
@@ -694,7 +694,7 @@ impl Aws {
 
     async fn spin_down_impl(&self, job: &JobId, region: &str, do_release: bool) -> Result<()> {
         // disassociate and release eip if needed
-        if let Some((alloc_id, _, association)) = self
+        if let Some((_, alloc_id, association)) = self
             .get_ip_for_job(job, region)
             .await
             .context("could not get elastic ip of job")?
@@ -783,7 +783,7 @@ impl InfraProvider for Aws {
     }
 
     async fn get_ip(&self, job: &JobId, region: &str) -> Result<String> {
-        let Some((_, elastic_ip, association_id)) = self
+        let Some((elastic_ip, _, association)) = self
             .get_ip_for_job(job, region)
             .await
             .context("could not get job elastic ip")?
@@ -792,7 +792,7 @@ impl InfraProvider for Aws {
             bail!("IP not found");
         };
 
-        if association_id.is_none() {
+        if association.is_none() {
             // not associated
             bail!("IP not associated");
         }
