@@ -209,6 +209,7 @@ regions.forEach((region, ridx) => {
         tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
+        deleteBeforeReplace: true,
     });
 
     // limiter eip
@@ -229,6 +230,7 @@ regions.forEach((region, ridx) => {
         tags: { ...tags, ...{ Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
+        deleteBeforeReplace: true,
     });
     new aws.ec2.NetworkInterfaceAttachment(`${tags.project}-${region}-rl-dpenia`, {
         instanceId: instances[`${region}-rl`].id,
