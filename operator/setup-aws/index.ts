@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import { ProtocolType } from "@pulumi/aws/ec2";
 
 let tags = {
     manager: "pulumi",
@@ -123,6 +124,7 @@ regions.forEach((region, ridx) => {
 
     // security groups
     sgs[region] = {}
+    // security group for the cvms
     sgs[region].cvm = new aws.ec2.SecurityGroup(`${tags.project}-${region}-cvm`, {
         vpcId: vpcs[region].id,
         egress: [{
@@ -142,25 +144,52 @@ regions.forEach((region, ridx) => {
         provider: providers[region],
     });
 
-    sgs[region].limiter = new aws.ec2.SecurityGroup(`${tags.project}-${region}-limiter`, {
+    // security group for the control plane eni
+    sgs[region].limiterControl = new aws.ec2.SecurityGroup(`${tags.project}-${region}-limiter-control`, {
         vpcId: vpcs[region].id,
         egress: [{
             cidrBlocks: ['0.0.0.0/0'],
             fromPort: 0,
             toPort: 0,
-            protocol: "-1",
+            protocol: ProtocolType.All,
+        }],
+        ingress: [{
+            cidrBlocks: ['0.0.0.0/0'],
+            fromPort: 22,
+            toPort: 22,
+            protocol: ProtocolType.TCP,
+        }, {
+            cidrBlocks: [],
+            fromPort: 3000,
+            toPort: 3000,
+            protocol: ProtocolType.TCP,
+        }],
+        tags: { ...tags, ...{ Name: `${tags.project}-limiter-control` } },
+    }, {
+        provider: providers[region],
+    });
+
+    // security group for the data plane eni
+    sgs[region].limiterData = new aws.ec2.SecurityGroup(`${tags.project}-${region}-limiter-data`, {
+        vpcId: vpcs[region].id,
+        egress: [{
+            cidrBlocks: ['0.0.0.0/0'],
+            fromPort: 0,
+            toPort: 0,
+            protocol: ProtocolType.All,
         }],
         ingress: [{
             cidrBlocks: ['0.0.0.0/0'],
             fromPort: 0,
             toPort: 0,
-            protocol: "-1",
+            protocol: ProtocolType.All,
         }],
-        tags: { ...tags, ...{ Name: `${tags.project}-limiter` } },
+        tags: { ...tags, ...{ Name: `${tags.project}-limiter-data` } },
     }, {
         provider: providers[region],
     });
 
+    // limiter vm ami
     const ami = aws.ec2.getAmi({
         filters: [
             { name: "name", values: ["marlin/limiter-arm64-*"] },
@@ -169,22 +198,42 @@ regions.forEach((region, ridx) => {
         mostRecent: true,
     }, { provider: providers[region] }).then(ami => ami.id);
 
+    // limiter instance
     instances[`${region}-rl`] = new aws.ec2.Instance(`${tags.project}-${region}-rl-instance`, {
         ami: ami,
         instanceType: "t4g.small",
         subnetId: subnets[`${region}-rl`].id,
         keyName: keypair.keyName,
-        sourceDestCheck: false,
-        securityGroups: [sgs[region].limiter.id],
+        // control plane sg for the default eni
+        securityGroups: [sgs[region].limiterControl.id],
         tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
     });
 
+    // limiter eip
     new aws.ec2.Eip(`${tags.project}-${region}-rl-eip`, {
-        instance: instances[`${region}-rl`].id,
+        networkInterface: instances[`${region}-rl`].primaryNetworkInterfaceId,
         domain: "vpc",
         tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
+    }, {
+        provider: providers[region],
+    });
+
+    // data plane eni
+    const eni = new aws.ec2.NetworkInterface(`${tags.project}-${region}-rl-dpeni`, {
+        // disable for forwarding
+        sourceDestCheck: false,
+        subnetId: subnets[`${region}-rl`].id,
+        securityGroups: [sgs[region].limiterData.id],
+        tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
+    }, {
+        provider: providers[region],
+    });
+    new aws.ec2.NetworkInterfaceAttachment(`${tags.project}-${region}-rl-dpenia`, {
+        instanceId: instances[`${region}-rl`].id,
+        deviceIndex: 1,
+        networkInterfaceId: eni.id,
     }, {
         provider: providers[region],
     });
@@ -202,7 +251,7 @@ regions.forEach((region, ridx) => {
     new aws.ec2.Route(`${tags.project}-${region}-igw-cvm-route`, {
         routeTableId: rts[`${region}-igw`].id,
         destinationCidrBlock: `10.${ridx}.0.0/17`,
-        networkInterfaceId: instances[`${region}-rl`].primaryNetworkInterfaceId,
+        networkInterfaceId: eni.id,
     }, {
         provider: providers[region],
     })
@@ -211,7 +260,7 @@ regions.forEach((region, ridx) => {
     new aws.ec2.Route(`${tags.project}-${region}-cvm-ig-route`, {
         routeTableId: rts[`${region}-cvm`].id,
         destinationCidrBlock: "0.0.0.0/0",
-        networkInterfaceId: instances[`${region}-rl`].primaryNetworkInterfaceId,
+        networkInterfaceId: eni.id,
     }, {
         provider: providers[region],
     })
