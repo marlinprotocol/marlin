@@ -174,9 +174,17 @@ regions.forEach((region, ridx) => {
         instanceType: "t4g.small",
         subnetId: subnets[`${region}-rl`].id,
         keyName: keypair.keyName,
-        associatePublicIpAddress: true,
+        associatePublicIpAddress: false,
         sourceDestCheck: false,
         securityGroups: [sgs[region].limiter.id],
+        tags: { ...tags, ...{ type: "limiter" } },
+    }, {
+        provider: providers[region],
+    });
+
+    new aws.ec2.Eip(`${tags.project}-${region}-rl-eip`, {
+        instance: instances[`${region}-rl`].id,
+        domain: "vpc",
         tags: { ...tags, ...{ type: "limiter" } },
     }, {
         provider: providers[region],
