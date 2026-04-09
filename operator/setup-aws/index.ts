@@ -177,7 +177,7 @@ regions.forEach((region, ridx) => {
         associatePublicIpAddress: false,
         sourceDestCheck: false,
         securityGroups: [sgs[region].limiter.id],
-        tags: { ...tags, ...{ type: "limiter" } },
+        tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
     });
