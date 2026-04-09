@@ -40,7 +40,7 @@ regions.forEach((region, ridx) => {
         cidrBlock: `10.${ridx}.0.0/16`,
         enableDnsHostnames: true,
         enableDnsSupport: true,
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}` } },
     }, {
         provider: providers[region],
     })
@@ -49,7 +49,7 @@ regions.forEach((region, ridx) => {
     subnets[`${region}-cvm`] = new aws.ec2.Subnet(`${tags.project}-${region}-cvm`, {
         cidrBlock: `10.${ridx}.0.0/17`,
         mapPublicIpOnLaunch: false,
-        tags: { ...tags, ...{ type: "cvm" } },
+        tags: { ...tags, ...{ type: "cvm", Name: `${tags.project}-cvm` } },
         vpcId: vpcs[region].id,
     }, {
         provider: providers[region],
@@ -59,7 +59,7 @@ regions.forEach((region, ridx) => {
     subnets[`${region}-rl`] = new aws.ec2.Subnet(`${tags.project}-${region}-rl`, {
         cidrBlock: `10.${ridx}.128.0/17`,
         mapPublicIpOnLaunch: false,
-        tags: { ...tags, ...{ type: "limiter" } },
+        tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
         vpcId: vpcs[region].id,
     }, {
         provider: providers[region],
@@ -68,7 +68,7 @@ regions.forEach((region, ridx) => {
     // internet gateway
     igs[region] = new aws.ec2.InternetGateway(`${tags.project}-${region}-ig`, {
         vpcId: vpcs[region].id,
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}` } },
     }, {
         provider: providers[region],
     });
@@ -76,7 +76,7 @@ regions.forEach((region, ridx) => {
     // igw route table
     rts[`${region}-igw`] = new aws.ec2.RouteTable(`${tags.project}-${region}-rt-igw`, {
         vpcId: vpcs[region].id,
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}-igw` } },
     }, {
         provider: providers[region],
     });
@@ -92,7 +92,7 @@ regions.forEach((region, ridx) => {
     // cvm route table
     rts[`${region}-cvm`] = new aws.ec2.RouteTable(`${tags.project}-${region}-rt-cvm`, {
         vpcId: vpcs[region].id,
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}-cvm` } },
     }, {
         provider: providers[region],
     });
@@ -108,7 +108,7 @@ regions.forEach((region, ridx) => {
     // limiter route table
     rts[`${region}-rl`] = new aws.ec2.RouteTable(`${tags.project}-${region}-rt-rl`, {
         vpcId: vpcs[region].id,
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}-rl` } },
     }, {
         provider: providers[region],
     });
@@ -137,7 +137,7 @@ regions.forEach((region, ridx) => {
             toPort: 0,
             protocol: "-1",
         }],
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}-cvm` } },
     }, {
         provider: providers[region],
     });
@@ -156,7 +156,7 @@ regions.forEach((region, ridx) => {
             toPort: 0,
             protocol: "-1",
         }],
-        tags: tags,
+        tags: { ...tags, ...{ Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
     });
@@ -174,7 +174,6 @@ regions.forEach((region, ridx) => {
         instanceType: "t4g.small",
         subnetId: subnets[`${region}-rl`].id,
         keyName: keypair.keyName,
-        associatePublicIpAddress: false,
         sourceDestCheck: false,
         securityGroups: [sgs[region].limiter.id],
         tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
@@ -185,7 +184,7 @@ regions.forEach((region, ridx) => {
     new aws.ec2.Eip(`${tags.project}-${region}-rl-eip`, {
         instance: instances[`${region}-rl`].id,
         domain: "vpc",
-        tags: { ...tags, ...{ type: "limiter" } },
+        tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
     });
