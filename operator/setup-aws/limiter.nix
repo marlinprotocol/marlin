@@ -102,6 +102,44 @@
       # "net.ipv6.conf.all.forwarding" = 1;
     };
 
+    # switch to systemd-networkd for PBR
+    networking.useNetworkd = true;
+    systemd.network.enable = true;
+
+    # configure network interfaces
+    # one interface for the control plane with the server
+    # one interface for the data place with forwarding
+    systemd.network = {
+      networks = {
+        # Device Index 0 - Primary/App
+        "10-ens5-app" = {
+          matchConfig.Name = "ens5";
+          DHCP = "ipv4";
+          dhcpV4Config.RouteMetric = 100;
+        };
+
+        # Device Index 1 - Secondary/Forwarding
+        "10-ens6-fwd" = {
+          matchConfig.Name = "ens6";
+          DHCP = "ipv4";
+          dhcpV4Config = {
+            RouteTable = 100;
+            RouteMetric = 200;
+            UseDNS = false;
+          };
+          routingPolicyRules = [
+            {
+              RoutingPolicyRule = {
+                IncomingInterface = "ens6";
+                Table = 100;
+                Priority = 1000;
+              };
+            }
+          ];
+        };
+      };
+    };
+
     # enable cloud-init
     services.cloud-init.enable = true;
     services.cloud-init.network.enable = true;

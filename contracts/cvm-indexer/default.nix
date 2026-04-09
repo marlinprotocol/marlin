@@ -13,13 +13,12 @@
     # short circuits it by running the true command instead
     cargoCheckCommand = "true";
 
-    src =
-      pkgs.lib.cleanSourceWith {
-        src = pkgs.lib.cleanSource ./.;
-        # include the sql migrations that get built into the binary
-        filter = path: type: (builtins.match ".*sql$" path != null) || (crane'.filterCargoSources path type);
-        name = "source";
-      };
+    src = pkgs.lib.cleanSourceWith {
+      src = pkgs.lib.cleanSource ./.;
+      # include the sql migrations that get built into the binary
+      filter = path: type: (builtins.match ".*sql$" path != null) || (crane'.filterCargoSources path type);
+      name = "source";
+    };
     nativeBuildInputs = [pkgs.perl];
   };
   deps = crane'.buildDepsOnly commonArgs;
