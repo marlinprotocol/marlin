@@ -226,7 +226,7 @@ regions.forEach((region, ridx) => {
         sourceDestCheck: false,
         subnetId: subnets[`${region}-rl`].id,
         securityGroups: [sgs[region].limiterData.id],
-        tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
+        tags: { ...tags, ...{ Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],
     });
