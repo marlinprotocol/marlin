@@ -328,28 +328,20 @@ impl Aws {
         let project_filter = filter!("tag:project", "marlin-cvm");
         let type_filter = filter!("tag:type", "limiter");
 
-        let describe_instances_output = self
+        Ok(self
             .client(region)
-            .describe_instances()
+            .describe_addresses()
             .filters(project_filter)
             .filters(type_filter)
             .send()
             .await
-            .context("could not describe rate limit instances")?;
-        let instance = describe_instances_output
-            .reservations()
+            .context("could not describe rate limit ips")?
+            .addresses()
             .first()
-            .ok_or(anyhow!("no reservations found"))?
-            .instances()
-            .first()
-            .ok_or(anyhow!("no instances found"))?;
-
-        let ip = instance
-            .private_ip_address()
-            .ok_or(anyhow!("could not parse instance ip"))?
-            .to_string();
-
-        Ok(ip)
+            .ok_or(anyhow!("no addresses found"))?
+            .public_ip()
+            .ok_or(anyhow!("could not parse ip"))?
+            .to_string())
     }
 
     fn get_rate_limiter_ip(&self, region: &str) -> &str {
