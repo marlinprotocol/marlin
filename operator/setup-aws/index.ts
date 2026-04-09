@@ -163,7 +163,7 @@ regions.forEach((region, ridx) => {
 
     const ami = aws.ec2.getAmi({
         filters: [
-            { name: "name", values: ["marlin/limiter-amd64-*"] },
+            { name: "name", values: ["marlin/limiter-arm64-*"] },
         ],
         owners: ["self"],
         mostRecent: true,
@@ -171,7 +171,7 @@ regions.forEach((region, ridx) => {
 
     instances[`${region}-rl`] = new aws.ec2.Instance(`${tags.project}-${region}-rl-instance`, {
         ami: ami,
-        instanceType: "t3.small",
+        instanceType: "t4g.small",
         subnetId: subnets[`${region}-rl`].id,
         keyName: keypair.keyName,
         associatePublicIpAddress: true,
