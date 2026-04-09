@@ -103,6 +103,7 @@
     };
 
     # switch to systemd-networkd for PBR
+    networking.useDHCP = false;
     networking.useNetworkd = true;
     systemd.network.enable = true;
 
@@ -114,14 +115,14 @@
         # Device Index 0 - Primary/App
         "10-ens5-app" = {
           matchConfig.Name = "ens5";
-          DHCP = "ipv4";
+          networkConfig.DHCP = "ipv4";
           dhcpV4Config.RouteMetric = 100;
         };
 
         # Device Index 1 - Secondary/Forwarding
         "10-ens6-fwd" = {
           matchConfig.Name = "ens6";
-          DHCP = "ipv4";
+          networkConfig.DHCP = "ipv4";
           dhcpV4Config = {
             RouteTable = 100;
             RouteMetric = 200;
@@ -129,7 +130,7 @@
           };
           routingPolicyRules = [
             {
-              RoutingPolicyRule = {
+              routingPolicyRuleConfig = {
                 IncomingInterface = "ens6";
                 Table = 100;
                 Priority = 1000;
