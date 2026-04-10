@@ -159,7 +159,7 @@ regions.forEach((region, ridx) => {
             toPort: 22,
             protocol: ProtocolType.TCP,
         }, {
-            cidrBlocks: [],
+            cidrBlocks: new pulumi.Config().getObject("ops") || [],
             fromPort: 3000,
             toPort: 3000,
             protocol: ProtocolType.TCP,
