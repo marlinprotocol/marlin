@@ -76,6 +76,9 @@
       operator.limiter-server = import ./operator/limiter-server {
         inherit nixpkgs systemConfig crane;
       };
+      operator.market-indexer-evm = import ./operator/market-indexer-evm {
+        inherit nixpkgs systemConfig crane;
+      };
       operator.setup-aws.limiter = import ./operator/setup-aws/limiter.nix {
         inherit nixpkgs systemConfig;
         limiter-ebpf = operator.limiter-ebpf.service;
