@@ -113,14 +113,14 @@
     systemd.network = {
       networks = {
         # Device Index 0 - Primary/App
-        "10-ens5-app" = {
+        "00-ens5-app" = {
           matchConfig.Name = "ens5";
           networkConfig.DHCP = "ipv4";
           dhcpV4Config.RouteMetric = 100;
         };
 
         # Device Index 1 - Secondary/Forwarding
-        "10-ens6-fwd" = {
+        "00-ens6-fwd" = {
           matchConfig.Name = "ens6";
           networkConfig.DHCP = "ipv4";
           dhcpV4Config = {
