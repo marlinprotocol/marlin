@@ -131,13 +131,13 @@ regions.forEach((region, ridx) => {
             cidrBlocks: ['0.0.0.0/0'],
             fromPort: 0,
             toPort: 0,
-            protocol: "-1",
+            protocol: ProtocolType.All,
         }],
         ingress: [{
             cidrBlocks: ['0.0.0.0/0'],
             fromPort: 0,
             toPort: 0,
-            protocol: "-1",
+            protocol: ProtocolType.All,
         }],
         tags: { ...tags, ...{ Name: `${tags.project}-cvm` } },
     }, {
