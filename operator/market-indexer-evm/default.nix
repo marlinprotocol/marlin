@@ -2,6 +2,7 @@
   nixpkgs,
   systemConfig,
   crane,
+  fenix,
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
@@ -20,7 +21,13 @@
     substituteInPlace $out/Cargo.toml \
       --replace 'path = "../indexer-framework"' 'path = "./libs/indexer-framework"'
   '';
-  crane' = crane.mkLib pkgs;
+  toolchain = with fenix.packages.${system};
+    combine [
+      stable.cargo
+      stable.rustc
+      targets.${systemConfig.rust_target}.stable.rust-std
+    ];
+  crane' = (crane.mkLib pkgs).overrideToolchain (p: toolchain);
   commonArgs = {
     strictDeps = true;
     doCheck = false;
@@ -36,6 +43,10 @@
       name = "source";
     };
     nativeBuildInputs = [pkgs.perl];
+
+    TARGET_CC = "${pkgs.pkgsStatic.stdenv.cc}/bin/${pkgs.pkgsStatic.stdenv.cc.targetPrefix}cc";
+    CARGO_BUILD_TARGET = systemConfig.rust_target;
+    CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
   };
   deps = crane'.buildDepsOnly commonArgs;
 in {
