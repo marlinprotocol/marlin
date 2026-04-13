@@ -3,6 +3,7 @@ use serde_json::Value;
 
 #[derive(Clone, Debug, diesel_derive_enum::DbEnum, PartialEq)]
 #[ExistingTypePath = "crate::schema::sql_types::EventName"]
+#[DbValueStyle = "PascalCase"]
 pub enum JobEventName {
     Opened,
     Closed,
