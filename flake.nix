@@ -70,6 +70,9 @@
         attestation-server = attestation.server.standard.service;
         kms-root-server = kms.root-server.service;
       };
+      operator.control-plane = import ./operator/control-plane {
+        inherit nixpkgs systemConfig crane;
+      };
       operator.limiter-ebpf = import ./operator/limiter-ebpf {
         inherit nixpkgs systemConfig;
       };
