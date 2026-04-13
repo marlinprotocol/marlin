@@ -4,7 +4,7 @@
     "Usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     "Credit": "0x6B70180c351ba53918a462440269286E7dC99BF0",
     "MarketConfig": {
-      "initialJobIndex": 0x0000000000000000,
+      "initialJobIndex": 0,
       "noticePeriod": 120
     }
   }
