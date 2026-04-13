@@ -75,22 +75,24 @@
         attestation-server = attestation.server.standard.service;
         kms-root-server = kms.root-server.service;
       };
-      operator.control-plane = import ./operator/control-plane {
-        inherit nixpkgs systemConfig crane;
-      };
       operator.limiter-ebpf = import ./operator/limiter-ebpf {
         inherit nixpkgs systemConfig;
       };
       operator.limiter-server = import ./operator/limiter-server {
         inherit nixpkgs systemConfig crane;
       };
-      operator.market-indexer-evm = import ./operator/market-indexer-evm {
-        inherit nixpkgs systemConfig crane;
-      };
       operator.setup-aws.limiter = import ./operator/setup-aws/limiter.nix {
         inherit nixpkgs systemConfig;
         limiter-ebpf = operator.limiter-ebpf.service;
         limiter-server = operator.limiter-server.service;
+      };
+    };
+    serverBuilder = systemConfig: {
+      operator.control-plane = import ./operator/control-plane {
+        inherit nixpkgs systemConfig crane fenix;
+      };
+      operator.market-indexer-evm = import ./operator/market-indexer-evm {
+        inherit nixpkgs systemConfig crane fenix;
       };
     };
     check = {
@@ -136,6 +138,15 @@
         system = "aarch64-linux";
         efi_arch = "aa64";
         repart_arch = "arm64";
+      };
+    } // {
+      "x86_64-linux" = serverBuilder {
+        system = "x86_64-linux";
+        rust_target = "x86_64-unknown-linux-musl";
+      };
+      "aarch64-linux" = serverBuilder {
+        system = "aarch64-linux";
+        rust_target = "aarch64-unknown-linux-musl";
       };
     };
     # check if all derivations are valid
