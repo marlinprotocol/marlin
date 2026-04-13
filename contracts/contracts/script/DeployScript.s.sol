@@ -45,8 +45,8 @@ contract DeployScript is Script {
 
     function _setDeployed(address _value) internal {
         string memory _key = string.concat(".", chainIdKey, ".", name);
-        deployments = deployments.serialize(_key, _value);
-        deployments.write(path);
+        vm.toString(_value).write(path, _key);
+        deployments = vm.readFile(path);
         console2.log(name, "deployed at", _value);
     }
 }
