@@ -133,18 +133,15 @@
         system = "x86_64-linux";
         efi_arch = "x64";
         repart_arch = "x86-64";
+      } // serverBuilder {
+        system = "x86_64-linux";
+        rust_target = "x86_64-unknown-linux-musl";
       };
       "aarch64-linux" = systemBuilder {
         system = "aarch64-linux";
         efi_arch = "aa64";
         repart_arch = "arm64";
-      };
-    } // {
-      "x86_64-linux" = serverBuilder {
-        system = "x86_64-linux";
-        rust_target = "x86_64-unknown-linux-musl";
-      };
-      "aarch64-linux" = serverBuilder {
+      } // serverBuilder {
         system = "aarch64-linux";
         rust_target = "aarch64-unknown-linux-musl";
       };
