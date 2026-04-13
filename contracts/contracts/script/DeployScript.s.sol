@@ -23,7 +23,7 @@ contract DeployScript is Script {
         if (vm.exists(path)) {
             deployments = vm.readFile(path);
         }
-        
+
         _checkAlreadyDeployed();
     }
 
@@ -48,5 +48,13 @@ contract DeployScript is Script {
         vm.toString(_value).write(path, _key);
         deployments = vm.readFile(path);
         console2.log(name, "deployed at", _value);
+    }
+
+    function _getConfigUint64(string memory _configKey) internal returns (uint64) {
+        string memory _key = string.concat(".", chainIdKey, ".", name, "Config.", _configKey);
+        if (!deployments.keyExists(_key)) {
+            revert(string.concat(name, " ", _configKey, " config not found"));
+        }
+        return deployments.readUint64(_key);
     }
 }
