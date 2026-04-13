@@ -3,7 +3,7 @@ pub mod events;
 pub mod models;
 pub mod schema;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use anyhow::{Context, Result, anyhow};
 use diesel::{
@@ -84,6 +84,12 @@ pub fn run(
                 latest_block,
                 last_updated
             ));
+        }
+
+        if latest_block == last_updated {
+            // we are up to date, simply sleep for a bit
+            std::thread::sleep(Duration::from_secs(5));
+            continue;
         }
 
         // start from the next block to what has already been processed
