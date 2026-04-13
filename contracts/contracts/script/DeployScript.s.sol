@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {stdJson} from "forge-std/StdJson.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract DeployScript is Script {
     using stdJson for string;
@@ -55,6 +56,6 @@ contract DeployScript is Script {
         if (!deployments.keyExists(_key)) {
             revert(string.concat(name, " ", _configKey, " config not found"));
         }
-        return deployments.readUint64(_key);
+        return SafeCast.toUint64(deployments.readUint(_key));
     }
 }
