@@ -8,11 +8,16 @@
     crane = {
       url = "github:ipetkov/crane";
     };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
   outputs = {
     self,
     nixpkgs,
     crane,
+    fenix,
   }: let
     systemBuilder = systemConfig: rec {
       attestation.server = import ./attestation/server {
