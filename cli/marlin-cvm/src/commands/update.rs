@@ -7,7 +7,6 @@ use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::types::Platform;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
-use sui_sdk_types::Address;
 use tracing::info;
 
 /// Update existing deployments
@@ -63,15 +62,7 @@ pub async fn update_job(args: UpdateArgs) -> Result<()> {
     let debug = args.debug;
     let image_url = args.image_url;
 
-    let mut deployment_adapter = get_deployment_adapter(
-        args.deployment,
-        args.rpc,
-        args.auth_token,
-        None,
-        args.gas_coin
-            .map(|coin| Address::from_str(&coin))
-            .transpose()?,
-    );
+    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
 
     let provider = deployment_adapter
         .create_provider_with_wallet(wallet_private_key)

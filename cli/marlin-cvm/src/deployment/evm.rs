@@ -103,19 +103,7 @@ impl DeploymentAdapter for EvmAdapter {
     }
 
     async fn fetch_extra_decimals(&self, provider: &ChainProvider) -> Result<i64> {
-        let ChainProvider::Evm(provider) = provider else {
-            return Err(anyhow!("Internal error"));
-        };
-
-        let market_address = Address::from_str(&self.market_address)?;
-
-        // Create contract instance
-        let market = OysterMarket::new(market_address, provider);
-
-        // Call providers function to get CP URL
-        let extra_decimals = market.EXTRA_DECIMALS().call().await?;
-
-        Ok(extra_decimals.saturating_to::<i64>())
+        Ok(6)
     }
 
     async fn get_job_data_if_exists(

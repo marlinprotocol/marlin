@@ -6,7 +6,6 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use std::str::FromStr;
 use std::time::Duration;
-use sui_sdk_types::Address;
 use tokio::time::sleep;
 use tracing::info;
 
@@ -44,15 +43,7 @@ pub async fn stop_oyster_instance(args: StopArgs) -> Result<()> {
     info!("Stopping oyster instance with:");
     info!("  Job ID: {}", job_id);
 
-    let mut deployment_adapter = get_deployment_adapter(
-        args.deployment,
-        args.rpc,
-        args.auth_token,
-        None,
-        args.gas_coin
-            .map(|coin| Address::from_str(&coin))
-            .transpose()?,
-    );
+    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
 
     // Setup provider
     let provider = deployment_adapter

@@ -8,7 +8,6 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
-use sui_sdk_types::Address;
 use tracing::{debug, info};
 
 // Withdrawal Settings
@@ -57,15 +56,7 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!("Starting withdrawal process...");
 
-    let mut deployment_adapter = get_deployment_adapter(
-        args.deployment,
-        args.rpc,
-        args.auth_token,
-        None,
-        args.gas_coin
-            .map(|coin| Address::from_str(&coin))
-            .transpose()?,
-    );
+    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
 
     // Setup provider
     let provider = deployment_adapter

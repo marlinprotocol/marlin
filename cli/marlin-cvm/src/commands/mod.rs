@@ -1,4 +1,3 @@
-pub mod build;
 pub mod deploy;
 pub mod deposit;
 pub mod derive;
@@ -10,6 +9,5 @@ pub mod log;
 pub mod simulate;
 pub mod stop;
 pub mod update;
-pub mod upload;
 pub mod verify;
 pub mod withdraw;

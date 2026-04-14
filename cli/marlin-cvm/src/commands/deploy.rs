@@ -16,7 +16,6 @@ use clap::Args;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, time::Duration as StdDuration};
-use sui_sdk_types::Address;
 use tokio::net::TcpStream;
 use tracing::info;
 
@@ -51,18 +50,6 @@ pub struct DeployArgs {
     /// RPC URL (optional)
     #[arg(long)]
     rpc: Option<String>,
-
-    /// Auth token (optional for sui rpc)
-    #[arg(long)]
-    auth_token: Option<String>,
-
-    /// USDC coin ID for Sui chain based enclave payment (optional, will be picked automatically from user's account if not provided)
-    #[arg(long)]
-    usdc_coin: Option<String>,
-
-    /// Gas coin ID for Sui chain transactions (optional, will be chosen automatically from user's account via simulation results)
-    #[arg(long)]
-    gas_coin: Option<String>,
 
     /// Operator address
     #[arg(long)]
@@ -150,17 +137,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
 
     let operator = parse_operator(&args.deployment, args.operator);
 
-    let mut deployment_adapter = get_deployment_adapter(
-        args.deployment,
-        args.rpc,
-        args.auth_token,
-        args.usdc_coin
-            .map(|coin| Address::from_str(&coin))
-            .transpose()?,
-        args.gas_coin
-            .map(|coin| Address::from_str(&coin))
-            .transpose()?,
-    );
+    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
 
     let provider = deployment_adapter
         .create_provider_with_wallet(&args.wallet.load_required()?)
@@ -339,11 +316,7 @@ async fn start_simulation(args: DeployArgs) -> Result<()> {
 
 fn parse_operator(deployment: &Deployment, operator: Option<String>) -> String {
     match deployment {
-        Deployment::Arbitrum => {
-            operator.unwrap_or(configs::arb::DEFAULT_OPERATOR_ADDRESS.to_string())
-        }
-        Deployment::BSC => operator.unwrap_or(configs::bsc::DEFAULT_OPERATOR_ADDRESS.to_string()),
-        Deployment::Sui => operator.unwrap_or(configs::sui::DEFAULT_OPERATOR_ADDRESS.to_string()),
+        Deployment::Arb => operator.unwrap_or(configs::arb::DEFAULT_OPERATOR_ADDRESS.to_string()),
     }
 }
 

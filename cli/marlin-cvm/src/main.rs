@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::{
-    build::BuildArgs, deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs,
-    doctor::DoctorArgs, image_id::ImageArgs, kms_contract::KmsContractArgs, list::ListArgs,
-    log::LogArgs, simulate::SimulateArgs, stop::StopArgs, update::UpdateArgs, upload::UploadArgs,
-    verify::VerifyArgs, withdraw::WithdrawArgs,
+    deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs, doctor::DoctorArgs,
+    image_id::ImageArgs, kms_contract::KmsContractArgs, list::ListArgs, log::LogArgs,
+    simulate::SimulateArgs, stop::StopArgs, update::UpdateArgs, verify::VerifyArgs,
+    withdraw::WithdrawArgs,
 };
 
 mod args;
@@ -36,8 +36,6 @@ struct Cli {
 enum Commands {
     Doctor(DoctorArgs),
     Simulate(SimulateArgs),
-    Build(BuildArgs),
-    Upload(UploadArgs),
     Deploy(DeployArgs),
     Verify(VerifyArgs),
     List(ListArgs),
@@ -60,8 +58,6 @@ async fn main() -> Result<()> {
     let result = match cli.command {
         Commands::Doctor(args) => commands::doctor::run_doctor(args),
         Commands::Simulate(args) => commands::simulate::simulate(args).await,
-        Commands::Build(args) => commands::build::build_oyster_image(args),
-        Commands::Upload(args) => commands::upload::upload_enclave_image(args).await,
         Commands::Verify(args) => commands::verify::verify(args).await,
         Commands::Deploy(args) => commands::deploy::deploy(args).await,
         Commands::List(args) => commands::list::list_jobs(args).await,
