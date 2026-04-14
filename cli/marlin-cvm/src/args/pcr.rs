@@ -18,7 +18,7 @@ pub struct PcrArgs {
 }
 
 impl PcrArgs {
-    pub fn load(self, default_preset: Option<String>) -> Result<Option<[Option<[u8; 48]>; 12]>> {
+    pub fn load(self, default_preset: Option<String>) -> Result<[Option<[u8; 48]>; 12]> {
         if let Some(ref path) = self.pcr_json {
             let file = std::fs::File::open(path)?;
             let parsed = serde_json::from_reader::<_, serde_json::Value>(file)
@@ -51,7 +51,7 @@ impl PcrArgs {
                 .try_into()
                 .map_err(|_| anyhow!("Should never happen, wrong measurements size"))?;
 
-            return Ok(Some(pcrs));
+            return Ok(pcrs);
         }
 
         if let Some(ref name) = self.pcr_preset.or(default_preset) {
@@ -61,13 +61,12 @@ impl PcrArgs {
             };
         }
 
-        Ok(None)
+        Ok([None; 12])
     }
 
     pub fn load_required(self, default_preset: Option<String>) -> Result<[[u8; 48]; 12]> {
         self.load(default_preset)
             .context("Failed to get pcrs")?
-            .ok_or(anyhow!("Pcrs are required"))?
             .into_iter()
             .filter_map(|x| x)
             .collect::<Box<_>>()

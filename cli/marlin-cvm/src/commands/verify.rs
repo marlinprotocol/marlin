@@ -173,9 +173,7 @@ fn get_pcrs(
     preset: Option<String>,
     arch: Platform,
 ) -> Result<[Option<[u8; 48]>; 12]> {
-    Ok(pcr
-        .load(preset.and_then(|x| preset_to_pcr_preset(&x, &arch)))?
-        .unwrap_or([None; 12]))
+    pcr.load(preset.and_then(|x| preset_to_pcr_preset(&x, &arch)))
 
     // TODO: do something with pcr16
 }
