@@ -83,7 +83,7 @@ pub struct DeployArgs {
     init_params: InitParamsArgs,
 
     /// Simulate the enclave locally
-    #[arg(long, conflicts_with = "image_url")]
+    #[arg(long, conflicts_with = "image")]
     simulate: bool,
 
     /// Application ports to expose out of the local oyster simulation
