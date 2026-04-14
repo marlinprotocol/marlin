@@ -66,7 +66,7 @@ pub struct VerifyArgs {
     #[arg(short = 'r', long, default_value_t = hex::encode(AWS_ROOT_KEY))]
     root_public_key: String,
 
-    /// Preset for parameters (e.g. blue, debug)
+    /// Preset for parameters (e.g. blue)
     #[arg(long)]
     preset: Option<String>,
 

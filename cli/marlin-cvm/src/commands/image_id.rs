@@ -16,7 +16,7 @@ use crate::{
 /// Get Image ID
 #[derive(Args, Debug)]
 pub struct ImageArgs {
-    /// Preset for parameters (e.g. blue, debug)
+    /// Preset for parameters (e.g. blue)
     #[arg(long, default_value = "blue")]
     preset: String,
 
@@ -26,10 +26,6 @@ pub struct ImageArgs {
 
     #[command(flatten)]
     init_params: InitParamsArgs,
-
-    /// debug mode
-    #[arg(long)]
-    debug: bool,
 }
 
 pub fn compute_image_id(args: ImageArgs) -> Result<()> {

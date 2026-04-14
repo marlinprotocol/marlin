@@ -37,10 +37,6 @@ pub struct UpdateArgs {
     #[arg(long)]
     image_url: Option<String>,
 
-    /// New debug mode
-    #[arg(short, long)]
-    debug: Option<bool>,
-
     /// Preset for init params (e.g. blue)
     #[arg(long, default_value = "blue")]
     preset: String,
@@ -57,7 +53,6 @@ pub struct UpdateArgs {
 pub async fn update_job(args: UpdateArgs) -> Result<()> {
     let wallet_private_key = &args.wallet.load_required()?;
     let job_id = args.job_id;
-    let debug = args.debug;
     let image_url = args.image_url;
 
     let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
@@ -79,10 +74,6 @@ pub async fn update_job(args: UpdateArgs) -> Result<()> {
         "Original metadata: {}",
         serde_json::to_string_pretty(&metadata)?
     );
-
-    if let Some(debug) = debug {
-        metadata["debug"] = serde_json::Value::Bool(debug);
-    }
 
     if let Some(image_url) = image_url {
         metadata["url"] = serde_json::Value::String(image_url);

@@ -163,7 +163,6 @@ impl InitParamsArgs {
 
         // load pcrs
         // use pcrs of the blue base image by default
-        // if debug flag is true, uses zero pcrs
         let pcrs = self
             .pcrs
             .load_required(preset_to_pcr_preset(&preset, &arch))

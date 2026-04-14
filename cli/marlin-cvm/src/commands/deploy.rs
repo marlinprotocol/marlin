@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use crate::{
     args::{init_params::InitParamsArgs, wallet::WalletArgs},
-    commands::log::{LogArgs, stream_logs},
     configs::{self, global::EXTRA_DECIMALS},
     deployment::{Deployment, adapter::JobTransactionKind, get_deployment_adapter},
     types::Platform,
@@ -78,14 +77,6 @@ pub struct DeployArgs {
     /// Job name
     #[arg(long, default_value = "")]
     job_name: String,
-
-    /// Enable debug mode
-    #[arg(long)]
-    debug: bool,
-
-    /// Disable automatic log streaming in debug mode
-    #[arg(long, requires = "debug")]
-    no_stream: bool,
 
     /// Init params
     #[command(flatten)]
@@ -233,7 +224,6 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         selected_instance.cpu,
         &image_url,
         &args.job_name,
-        args.debug,
         &args
             .init_params
             .load(args.preset, args.arch)
@@ -277,17 +267,6 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     }
 
     info!("Enclave is ready! IP address: {}", ip_address);
-
-    if args.debug && !args.no_stream {
-        info!("Debug mode enabled - starting log streaming...");
-        stream_logs(LogArgs {
-            ip: ip_address,
-            start_from: Some("0".into()),
-            with_log_id: true,
-            quiet: false,
-        })
-        .await?;
-    }
 
     Ok(())
 }
@@ -398,7 +377,6 @@ fn create_metadata(
     vcpu: u32,
     url: &str,
     name: &str,
-    debug: bool,
     init_params: &str,
 ) -> String {
     serde_json::json!({
@@ -409,7 +387,6 @@ fn create_metadata(
         "url": url,
         "name": name,
         "family": "tuna",
-        "debug": debug,
         "init_params": init_params,
     })
     .to_string()
