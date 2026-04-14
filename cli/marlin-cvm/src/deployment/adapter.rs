@@ -1,26 +1,22 @@
 use alloy::{primitives::U256, rpc::types::TransactionRequest};
 use anyhow::Result;
 use async_trait::async_trait;
-use sui_sdk_types::{ObjectReference, Transaction};
 
-use crate::deployment::{evm::EvmProvider, sui::SuiProvider};
+use crate::deployment::evm::EvmProvider;
 
 #[derive(Clone)]
 pub enum ChainProvider {
     Evm(EvmProvider),
-    Sui(Box<SuiProvider>),
 }
 
 #[derive(Debug, Clone)]
 pub enum ChainTransaction {
     Evm(Box<TransactionRequest>),
-    Sui(Box<Transaction>),
 }
 
 #[derive(Debug, Clone)]
 pub enum ChainFunds {
     Evm(()),
-    Sui(ObjectReference),
 }
 
 #[derive(Debug, Clone)]
