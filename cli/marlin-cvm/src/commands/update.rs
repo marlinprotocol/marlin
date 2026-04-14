@@ -90,11 +90,7 @@ pub async fn update_job(args: UpdateArgs) -> Result<()> {
 
     if let Some(init_params) = args
         .init_params
-        .load(
-            args.preset,
-            args.arch,
-            metadata["debug"].as_bool().unwrap_or(false),
-        )
+        .load(args.preset, args.arch)
         .context("Failed to load init params")?
     {
         metadata["init_params"] = init_params.into();

@@ -9,10 +9,9 @@ use alloy::{
     hex::FromHex,
     signers::k256::sha2::{Digest, Sha256},
 };
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Args;
-use k256::sha2::Sha384;
 use lazy_static::lazy_static;
 use libsodium_sys::{crypto_box_SEALBYTES, crypto_box_seal, sodium_init};
 use serde::{Deserialize, Serialize};
@@ -62,7 +61,7 @@ pub struct InitParamsArgs {
 }
 
 impl InitParamsArgs {
-    pub fn load(self, preset: String, arch: Platform, debug: bool) -> Result<Option<String>> {
+    pub fn load(self, preset: String, arch: Platform) -> Result<Option<String>> {
         // check for encoded params
         if self.init_params_encoded.is_some() {
             return Ok(self.init_params_encoded.clone());
@@ -167,24 +166,17 @@ impl InitParamsArgs {
         // if debug flag is true, uses zero pcrs
         let pcrs = self
             .pcrs
-            .load_required(preset_to_pcr_preset(&preset, &arch, debug))
+            .load_required(preset_to_pcr_preset(&preset, &arch))
             .context("Failed to load PCRs")?;
 
-        // calculate pcr16 by extending the digest onto zero pcrs
-        let mut pcr_hasher = Sha384::new();
-        pcr_hasher.update([0u8; 48]);
-        pcr_hasher.update(digest);
-        let pcr16: [u8; 48] = pcr_hasher.finalize().into();
+        // TODO: measure digest into pcrs
 
-        // calculate the image id
+        // compute image id
         let mut hasher = Sha256::new();
         // bitflags denoting what pcrs are part of the computation
-        // this one has 0, 1, 2 and 16
-        hasher.update(((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
-        hasher.update(hex::decode(pcrs.0).context("failed to decode PCR")?);
-        hasher.update(hex::decode(pcrs.1).context("failed to decode PCR")?);
-        hasher.update(hex::decode(pcrs.2).context("failed to decode PCR")?);
-        hasher.update(pcr16);
+        // this one has 4-15
+        hasher.update((4..=15).fold(0u32, |acc, x| acc | (1 << x)).to_be_bytes());
+        hasher.update(pcrs.as_flattened());
         let image_id: [u8; 32] = hasher.finalize().into();
         info!(image_id = hex::encode(image_id), "Computed image id");
         // fetch key
@@ -220,14 +212,6 @@ impl InitParamsArgs {
 
                 // encrypt if needed
                 let final_contents = if should_encrypt {
-                    if debug {
-                        // attempting to use encrypted init params in debug mode
-                        // error out since it is not safe
-                        return Err(anyhow!(
-                            "Refused to allow encrypted init params in debug mode enclaves. It is not safe to use encrypted init params in debug mode since it can then be decrypted and exported by other debug enclaves."
-                        ));
-                    }
-
                     let mut final_contents =
                         vec![0u8; contents.len() + crypto_box_SEALBYTES as usize];
                     // SAFETY: buffer is big enough for the encrypted message

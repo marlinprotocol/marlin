@@ -150,18 +150,14 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
     if let Ok(user_data) = String::from_utf8(decoded.user_data.to_vec()) {
         info!("User data, decoded as UTF-8: {user_data}");
     }
-    info!("PCR0: {}", hex::encode(decoded.pcrs[0]));
-    info!("PCR1: {}", hex::encode(decoded.pcrs[1]));
-    info!("PCR2: {}", hex::encode(decoded.pcrs[2]));
-    info!("PCR16: {}", hex::encode(decoded.pcrs[3]));
+    for i in 4..=15 {
+        info!("PCR{i}: {}", hex::encode(decoded.pcrs[i - 4]));
+    }
     info!("Verification successful ✓");
     info!(
         timestamp = attestation_expectations.timestamp_ms,
         age = attestation_expectations.age_ms.map(|x| x.0),
-        pcr0 = attestation_expectations.pcrs.map(|x| hex::encode(x[0])),
-        pcr1 = attestation_expectations.pcrs.map(|x| hex::encode(x[1])),
-        pcr2 = attestation_expectations.pcrs.map(|x| hex::encode(x[2])),
-        pcr16 = attestation_expectations.pcrs.map(|x| hex::encode(x[3])),
+        pcrs = ?attestation_expectations.pcrs.map(|x| Some(hex::encode(x?))),
         enclave_public_key = attestation_expectations.public_key.map(hex::encode),
         user_data = attestation_expectations.user_data.map(hex::encode),
         root_public_key = attestation_expectations.root_public_key.map(hex::encode),
@@ -176,36 +172,10 @@ fn get_pcrs(
     pcr16: Option<String>,
     preset: Option<String>,
     arch: Platform,
-) -> Result<Option<[[u8; 48]; 4]>> {
-    let Some((pcr0, pcr1, pcr2)) =
-        pcr.load(preset.and_then(|x| preset_to_pcr_preset(&x, &arch, false)))?
-    else {
-        tracing::info!("No PCR values provided - skipping PCR verification");
-        return Ok(None);
-    };
+) -> Result<[Option<[u8; 48]>; 12]> {
+    Ok(pcr
+        .load(preset.and_then(|x| preset_to_pcr_preset(&x, &arch)))?
+        .unwrap_or([None; 12]))
 
-    let pcr16 = hex::decode(pcr16.unwrap_or("00".repeat(48)))?
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("PCR16 must be 48 bytes"))?;
-
-    tracing::info!(
-        "Loaded PCR data: pcr0: {}, pcr1: {}, pcr2: {}, pcr16: {}",
-        pcr0,
-        pcr1,
-        pcr2,
-        hex::encode(pcr16),
-    );
-
-    Ok(Some([
-        hex::decode(pcr0)?
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("PCR0 must be 48 bytes"))?,
-        hex::decode(pcr1)?
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("PCR1 must be 48 bytes"))?,
-        hex::decode(pcr2)?
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("PCR2 must be 48 bytes"))?,
-        pcr16,
-    ]))
+    // TODO: do something with pcr16
 }

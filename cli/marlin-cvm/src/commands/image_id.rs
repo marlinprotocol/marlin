@@ -37,12 +37,12 @@ pub fn compute_image_id(args: ImageArgs) -> Result<()> {
         .init_params
         .pcrs
         .clone()
-        .load_required(preset_to_pcr_preset(&args.preset, &args.arch, args.debug))
+        .load_required(preset_to_pcr_preset(&args.preset, &args.arch))
         .context("Failed to load PCRs")?;
     let mut pcr16 = [0u8; 48];
     if let Some(init_param_b64) = args
         .init_params
-        .load(args.preset, args.arch, args.debug)
+        .load(args.preset, args.arch)
         .context("Failed to load init params")?
     {
         let init_param_json = String::from_utf8(BASE64_STANDARD.decode(init_param_b64)?)?;
@@ -56,15 +56,14 @@ pub fn compute_image_id(args: ImageArgs) -> Result<()> {
         pcr16 = pcr_hasher.finalize().into();
     };
 
+    // TODO: measure digest into pcrs
+
+    // compute image id
     let mut hasher = Sha256::new();
     // bitflags denoting what pcrs are part of the computation
-    // this one has 0, 1, 2 and 16
-    hasher.update(((1u32 << 0) | (1 << 1) | (1 << 2) | (1 << 16)).to_be_bytes());
-    hasher.update(hex::decode(pcrs.0).unwrap());
-    hasher.update(hex::decode(pcrs.1).unwrap());
-    hasher.update(hex::decode(pcrs.2).unwrap());
-    hasher.update(pcr16);
-
+    // this one has 4-15
+    hasher.update((4..=15).fold(0u32, |acc, x| acc | (1 << x)).to_be_bytes());
+    hasher.update(pcrs.as_flattened());
     let image_id: [u8; 32] = hasher.finalize().into();
 
     let hex_image_id = hex::encode(image_id);
