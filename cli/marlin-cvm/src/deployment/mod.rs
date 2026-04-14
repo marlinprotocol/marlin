@@ -2,17 +2,15 @@ use clap::{ValueEnum, builder::PossibleValue};
 use sui_sdk_types::Address;
 
 use crate::{
-    deployment::{adapter::DeploymentAdapter, evm::EvmAdapter, sui::SuiAdapter},
     configs::{
         arb::{ARBITRUM_ONE_RPC_URL, OYSTER_MARKET_ADDRESS, USDC_ADDRESS},
         bsc::{self, BSC_RPC_URL},
-        sui::*,
     },
+    deployment::{adapter::DeploymentAdapter, evm::EvmAdapter, sui::SuiAdapter},
 };
 
 pub mod adapter;
 pub mod evm;
-pub mod sui;
 
 #[derive(Clone, Debug)]
 pub enum Deployment {
