@@ -27,15 +27,15 @@ use super::adapter::DeploymentAdapter;
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    OysterMarket,
-    "src/abis/oyster_market_abi.json"
+    Market,
+    "src/abis/Market.json"
 );
 
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     Token,
-    "src/abis/erc20.json"
+    "src/abis/Token.json"
 );
 
 pub type EvmProvider = FillProvider<
@@ -94,7 +94,7 @@ impl DeploymentAdapter for EvmAdapter {
         let operator_address = Address::from_str(operator)?;
 
         // Create contract instance
-        let market = OysterMarket::new(market_address, provider);
+        let market = Market::new(market_address, provider);
 
         // Call providers function to get CP URL
         let cp_url = market.providers(operator_address).call().await?;
@@ -114,7 +114,7 @@ impl DeploymentAdapter for EvmAdapter {
         let market_address = Address::from_str(&self.market_address)?;
 
         // Create contract instance
-        let market = OysterMarket::new(market_address, provider);
+        let market = Market::new(market_address, provider);
 
         // Check if job exists
         let job = market
@@ -263,7 +263,7 @@ impl DeploymentAdapter for EvmAdapter {
         let market_address = self.market_address.parse::<Address>()?;
 
         // Load OysterMarket contract using Alloy
-        let market = OysterMarket::new(market_address, provider);
+        let market = Market::new(market_address, provider);
 
         Ok(ChainTransaction::Evm(Box::new(match kind {
             JobTransactionKind::Create {
