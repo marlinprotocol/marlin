@@ -1,10 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::{
-    deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs, doctor::DoctorArgs,
-    image_id::ImageArgs, kms_contract::KmsContractArgs, list::ListArgs, log::LogArgs,
-    simulate::SimulateArgs, stop::StopArgs, update::UpdateArgs, verify::VerifyArgs,
-    withdraw::WithdrawArgs,
+    deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs, image_id::ImageArgs,
+    kms_contract::KmsContractArgs, list::ListArgs, log::LogArgs, simulate::SimulateArgs,
+    stop::StopArgs, update::UpdateArgs, verify::VerifyArgs, withdraw::WithdrawArgs,
 };
 
 mod args;
@@ -34,7 +33,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Doctor(DoctorArgs),
     Simulate(SimulateArgs),
     Deploy(DeployArgs),
     Verify(VerifyArgs),
@@ -56,7 +54,6 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Doctor(args) => commands::doctor::run_doctor(args),
         Commands::Simulate(args) => commands::simulate::simulate(args).await,
         Commands::Verify(args) => commands::verify::verify(args).await,
         Commands::Deploy(args) => commands::deploy::deploy(args).await,
