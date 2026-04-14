@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::args::init_params::InitParamsArgs;
 use crate::args::wallet::WalletArgs;
 use crate::deployment::adapter::JobTransactionKind;

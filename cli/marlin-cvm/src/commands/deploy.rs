@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     args::{init_params::InitParamsArgs, wallet::WalletArgs},
     commands::log::{LogArgs, stream_logs},
@@ -15,7 +17,6 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, time::Duration as StdDuration};
 use tokio::net::TcpStream;
 use tracing::info;
 
@@ -269,7 +270,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     info!("Job created with ID: {:?}", job_id);
 
     info!("Waiting for 3 minutes for enclave to start...");
-    tokio::time::sleep(StdDuration::from_secs(180)).await;
+    tokio::time::sleep(Duration::from_secs(180)).await;
 
     let ip_address = wait_for_ip_address(&cp_url, job_id, &args.region).await?;
     info!("IP address obtained: {}", ip_address);
@@ -438,7 +439,7 @@ async fn wait_for_ip_address(url: &str, job_id: String, region: &str) -> Result<
         let resp = client.get(&ip_url).send().await;
         let Ok(response) = resp else {
             tracing::error!("Failed to connect to IP endpoint: {}", resp.unwrap_err());
-            tokio::time::sleep(StdDuration::from_secs(IP_CHECK_INTERVAL)).await;
+            tokio::time::sleep(Duration::from_secs(IP_CHECK_INTERVAL)).await;
             continue;
         };
 
@@ -449,7 +450,7 @@ async fn wait_for_ip_address(url: &str, job_id: String, region: &str) -> Result<
         let text = response.text().await;
         let Ok(text_body) = text else {
             tracing::error!("Failed to read response body: {}", text.unwrap_err());
-            tokio::time::sleep(StdDuration::from_secs(IP_CHECK_INTERVAL)).await;
+            tokio::time::sleep(Duration::from_secs(IP_CHECK_INTERVAL)).await;
             continue;
         };
 
@@ -463,7 +464,7 @@ async fn wait_for_ip_address(url: &str, job_id: String, region: &str) -> Result<
                 err,
                 text_body
             );
-            tokio::time::sleep(StdDuration::from_secs(IP_CHECK_INTERVAL)).await;
+            tokio::time::sleep(Duration::from_secs(IP_CHECK_INTERVAL)).await;
             continue;
         };
 
@@ -479,7 +480,7 @@ async fn wait_for_ip_address(url: &str, job_id: String, region: &str) -> Result<
         }
 
         info!("IP not found yet, waiting {} seconds...", IP_CHECK_INTERVAL);
-        tokio::time::sleep(StdDuration::from_secs(IP_CHECK_INTERVAL)).await;
+        tokio::time::sleep(Duration::from_secs(IP_CHECK_INTERVAL)).await;
     }
 
     Err(anyhow!(
@@ -496,14 +497,14 @@ async fn ping_ip(ip: &str) -> bool {
             "Attempting TCP connection to {} (attempt {}/{})",
             address, attempt, TCP_CHECK_RETRIES
         );
-        match tokio::time::timeout(StdDuration::from_secs(2), TcpStream::connect(&address)).await {
+        match tokio::time::timeout(Duration::from_secs(2), TcpStream::connect(&address)).await {
             Ok(Ok(_)) => {
                 return true;
             }
             Ok(Err(e)) => info!("TCP connection failed: {}", e),
             Err(_) => info!("TCP connection timed out"),
         }
-        tokio::time::sleep(StdDuration::from_secs(TCP_CHECK_INTERVAL)).await;
+        tokio::time::sleep(Duration::from_secs(TCP_CHECK_INTERVAL)).await;
     }
     info!("All TCP connection attempts failed");
     false
@@ -545,7 +546,7 @@ async fn check_reachability(ip: &str) -> bool {
             "Waiting {} seconds before next reachability check...",
             ATTESTATION_INTERVAL
         );
-        tokio::time::sleep(StdDuration::from_secs(ATTESTATION_INTERVAL)).await;
+        tokio::time::sleep(Duration::from_secs(ATTESTATION_INTERVAL)).await;
     }
 
     false

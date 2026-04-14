@@ -13,13 +13,6 @@ impl Platform {
             Platform::ARM64 => "arm64",
         }
     }
-
-    pub fn nix_arch(&self) -> &'static str {
-        match self {
-            Platform::AMD64 => "x86_64-linux",
-            Platform::ARM64 => "aarch64-linux",
-        }
-    }
 }
 
 impl ValueEnum for Platform {
@@ -57,19 +50,6 @@ impl Dependency {
         match self {
             Dependency::Docker => "https://docs.docker.com/engine/install/",
             Dependency::Nix => "https://github.com/DeterminateSystems/nix-installer",
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum StorageProvider {
-    Pinata,
-}
-
-impl StorageProvider {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            StorageProvider::Pinata => "pinata",
         }
     }
 }

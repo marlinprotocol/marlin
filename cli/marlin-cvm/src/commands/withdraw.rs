@@ -6,7 +6,6 @@ use crate::utils::format_usdc;
 use alloy::primitives::U256;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
-use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info};
 

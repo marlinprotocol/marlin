@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::args::wallet::WalletArgs;
 use crate::configs::global::MIN_DEPOSIT_AMOUNT;
 use crate::deployment::adapter::JobTransactionKind;
