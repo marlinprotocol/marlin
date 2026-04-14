@@ -34,8 +34,8 @@ sol!(
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    USDC,
-    "src/abis/token_abi.json"
+    Token,
+    "src/abis/erc20.json"
 );
 
 pub type EvmProvider = FillProvider<
@@ -156,7 +156,7 @@ impl DeploymentAdapter for EvmAdapter {
             .signer_addresses()
             .next()
             .ok_or_else(|| anyhow!("No signer address found"))?;
-        let usdc = USDC::new(usdc_address, provider);
+        let usdc = Token::new(usdc_address, provider);
 
         // Get the current allowance
         let current_allowance = usdc
