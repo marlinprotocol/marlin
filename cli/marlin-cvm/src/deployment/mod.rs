@@ -32,10 +32,10 @@ impl ValueEnum for Deployment {
 }
 
 pub fn get_deployment_adapter(
-    chain_type: Deployment,
+    deployment: Deployment,
     rpc_url: Option<String>,
 ) -> Box<dyn DeploymentAdapter> {
-    match chain_type {
+    match deployment {
         Deployment::Arb => Box::new(EvmAdapter {
             rpc_url: rpc_url.unwrap_or(ARBITRUM_ONE_RPC_URL.to_owned()),
             market_address: OYSTER_MARKET_ADDRESS.to_owned(),
