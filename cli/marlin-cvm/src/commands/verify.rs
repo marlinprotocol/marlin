@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs::read;
 use tracing::info;
 
-use oyster::attestation::{AWS_ROOT_KEY, AttestationExpectations, get};
+use marlin::attestation::{AWS_ROOT_KEY, AttestationExpectations};
 
 use crate::args::pcr::{PcrArgs, preset_to_pcr_preset};
 use crate::configs::global::DEFAULT_ATTESTATION_PORT;
@@ -103,10 +103,10 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
             attestation_endpoint
         );
 
-        let attestation_doc = get(attestation_endpoint.parse()?).await?;
+        let attestation_doc = reqwest::get(attestation_endpoint).await?.bytes().await?;
         info!("Successfully fetched attestation document");
 
-        attestation_doc
+        attestation_doc.to_vec().into_boxed_slice()
     } else {
         bail!(
             "Could not get attestation, either enclave-ip, attestation-hex or attestation-hex-file must be specified"
@@ -140,7 +140,7 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
         image_id: image_id.as_ref(),
     };
 
-    let decoded = oyster::attestation::verify(&attestation, attestation_expectations.clone())
+    let decoded = marlin::attestation::verify(&attestation, attestation_expectations.clone())
         .context("Failed to verify attestation document")?;
 
     info!("Root public key: {}", hex::encode(decoded.root_public_key));
