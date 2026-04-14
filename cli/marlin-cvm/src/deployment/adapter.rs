@@ -64,7 +64,6 @@ pub trait DeploymentAdapter: Send + Sync {
     ) -> Result<ChainProvider>;
 
     async fn get_operator_cp(&self, operator: &str, provider: &ChainProvider) -> Result<String>;
-    async fn fetch_extra_decimals(&self, provider: &ChainProvider) -> Result<i64>;
     async fn get_job_data_if_exists(
         &self,
         job_id: String,

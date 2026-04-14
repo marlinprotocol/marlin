@@ -102,10 +102,6 @@ impl DeploymentAdapter for EvmAdapter {
         Ok(cp_url)
     }
 
-    async fn fetch_extra_decimals(&self, provider: &ChainProvider) -> Result<i64> {
-        Ok(6)
-    }
-
     async fn get_job_data_if_exists(
         &self,
         job_id: String,

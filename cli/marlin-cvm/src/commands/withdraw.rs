@@ -1,5 +1,5 @@
 use crate::args::wallet::WalletArgs;
-use crate::configs::global::MIN_WITHDRAW_AMOUNT;
+use crate::configs::global::{EXTRA_DECIMALS, MIN_WITHDRAW_AMOUNT};
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
@@ -80,12 +80,10 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
         return Err(anyhow!("Cannot withdraw: job balance is 0 USDC"));
     }
 
-    let extra_decimals = deployment_adapter.fetch_extra_decimals(&provider).await?;
-
     // Scale down rate by extra_decimals
     let scaled_rate = job_data
         .rate
-        .checked_div(U256::from(10).pow(U256::from(extra_decimals)))
+        .checked_div(U256::from(10).pow(U256::from(EXTRA_DECIMALS)))
         .ok_or_else(|| anyhow!("Failed to scale rate"))?;
 
     // Calculate required buffer balance (5 minutes worth of rate)
@@ -105,8 +103,8 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!(
         "Current balance: {:.6} USDC, Required buffer: {:.6} USDC",
-        format_usdc(current_balance, extra_decimals),
-        format_usdc(buffer_balance, extra_decimals)
+        format_usdc(current_balance, EXTRA_DECIMALS),
+        format_usdc(buffer_balance, EXTRA_DECIMALS)
     );
 
     // Calculate maximum withdrawable amount (in USDC with 6 decimals)
@@ -117,8 +115,8 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     } else {
         return Err(anyhow!(
             "Cannot withdraw: current balance ({:.6} USDC) is less than required buffer ({:.6} USDC)",
-            format_usdc(current_balance, extra_decimals),
-            format_usdc(buffer_balance, extra_decimals)
+            format_usdc(current_balance, EXTRA_DECIMALS),
+            format_usdc(buffer_balance, EXTRA_DECIMALS)
         ));
     };
 
@@ -139,9 +137,9 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
         if amount_u256 > max_withdrawable {
             return Err(anyhow!(
                 "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC (need to maintain {:.6} USDC buffer)",
-                format_usdc(amount_u256, extra_decimals),
-                format_usdc(max_withdrawable, extra_decimals),
-                format_usdc(buffer_balance, extra_decimals)
+                format_usdc(amount_u256, EXTRA_DECIMALS),
+                format_usdc(max_withdrawable, EXTRA_DECIMALS),
+                format_usdc(buffer_balance, EXTRA_DECIMALS)
             ));
         }
         amount_u256
@@ -149,7 +147,7 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!(
         "Initiating withdrawal of {:.6} USDC",
-        format_usdc(amount_u256, extra_decimals)
+        format_usdc(amount_u256, EXTRA_DECIMALS)
     );
 
     // Call jobWithdraw function with amount in USDC

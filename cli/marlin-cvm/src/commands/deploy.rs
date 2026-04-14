@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::{
     args::{init_params::InitParamsArgs, wallet::WalletArgs},
     commands::log::{LogArgs, stream_logs},
-    configs,
+    configs::{self, global::EXTRA_DECIMALS},
     deployment::{Deployment, adapter::JobTransactionKind, get_deployment_adapter},
     types::Platform,
     utils::{
@@ -187,8 +187,6 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         find_minimum_rate_instance(&operator_spec, &args.region, &instance_type)
             .context("Configuration not supported by operator")?;
 
-    let extra_decimals = deployment_adapter.fetch_extra_decimals(&provider).await?;
-
     // Calculate costs
     // SAFETY: will be some value if simulation is not opted
     let duration_seconds = (args.duration_in_minutes.unwrap() as u64) * 60;
@@ -198,13 +196,13 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         args.bandwidth,
         &args.region,
         &cp_url,
-        extra_decimals,
+        EXTRA_DECIMALS,
     )
     .await?;
 
     info!(
         "Total cost: {:.6} USDC",
-        format_usdc(total_cost, extra_decimals)
+        format_usdc(total_cost, EXTRA_DECIMALS)
     );
     info!(
         "Total rate: {:.6} USDC/hour",

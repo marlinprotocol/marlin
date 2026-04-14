@@ -7,3 +7,5 @@ pub const DEFAULT_ATTESTATION_PORT: u16 = 1300;
 // Transaction Limits
 pub const MIN_DEPOSIT_AMOUNT: u64 = 1; // Minimum 0.000001 USDC
 pub const MIN_WITHDRAW_AMOUNT: u64 = 1; // Minimum 0.000001 USDC
+
+pub const EXTRA_DECIMALS: i64 = 6;
