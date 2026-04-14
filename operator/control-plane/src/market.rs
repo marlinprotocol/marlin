@@ -70,6 +70,13 @@ pub async fn main_task(
             continue;
         };
 
+        // throttle the loop
+        if events.len() == 0 {
+            info!("No new events, sleeping for a bit");
+            sleep(Duration::from_secs(2)).await;
+            continue;
+        }
+
         for event in events {
             // create job task on open
             if event.event_name == JobEventName::Opened {
@@ -592,7 +599,7 @@ impl<'a> JobState<'a> {
                         let gb_cost = entry.rate;
                         let bandwidth_rate = self.rate - self.min_rate;
 
-                        self.bandwidth = ((bandwidth_rate as u128).saturating_mul(1024 * 1024 * 8)
+                        self.bandwidth = ((bandwidth_rate as u128).saturating_mul(1024 * 1024)
                             / gb_cost as u128)
                             .clamp(0, u64::MAX as u128)
                             as u64;

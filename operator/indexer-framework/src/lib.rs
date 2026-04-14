@@ -3,10 +3,13 @@ pub mod events;
 pub mod models;
 pub mod schema;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use anyhow::{Context, Result, anyhow};
-use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
+use diesel::{
+    Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl,
+    connection::SimpleConnection,
+};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use tracing::{info, instrument, warn};
 
@@ -28,14 +31,13 @@ pub fn run(
     start_block: Option<u64>,
     range_size: u64,
 ) -> Result<()> {
-    diesel::sql_query(
+    conn.batch_execute(
         "
         SET statement_timeout = '5s';
         SET lock_timeout = '3s';
         SET idle_in_transaction_session_timeout = '10s';
         ",
     )
-    .execute(conn)
     .context("failed to set db timeouts")?;
 
     // apply migrations
@@ -82,6 +84,12 @@ pub fn run(
                 latest_block,
                 last_updated
             ));
+        }
+
+        if latest_block == last_updated {
+            // we are up to date, simply sleep for a bit
+            std::thread::sleep(Duration::from_secs(5));
+            continue;
         }
 
         // start from the next block to what has already been processed

@@ -8,11 +8,16 @@
     crane = {
       url = "github:ipetkov/crane";
     };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
   outputs = {
     self,
     nixpkgs,
     crane,
+    fenix,
   }: let
     systemBuilder = systemConfig: rec {
       attestation.server = import ./attestation/server {
@@ -82,6 +87,14 @@
         limiter-server = operator.limiter-server.service;
       };
     };
+    serverBuilder = systemConfig: {
+      operator.control-plane = import ./operator/control-plane {
+        inherit nixpkgs systemConfig crane fenix;
+      };
+      operator.market-indexer-evm = import ./operator/market-indexer-evm {
+        inherit nixpkgs systemConfig crane fenix;
+      };
+    };
     check = {
       system,
       packages,
@@ -115,18 +128,30 @@
       "x86_64-linux" = nixpkgs.legacyPackages."x86_64-linux".alejandra;
       "aarch64-linux" = nixpkgs.legacyPackages."aarch64-linux".alejandra;
     };
-    legacyPackages = {
-      "x86_64-linux" = systemBuilder {
-        system = "x86_64-linux";
-        efi_arch = "x64";
-        repart_arch = "x86-64";
-      };
-      "aarch64-linux" = systemBuilder {
-        system = "aarch64-linux";
-        efi_arch = "aa64";
-        repart_arch = "arm64";
-      };
-    };
+    legacyPackages = nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate {} [
+      {
+        "x86_64-linux" = systemBuilder {
+          system = "x86_64-linux";
+          efi_arch = "x64";
+          repart_arch = "x86-64";
+        };
+        "aarch64-linux" = systemBuilder {
+          system = "aarch64-linux";
+          efi_arch = "aa64";
+          repart_arch = "arm64";
+        };
+      }
+      {
+        "x86_64-linux" = serverBuilder {
+          system = "x86_64-linux";
+          rust_target = "x86_64-unknown-linux-musl";
+        };
+        "aarch64-linux" = serverBuilder {
+          system = "aarch64-linux";
+          rust_target = "aarch64-unknown-linux-musl";
+        };
+      }
+    ];
     # check if all derivations are valid
     # does NOT check if everything builds properly, too expensive
     # just preliminiary evaluation stage checks

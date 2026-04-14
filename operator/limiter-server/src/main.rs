@@ -17,7 +17,7 @@ use tokio::sync::Mutex;
 use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 
-const START_CAPACITY: u64 = 1_000_000;
+const START_CAPACITY: u64 = 1 << 20; // 1 MiB
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -47,7 +47,7 @@ struct AppState {
 #[derive(Deserialize)]
 struct AddRequest {
     ip: Ipv4Addr,
-    rate: u64,
+    rate: u64, // bytes per second
 }
 
 #[derive(Deserialize)]
@@ -58,8 +58,8 @@ struct RemoveRequest {
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct RateConfig {
-    rate: u64,
-    fill_time: u64,
+    rate: u64, // bytes per 2^30 ns
+    fill_time: u64, // multiples of 2^10 ns
 }
 
 // SAFETY: RateConfig is a POD type
@@ -69,7 +69,7 @@ unsafe impl aya::Pod for RateConfig {}
 #[repr(C)]
 struct BucketState {
     lock: u32, // bpf_spin_lock is u32
-    last_time: u64,
+    last_time: u64, // multiples of 2^10 ns
     tokens: u64,
 }
 
@@ -79,17 +79,17 @@ unsafe impl aya::Pod for BucketState {}
 #[derive(Serialize, Deserialize, Clone)]
 struct Entry {
     ip: Ipv4Addr,
-    rate: u64,
-    fill_time: u64,
+    rate: u64, // bytes per 2^30 ns
+    fill_time: u64, // multiples of 2^10 ns
 }
 
 #[derive(Serialize)]
 struct StatusEntry {
     ip: Ipv4Addr,
-    rate: u64,
-    fill_time: u64,
+    rate: u64, // bytes per 2^30 ns
+    fill_time: u64, // multiples of 2^10 ns
     tokens: Option<u64>,
-    last_time: Option<u64>,
+    last_time: Option<u64>, // multiples of 2^10 ns
 }
 
 #[tokio::main]
@@ -238,12 +238,18 @@ fn add_entry(
     state_map_path: &str,
     file_path: &PathBuf,
     ip: Ipv4Addr,
-    rate: u64,
+    mut rate: u64, // bytes per second
 ) -> Result<()> {
     if rate == 0 {
         bail!("Rate cannot be 0");
     }
+
+    // Normalize rate to be in bytes per 2^30 ns
+    rate = (((rate as u128) << 30) / 10u128.pow(9)).try_into()?;
+
     // Calculate fill_time to achieve 1 TiB (2^40 bytes) capacity
+    // (2^40 bytes) / (rate bytes / 2^30 ns) / 2^10 ns
+    // = 2^60 / rate
     let fill_time = (1u64 << 60) / rate;
 
     // 1. Update File

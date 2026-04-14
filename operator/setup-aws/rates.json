@@ -6,1750 +6,1750 @@
         "cpu": 2,
         "instance": "c5.large",
         "memory": 4096,
-        "min_rate": "26250000000000"
+        "min_rate": 26250000
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c5.xlarge",
         "memory": 8192,
-        "min_rate": "52791666666666"
+        "min_rate": 52791666
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c5.2xlarge",
         "memory": 16384,
-        "min_rate": "105583333333333"
+        "min_rate": 105583333
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c5.4xlarge",
         "memory": 32768,
-        "min_rate": "211166666666666"
+        "min_rate": 211166666
       },
       {
         "arch": "amd64",
         "cpu": 36,
         "instance": "c5.9xlarge",
         "memory": 73728,
-        "min_rate": "475125000000000"
+        "min_rate": 475125000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "c5.12xlarge",
         "memory": 98304,
-        "min_rate": "633208333333333"
+        "min_rate": 633208333
       },
       {
         "arch": "amd64",
         "cpu": 72,
         "instance": "c5.18xlarge",
         "memory": 147456,
-        "min_rate": "892500000000000"
+        "min_rate": 892500000
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "c5.24xlarge",
         "memory": 196608,
-        "min_rate": "1266708333333333"
+        "min_rate": 1266708333
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "c5a.large",
         "memory": 4096,
-        "min_rate": "15166666666666"
+        "min_rate": 15166666
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c5a.xlarge",
         "memory": 8192,
-        "min_rate": "30041666666666"
+        "min_rate": 30041666
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c5a.2xlarge",
         "memory": 16384,
-        "min_rate": "60375000000000"
+        "min_rate": 60375000
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c5a.4xlarge",
         "memory": 32768,
-        "min_rate": "120750000000000"
+        "min_rate": 120750000
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "c5a.8xlarge",
         "memory": 65536,
-        "min_rate": "241208333333333"
+        "min_rate": 241208333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "c5a.12xlarge",
         "memory": 98304,
-        "min_rate": "361958333333333"
+        "min_rate": 361958333
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "c5a.16xlarge",
         "memory": 131072,
-        "min_rate": "482416666666666"
+        "min_rate": 482416666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "c5a.24xlarge",
         "memory": 196608,
-        "min_rate": "723916666666666"
+        "min_rate": 723916666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "c5n.large",
         "memory": 5376,
-        "min_rate": "33541666666666"
+        "min_rate": 33541666
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c5n.xlarge",
         "memory": 10752,
-        "min_rate": "67083333333333"
+        "min_rate": 67083333
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c5n.2xlarge",
         "memory": 21504,
-        "min_rate": "134166666666666"
+        "min_rate": 134166666
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c5n.4xlarge",
         "memory": 43008,
-        "min_rate": "268333333333333"
+        "min_rate": 268333333
       },
       {
         "arch": "amd64",
         "cpu": 36,
         "instance": "c5n.9xlarge",
         "memory": 98304,
-        "min_rate": "603458333333333"
+        "min_rate": 603458333
       },
       {
         "arch": "amd64",
         "cpu": 72,
         "instance": "c5n.18xlarge",
         "memory": 196608,
-        "min_rate": "1134000000000000"
+        "min_rate": 1134000000
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "c6a.large",
         "memory": 4096,
-        "min_rate": "15000416666666"
+        "min_rate": 15000416
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c6a.xlarge",
         "memory": 8192,
-        "min_rate": "29997916666666"
+        "min_rate": 29997916
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c6a.2xlarge",
         "memory": 16384,
-        "min_rate": "59995833333333"
+        "min_rate": 59995833
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c6a.4xlarge",
         "memory": 32768,
-        "min_rate": "119991666666666"
+        "min_rate": 119991666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "c6a.8xlarge",
         "memory": 65536,
-        "min_rate": "239983333333333"
+        "min_rate": 239983333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "c6a.12xlarge",
         "memory": 98304,
-        "min_rate": "359975000000000"
+        "min_rate": 359975000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "c6a.16xlarge",
         "memory": 131072,
-        "min_rate": "479966666666666"
+        "min_rate": 479966666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "c6a.24xlarge",
         "memory": 196608,
-        "min_rate": "719950000000000"
+        "min_rate": 719950000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "c6a.32xlarge",
         "memory": 262144,
-        "min_rate": "959933333333333"
+        "min_rate": 959933333
       },
       {
         "arch": "amd64",
         "cpu": 192,
         "instance": "c6a.48xlarge",
         "memory": 393216,
-        "min_rate": "1309000000000000"
+        "min_rate": 1309000000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "c6g.medium",
         "memory": 2048,
-        "min_rate": "6591666666666"
+        "min_rate": 6591666
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "c6g.large",
         "memory": 4096,
-        "min_rate": "13183333333333"
+        "min_rate": 13183333
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "c6g.xlarge",
         "memory": 8192,
-        "min_rate": "26337500000000"
+        "min_rate": 26337500
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "c6g.2xlarge",
         "memory": 16384,
-        "min_rate": "52675000000000"
+        "min_rate": 52675000
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "c6g.4xlarge",
         "memory": 32768,
-        "min_rate": "105350000000000"
+        "min_rate": 105350000
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "c6g.8xlarge",
         "memory": 65536,
-        "min_rate": "210729166666666"
+        "min_rate": 210729166
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "c6g.12xlarge",
         "memory": 98304,
-        "min_rate": "316079166666666"
+        "min_rate": 316079166
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "c6g.16xlarge",
         "memory": 131072,
-        "min_rate": "421458333333333"
+        "min_rate": 421458333
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "c6gn.medium",
         "memory": 2048,
-        "min_rate": "13877500000000"
+        "min_rate": 13877500
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "c6gn.large",
         "memory": 4096,
-        "min_rate": "27752083333333"
+        "min_rate": 27752083
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "c6gn.xlarge",
         "memory": 8192,
-        "min_rate": "55504166666666"
+        "min_rate": 55504166
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "c6gn.2xlarge",
         "memory": 16384,
-        "min_rate": "111008333333333"
+        "min_rate": 111008333
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "c6gn.4xlarge",
         "memory": 32768,
-        "min_rate": "222016666666666"
+        "min_rate": 222016666
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "c6gn.8xlarge",
         "memory": 65536,
-        "min_rate": "444033333333333"
+        "min_rate": 444033333
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "c6gn.12xlarge",
         "memory": 98304,
-        "min_rate": "666050000000000"
+        "min_rate": 666050000
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "c6gn.16xlarge",
         "memory": 131072,
-        "min_rate": "888066666666666"
+        "min_rate": 888066666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "c6i.large",
         "memory": 4096,
-        "min_rate": "27270833333333"
+        "min_rate": 27270833
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c6i.xlarge",
         "memory": 8192,
-        "min_rate": "54541666666666"
+        "min_rate": 54541666
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c6i.2xlarge",
         "memory": 16384,
-        "min_rate": "109083333333333"
+        "min_rate": 109083333
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c6i.4xlarge",
         "memory": 32768,
-        "min_rate": "218166666666666"
+        "min_rate": 218166666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "c6i.8xlarge",
         "memory": 65536,
-        "min_rate": "436333333333333"
+        "min_rate": 436333333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "c6i.12xlarge",
         "memory": 98304,
-        "min_rate": "654500000000000"
+        "min_rate": 654500000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "c6i.16xlarge",
         "memory": 131072,
-        "min_rate": "872666666666666"
+        "min_rate": 872666666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "c6i.24xlarge",
         "memory": 196608,
-        "min_rate": "1309000000000000"
+        "min_rate": 1309000000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "c6i.32xlarge",
         "memory": 262144,
-        "min_rate": "1586666666666666"
+        "min_rate": 1586666666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "c6in.large",
         "memory": 4096,
-        "min_rate": "36382500000000"
+        "min_rate": 36382500
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c6in.xlarge",
         "memory": 8192,
-        "min_rate": "72765000000000"
+        "min_rate": 72765000
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c6in.2xlarge",
         "memory": 16384,
-        "min_rate": "145530000000000"
+        "min_rate": 145530000
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c6in.4xlarge",
         "memory": 32768,
-        "min_rate": "291060000000000"
+        "min_rate": 291060000
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "c6in.8xlarge",
         "memory": 65536,
-        "min_rate": "582120000000000"
+        "min_rate": 582120000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "c6in.12xlarge",
         "memory": 98304,
-        "min_rate": "873180000000000"
+        "min_rate": 873180000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "c6in.16xlarge",
         "memory": 131072,
-        "min_rate": "1164240000000000"
+        "min_rate": 1164240000
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "c6in.24xlarge",
         "memory": 196608,
-        "min_rate": "1746360000000000"
+        "min_rate": 1746360000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "c6in.32xlarge",
         "memory": 262144,
-        "min_rate": "2116800000000000"
+        "min_rate": 2116800000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "c7g.medium",
         "memory": 2048,
-        "min_rate": "7612500000000"
+        "min_rate": 7612500
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "c7g.large",
         "memory": 4096,
-        "min_rate": "15225000000000"
+        "min_rate": 15225000
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "c7g.xlarge",
         "memory": 8192,
-        "min_rate": "30420833333333"
+        "min_rate": 30420833
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "c7g.2xlarge",
         "memory": 16384,
-        "min_rate": "60870833333333"
+        "min_rate": 60870833
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "c7g.4xlarge",
         "memory": 32768,
-        "min_rate": "121741666666666"
+        "min_rate": 121741666
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "c7g.8xlarge",
         "memory": 65536,
-        "min_rate": "243483333333333"
+        "min_rate": 243483333
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "c7g.12xlarge",
         "memory": 98304,
-        "min_rate": "365225000000000"
+        "min_rate": 365225000
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "c7g.16xlarge",
         "memory": 131072,
-        "min_rate": "458091666666666"
+        "min_rate": 458091666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "c7i.large",
         "memory": 4096,
-        "min_rate": "28635833333333"
+        "min_rate": 28635833
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "c7i.xlarge",
         "memory": 8192,
-        "min_rate": "57268750000000"
+        "min_rate": 57268750
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "c7i.2xlarge",
         "memory": 16384,
-        "min_rate": "114537500000000"
+        "min_rate": 114537500
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "c7i.4xlarge",
         "memory": 32768,
-        "min_rate": "229075000000000"
+        "min_rate": 229075000
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "c7i.8xlarge",
         "memory": 65536,
-        "min_rate": "458150000000000"
+        "min_rate": 458150000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "c7i.12xlarge",
         "memory": 98304,
-        "min_rate": "687225000000000"
+        "min_rate": 687225000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "c7i.16xlarge",
         "memory": 131072,
-        "min_rate": "916300000000000"
+        "min_rate": 916300000
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "c7i.24xlarge",
         "memory": 196608,
-        "min_rate": "1374450000000000"
+        "min_rate": 1374450000
       },
       {
         "arch": "amd64",
         "cpu": 192,
         "instance": "c7i.48xlarge",
         "memory": 393216,
-        "min_rate": "2499000000000000"
+        "min_rate": 2499000000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "c8g.medium",
         "memory": 2048,
-        "min_rate": "8659583333333"
+        "min_rate": 8659583
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "c8g.large",
         "memory": 4096,
-        "min_rate": "17319166666666"
+        "min_rate": 17319166
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "c8g.xlarge",
         "memory": 8192,
-        "min_rate": "34638333333333"
+        "min_rate": 34638333
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "c8g.2xlarge",
         "memory": 16384,
-        "min_rate": "69273750000000"
+        "min_rate": 69273750
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "c8g.4xlarge",
         "memory": 32768,
-        "min_rate": "138547500000000"
+        "min_rate": 138547500
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "c8g.8xlarge",
         "memory": 65536,
-        "min_rate": "277097916666666"
+        "min_rate": 277097916
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "c8g.12xlarge",
         "memory": 98304,
-        "min_rate": "415645416666666"
+        "min_rate": 415645416
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "c8g.16xlarge",
         "memory": 131072,
-        "min_rate": "554195833333333"
+        "min_rate": 554195833
       },
       {
         "arch": "arm64",
         "cpu": 96,
         "instance": "c8g.24xlarge",
         "memory": 196608,
-        "min_rate": "831290833333333"
+        "min_rate": 831290833
       },
       {
         "arch": "arm64",
         "cpu": 192,
         "instance": "c8g.48xlarge",
         "memory": 393216,
-        "min_rate": "1511440000000000"
+        "min_rate": 1511440000
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "m5.large",
         "memory": 8192,
-        "min_rate": "31208333333333"
+        "min_rate": 31208333
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "m5.xlarge",
         "memory": 16384,
-        "min_rate": "62416666666666"
+        "min_rate": 62416666
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "m5.2xlarge",
         "memory": 32768,
-        "min_rate": "125125000000000"
+        "min_rate": 125125000
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "m5.4xlarge",
         "memory": 65536,
-        "min_rate": "249958333333333"
+        "min_rate": 249958333
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "m5.8xlarge",
         "memory": 131072,
-        "min_rate": "500208333333333"
+        "min_rate": 500208333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "m5.12xlarge",
         "memory": 196608,
-        "min_rate": "750166666666666"
+        "min_rate": 750166666
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "m5.16xlarge",
         "memory": 262144,
-        "min_rate": "1000416666666666"
+        "min_rate": 1000416666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "m5.24xlarge",
         "memory": 393216,
-        "min_rate": "1414000000000000"
+        "min_rate": 1414000000
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "m5a.large",
         "memory": 8192,
-        "min_rate": "17208333333333"
+        "min_rate": 17208333
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "m5a.xlarge",
         "memory": 16384,
-        "min_rate": "34416666666666"
+        "min_rate": 34416666
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "m5a.2xlarge",
         "memory": 32768,
-        "min_rate": "68833333333333"
+        "min_rate": 68833333
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "m5a.4xlarge",
         "memory": 65536,
-        "min_rate": "137666666666666"
+        "min_rate": 137666666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "m5a.8xlarge",
         "memory": 131072,
-        "min_rate": "275041666666666"
+        "min_rate": 275041666
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "m5a.12xlarge",
         "memory": 196608,
-        "min_rate": "412708333333333"
+        "min_rate": 412708333
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "m5a.16xlarge",
         "memory": 262144,
-        "min_rate": "550083333333333"
+        "min_rate": 550083333
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "m5a.24xlarge",
         "memory": 393216,
-        "min_rate": "825416666666666"
+        "min_rate": 825416666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "m6a.large",
         "memory": 8192,
-        "min_rate": "17823750000000"
+        "min_rate": 17823750
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "m6a.xlarge",
         "memory": 16384,
-        "min_rate": "35644583333333"
+        "min_rate": 35644583
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "m6a.2xlarge",
         "memory": 32768,
-        "min_rate": "71289166666666"
+        "min_rate": 71289166
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "m6a.4xlarge",
         "memory": 65536,
-        "min_rate": "142578333333333"
+        "min_rate": 142578333
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "m6a.8xlarge",
         "memory": 131072,
-        "min_rate": "285156666666666"
+        "min_rate": 285156666
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "m6a.12xlarge",
         "memory": 196608,
-        "min_rate": "427735000000000"
+        "min_rate": 427735000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "m6a.16xlarge",
         "memory": 262144,
-        "min_rate": "570313333333333"
+        "min_rate": 570313333
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "m6a.24xlarge",
         "memory": 393216,
-        "min_rate": "855470000000000"
+        "min_rate": 855470000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "m6a.32xlarge",
         "memory": 524288,
-        "min_rate": "1140626666666666"
+        "min_rate": 1140626666
       },
       {
         "arch": "amd64",
         "cpu": 192,
         "instance": "m6a.48xlarge",
         "memory": 786432,
-        "min_rate": "1555400000000000"
+        "min_rate": 1555400000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "m6g.medium",
         "memory": 4096,
-        "min_rate": "7816666666666"
+        "min_rate": 7816666
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "m6g.large",
         "memory": 8192,
-        "min_rate": "15633333333333"
+        "min_rate": 15633333
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "m6g.xlarge",
         "memory": 16384,
-        "min_rate": "31295833333333"
+        "min_rate": 31295833
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "m6g.2xlarge",
         "memory": 32768,
-        "min_rate": "62562500000000"
+        "min_rate": 62562500
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "m6g.4xlarge",
         "memory": 65536,
-        "min_rate": "125154166666666"
+        "min_rate": 125154166
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "m6g.8xlarge",
         "memory": 131072,
-        "min_rate": "250308333333333"
+        "min_rate": 250308333
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "m6g.12xlarge",
         "memory": 196608,
-        "min_rate": "375462500000000"
+        "min_rate": 375462500
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "m6g.16xlarge",
         "memory": 262144,
-        "min_rate": "500616666666666"
+        "min_rate": 500616666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "m6i.large",
         "memory": 8192,
-        "min_rate": "32404166666666"
+        "min_rate": 32404166
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "m6i.xlarge",
         "memory": 16384,
-        "min_rate": "64808333333333"
+        "min_rate": 64808333
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "m6i.2xlarge",
         "memory": 32768,
-        "min_rate": "129616666666666"
+        "min_rate": 129616666
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "m6i.4xlarge",
         "memory": 65536,
-        "min_rate": "259233333333333"
+        "min_rate": 259233333
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "m6i.8xlarge",
         "memory": 131072,
-        "min_rate": "518466666666666"
+        "min_rate": 518466666
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "m6i.12xlarge",
         "memory": 196608,
-        "min_rate": "777700000000000"
+        "min_rate": 777700000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "m6i.16xlarge",
         "memory": 262144,
-        "min_rate": "1036933333333333"
+        "min_rate": 1036933333
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "m6i.24xlarge",
         "memory": 393216,
-        "min_rate": "1555400000000000"
+        "min_rate": 1555400000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "m6i.32xlarge",
         "memory": 524288,
-        "min_rate": "2073866666666666"
+        "min_rate": 2073866666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "m6in.large",
         "memory": 8192,
-        "min_rate": "46547083333333"
+        "min_rate": 46547083
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "m6in.xlarge",
         "memory": 16384,
-        "min_rate": "93094166666666"
+        "min_rate": 93094166
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "m6in.2xlarge",
         "memory": 32768,
-        "min_rate": "186185416666666"
+        "min_rate": 186185416
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "m6in.4xlarge",
         "memory": 65536,
-        "min_rate": "372370833333333"
+        "min_rate": 372370833
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "m6in.8xlarge",
         "memory": 131072,
-        "min_rate": "744744583333333"
+        "min_rate": 744744583
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "m6in.12xlarge",
         "memory": 196608,
-        "min_rate": "1117115416666666"
+        "min_rate": 1117115416
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "m6in.16xlarge",
         "memory": 262144,
-        "min_rate": "1489489166666666"
+        "min_rate": 1489489166
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "m6in.24xlarge",
         "memory": 393216,
-        "min_rate": "2234230833333333"
+        "min_rate": 2234230833
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "m6in.32xlarge",
         "memory": 524288,
-        "min_rate": "2708160000000000"
+        "min_rate": 2708160000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "m7g.medium",
         "memory": 4096,
-        "min_rate": "9041666666666"
+        "min_rate": 9041666
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "m7g.large",
         "memory": 8192,
-        "min_rate": "18083333333333"
+        "min_rate": 18083333
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "m7g.xlarge",
         "memory": 16384,
-        "min_rate": "36166666666666"
+        "min_rate": 36166666
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "m7g.2xlarge",
         "memory": 32768,
-        "min_rate": "72333333333333"
+        "min_rate": 72333333
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "m7g.4xlarge",
         "memory": 65536,
-        "min_rate": "144637500000000"
+        "min_rate": 144637500
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "m7g.8xlarge",
         "memory": 131072,
-        "min_rate": "289275000000000"
+        "min_rate": 289275000
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "m7g.12xlarge",
         "memory": 196608,
-        "min_rate": "433912500000000"
+        "min_rate": 433912500
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "m7g.16xlarge",
         "memory": 262144,
-        "min_rate": "544308333333333"
+        "min_rate": 544308333
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "m7i.large",
         "memory": 8192,
-        "min_rate": "34025833333333"
+        "min_rate": 34025833
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "m7i.xlarge",
         "memory": 16384,
-        "min_rate": "68048750000000"
+        "min_rate": 68048750
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "m7i.2xlarge",
         "memory": 32768,
-        "min_rate": "136097500000000"
+        "min_rate": 136097500
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "m7i.4xlarge",
         "memory": 65536,
-        "min_rate": "272195000000000"
+        "min_rate": 272195000
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "m7i.8xlarge",
         "memory": 131072,
-        "min_rate": "544390000000000"
+        "min_rate": 544390000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "m7i.12xlarge",
         "memory": 196608,
-        "min_rate": "816585000000000"
+        "min_rate": 816585000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "m7i.16xlarge",
         "memory": 262144,
-        "min_rate": "1088780000000000"
+        "min_rate": 1088780000
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "m7i.24xlarge",
         "memory": 393216,
-        "min_rate": "1633170000000000"
+        "min_rate": 1633170000
       },
       {
         "arch": "amd64",
         "cpu": 192,
         "instance": "m7i.48xlarge",
         "memory": 786432,
-        "min_rate": "2969400000000000"
+        "min_rate": 2969400000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "m8g.medium",
         "memory": 4096,
-        "min_rate": "10292916666666"
+        "min_rate": 10292916
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "m8g.large",
         "memory": 8192,
-        "min_rate": "20585833333333"
+        "min_rate": 20585833
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "m8g.xlarge",
         "memory": 16384,
-        "min_rate": "41168750000000"
+        "min_rate": 41168750
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "m8g.2xlarge",
         "memory": 32768,
-        "min_rate": "82337500000000"
+        "min_rate": 82337500
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "m8g.4xlarge",
         "memory": 65536,
-        "min_rate": "164677916666666"
+        "min_rate": 164677916
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "m8g.8xlarge",
         "memory": 131072,
-        "min_rate": "329355833333333"
+        "min_rate": 329355833
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "m8g.12xlarge",
         "memory": 196608,
-        "min_rate": "494030833333333"
+        "min_rate": 494030833
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "m8g.16xlarge",
         "memory": 262144,
-        "min_rate": "658708750000000"
+        "min_rate": 658708750
       },
       {
         "arch": "arm64",
         "cpu": 96,
         "instance": "m8g.24xlarge",
         "memory": 393216,
-        "min_rate": "988064583333333"
+        "min_rate": 988064583
       },
       {
         "arch": "arm64",
         "cpu": 192,
         "instance": "m8g.48xlarge",
         "memory": 786432,
-        "min_rate": "1796480000000000"
+        "min_rate": 1796480000
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "r5.large",
         "memory": 16384,
-        "min_rate": "40250000000000"
+        "min_rate": 40250000
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "r5.xlarge",
         "memory": 32768,
-        "min_rate": "80500000000000"
+        "min_rate": 80500000
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "r5.2xlarge",
         "memory": 65536,
-        "min_rate": "160708333333333"
+        "min_rate": 160708333
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "r5.4xlarge",
         "memory": 131072,
-        "min_rate": "321416666666666"
+        "min_rate": 321416666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "r5.8xlarge",
         "memory": 262144,
-        "min_rate": "642833333333333"
+        "min_rate": 642833333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "r5.12xlarge",
         "memory": 393216,
-        "min_rate": "964250000000000"
+        "min_rate": 964250000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "r5.16xlarge",
         "memory": 524288,
-        "min_rate": "1285666666666666"
+        "min_rate": 1285666666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "r5.24xlarge",
         "memory": 786432,
-        "min_rate": "1820000000000000"
+        "min_rate": 1820000000
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "r5a.large",
         "memory": 16384,
-        "min_rate": "22166666666666"
+        "min_rate": 22166666
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "r5a.xlarge",
         "memory": 32768,
-        "min_rate": "44333333333333"
+        "min_rate": 44333333
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "r5a.2xlarge",
         "memory": 65536,
-        "min_rate": "88375000000000"
+        "min_rate": 88375000
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "r5a.4xlarge",
         "memory": 131072,
-        "min_rate": "176750000000000"
+        "min_rate": 176750000
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "r5a.8xlarge",
         "memory": 262144,
-        "min_rate": "353500000000000"
+        "min_rate": 353500000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "r5a.12xlarge",
         "memory": 393216,
-        "min_rate": "530250000000000"
+        "min_rate": 530250000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "r5a.16xlarge",
         "memory": 524288,
-        "min_rate": "707291666666666"
+        "min_rate": 707291666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "r5a.24xlarge",
         "memory": 786432,
-        "min_rate": "1060791666666666"
+        "min_rate": 1060791666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "r5n.large",
         "memory": 16384,
-        "min_rate": "47250000000000"
+        "min_rate": 47250000
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "r5n.xlarge",
         "memory": 32768,
-        "min_rate": "94500000000000"
+        "min_rate": 94500000
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "r5n.2xlarge",
         "memory": 65536,
-        "min_rate": "189291666666666"
+        "min_rate": 189291666
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "r5n.4xlarge",
         "memory": 131072,
-        "min_rate": "378291666666666"
+        "min_rate": 378291666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "r5n.8xlarge",
         "memory": 262144,
-        "min_rate": "756875000000000"
+        "min_rate": 756875000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "r5n.12xlarge",
         "memory": 393216,
-        "min_rate": "1135166666666666"
+        "min_rate": 1135166666
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "r5n.16xlarge",
         "memory": 524288,
-        "min_rate": "1513750000000000"
+        "min_rate": 1513750000
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "r5n.24xlarge",
         "memory": 786432,
-        "min_rate": "2142000000000000"
+        "min_rate": 2142000000
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "r6a.large",
         "memory": 16384,
-        "min_rate": "22939583333333"
+        "min_rate": 22939583
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "r6a.xlarge",
         "memory": 32768,
-        "min_rate": "45879166666666"
+        "min_rate": 45879166
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "r6a.2xlarge",
         "memory": 65536,
-        "min_rate": "91758333333333"
+        "min_rate": 91758333
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "r6a.4xlarge",
         "memory": 131072,
-        "min_rate": "183516666666666"
+        "min_rate": 183516666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "r6a.8xlarge",
         "memory": 262144,
-        "min_rate": "367033333333333"
+        "min_rate": 367033333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "r6a.12xlarge",
         "memory": 393216,
-        "min_rate": "550550000000000"
+        "min_rate": 550550000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "r6a.16xlarge",
         "memory": 524288,
-        "min_rate": "734066666666666"
+        "min_rate": 734066666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "r6a.24xlarge",
         "memory": 786432,
-        "min_rate": "1101100000000000"
+        "min_rate": 1101100000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "r6a.32xlarge",
         "memory": 1048576,
-        "min_rate": "1468133333333333"
+        "min_rate": 1468133333
       },
       {
         "arch": "amd64",
         "cpu": 192,
         "instance": "r6a.48xlarge",
         "memory": 1572864,
-        "min_rate": "2002000000000000"
+        "min_rate": 2002000000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "r6g.medium",
         "memory": 8192,
-        "min_rate": "10062500000000"
+        "min_rate": 10062500
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "r6g.large",
         "memory": 16384,
-        "min_rate": "20095833333333"
+        "min_rate": 20095833
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "r6g.xlarge",
         "memory": 32768,
-        "min_rate": "40191666666666"
+        "min_rate": 40191666
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "r6g.2xlarge",
         "memory": 65536,
-        "min_rate": "80383333333333"
+        "min_rate": 80383333
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "r6g.4xlarge",
         "memory": 131072,
-        "min_rate": "160766666666666"
+        "min_rate": 160766666
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "r6g.8xlarge",
         "memory": 262144,
-        "min_rate": "321533333333333"
+        "min_rate": 321533333
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "r6g.12xlarge",
         "memory": 393216,
-        "min_rate": "482300000000000"
+        "min_rate": 482300000
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "r6g.16xlarge",
         "memory": 524288,
-        "min_rate": "643066666666666"
+        "min_rate": 643066666
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "r6i.large",
         "memory": 16384,
-        "min_rate": "41708333333333"
+        "min_rate": 41708333
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "r6i.xlarge",
         "memory": 32768,
-        "min_rate": "83416666666666"
+        "min_rate": 83416666
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "r6i.2xlarge",
         "memory": 65536,
-        "min_rate": "166833333333333"
+        "min_rate": 166833333
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "r6i.4xlarge",
         "memory": 131072,
-        "min_rate": "333666666666666"
+        "min_rate": 333666666
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "r6i.8xlarge",
         "memory": 262144,
-        "min_rate": "667333333333333"
+        "min_rate": 667333333
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "r6i.12xlarge",
         "memory": 393216,
-        "min_rate": "1001000000000000"
+        "min_rate": 1001000000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "r6i.16xlarge",
         "memory": 524288,
-        "min_rate": "1334666666666666"
+        "min_rate": 1334666666
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "r6i.24xlarge",
         "memory": 786432,
-        "min_rate": "2002000000000000"
+        "min_rate": 2002000000
       },
       {
         "arch": "amd64",
         "cpu": 128,
         "instance": "r6i.32xlarge",
         "memory": 1048576,
-        "min_rate": "2426666666666666"
+        "min_rate": 2426666666
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "r7g.medium",
         "memory": 8192,
-        "min_rate": "11637500000000"
+        "min_rate": 11637500
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "r7g.large",
         "memory": 16384,
-        "min_rate": "23275000000000"
+        "min_rate": 23275000
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "r7g.xlarge",
         "memory": 32768,
-        "min_rate": "46550000000000"
+        "min_rate": 46550000
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "r7g.2xlarge",
         "memory": 65536,
-        "min_rate": "93070833333333"
+        "min_rate": 93070833
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "r7g.4xlarge",
         "memory": 131072,
-        "min_rate": "186141666666666"
+        "min_rate": 186141666
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "r7g.8xlarge",
         "memory": 262144,
-        "min_rate": "372312500000000"
+        "min_rate": 372312500
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "r7g.12xlarge",
         "memory": 393216,
-        "min_rate": "558454166666666"
+        "min_rate": 558454166
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "r7g.16xlarge",
         "memory": 524288,
-        "min_rate": "700758333333333"
+        "min_rate": 700758333
       },
       {
         "arch": "amd64",
         "cpu": 2,
         "instance": "r7i.large",
         "memory": 16384,
-        "min_rate": "43793750000000"
+        "min_rate": 43793750
       },
       {
         "arch": "amd64",
         "cpu": 4,
         "instance": "r7i.xlarge",
         "memory": 32768,
-        "min_rate": "87587500000000"
+        "min_rate": 87587500
       },
       {
         "arch": "amd64",
         "cpu": 8,
         "instance": "r7i.2xlarge",
         "memory": 65536,
-        "min_rate": "175175000000000"
+        "min_rate": 175175000
       },
       {
         "arch": "amd64",
         "cpu": 16,
         "instance": "r7i.4xlarge",
         "memory": 131072,
-        "min_rate": "350350000000000"
+        "min_rate": 350350000
       },
       {
         "arch": "amd64",
         "cpu": 32,
         "instance": "r7i.8xlarge",
         "memory": 262144,
-        "min_rate": "700700000000000"
+        "min_rate": 700700000
       },
       {
         "arch": "amd64",
         "cpu": 48,
         "instance": "r7i.12xlarge",
         "memory": 393216,
-        "min_rate": "1051050000000000"
+        "min_rate": 1051050000
       },
       {
         "arch": "amd64",
         "cpu": 64,
         "instance": "r7i.16xlarge",
         "memory": 524288,
-        "min_rate": "1401400000000000"
+        "min_rate": 1401400000
       },
       {
         "arch": "amd64",
         "cpu": 96,
         "instance": "r7i.24xlarge",
         "memory": 786432,
-        "min_rate": "2102100000000000"
+        "min_rate": 2102100000
       },
       {
         "arch": "amd64",
         "cpu": 192,
         "instance": "r7i.48xlarge",
         "memory": 1572864,
-        "min_rate": "3822000000000000"
+        "min_rate": 3822000000
       },
       {
         "arch": "arm64",
         "cpu": 1,
         "instance": "r8g.medium",
         "memory": 8192,
-        "min_rate": "13247500000000"
+        "min_rate": 13247500
       },
       {
         "arch": "arm64",
         "cpu": 2,
         "instance": "r8g.large",
         "memory": 16384,
-        "min_rate": "26495000000000"
+        "min_rate": 26495000
       },
       {
         "arch": "arm64",
         "cpu": 4,
         "instance": "r8g.xlarge",
         "memory": 32768,
-        "min_rate": "52990000000000"
+        "min_rate": 52990000
       },
       {
         "arch": "arm64",
         "cpu": 8,
         "instance": "r8g.2xlarge",
         "memory": 65536,
-        "min_rate": "105977083333333"
+        "min_rate": 105977083
       },
       {
         "arch": "arm64",
         "cpu": 16,
         "instance": "r8g.4xlarge",
         "memory": 131072,
-        "min_rate": "211954166666666"
+        "min_rate": 211954166
       },
       {
         "arch": "arm64",
         "cpu": 32,
         "instance": "r8g.8xlarge",
         "memory": 262144,
-        "min_rate": "423911250000000"
+        "min_rate": 423911250
       },
       {
         "arch": "arm64",
         "cpu": 48,
         "instance": "r8g.12xlarge",
         "memory": 393216,
-        "min_rate": "635865416666666"
+        "min_rate": 635865416
       },
       {
         "arch": "arm64",
         "cpu": 64,
         "instance": "r8g.16xlarge",
         "memory": 524288,
-        "min_rate": "847822500000000"
+        "min_rate": 847822500
       },
       {
         "arch": "arm64",
         "cpu": 96,
         "instance": "r8g.24xlarge",
         "memory": 786432,
-        "min_rate": "1271730833333333"
+        "min_rate": 1271730833
       },
       {
         "arch": "arm64",
         "cpu": 192,
         "instance": "r8g.48xlarge",
         "memory": 1572864,
-        "min_rate": "2312240000000000"
+        "min_rate": 2312240000
       }
     ],
     "region": "ap-south-1"

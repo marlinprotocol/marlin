@@ -206,6 +206,11 @@ regions.forEach((region, ridx) => {
         keyName: keypair.keyName,
         // control plane sg for the default eni
         securityGroups: [sgs[region].limiterControl.id],
+        rootBlockDevice: {
+            volumeSize: 12,
+            volumeType: "gp3",
+            deleteOnTermination: true,
+        },
         tags: { ...tags, ...{ type: "limiter", Name: `${tags.project}-limiter` } },
     }, {
         provider: providers[region],

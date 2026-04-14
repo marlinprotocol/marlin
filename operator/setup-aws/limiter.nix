@@ -130,11 +130,9 @@
           };
           routingPolicyRules = [
             {
-              routingPolicyRuleConfig = {
-                IncomingInterface = "ens6";
-                Table = 100;
-                Priority = 1000;
-              };
+              IncomingInterface = "ens6";
+              Table = 100;
+              Priority = 1000;
             }
           ];
         };
