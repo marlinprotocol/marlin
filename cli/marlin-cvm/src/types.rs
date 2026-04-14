@@ -24,32 +24,3 @@ impl ValueEnum for Platform {
         Some(self.as_str().into())
     }
 }
-
-#[derive(Debug)]
-pub enum Dependency {
-    Docker,
-    Nix,
-}
-
-impl Dependency {
-    pub fn command(&self) -> &'static str {
-        match self {
-            Dependency::Docker => "docker",
-            Dependency::Nix => "nix",
-        }
-    }
-
-    pub fn name(&self) -> &'static str {
-        match self {
-            Dependency::Docker => "Docker",
-            Dependency::Nix => "Nix",
-        }
-    }
-
-    pub fn install_url(&self) -> &'static str {
-        match self {
-            Dependency::Docker => "https://docs.docker.com/engine/install/",
-            Dependency::Nix => "https://github.com/DeterminateSystems/nix-installer",
-        }
-    }
-}
