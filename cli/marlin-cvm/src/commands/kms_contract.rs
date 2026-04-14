@@ -9,7 +9,7 @@ use anyhow::{Context, Result, anyhow};
 use clap::{Args, Parser, Subcommand};
 use tracing::info;
 
-use crate::{args::wallet::WalletArgs, configs::arb::ARBITRUM_ONE_RPC_URL};
+use crate::{args::wallet::WalletArgs, configs::arb::RPC_URL};
 
 // Codegen from artifact.
 sol!(
@@ -154,11 +154,8 @@ async fn kms_contract_revoke(args: KmsActionArgs) -> Result<()> {
 
 async fn kms_contract_verify(args: KmsVerifyArgs) -> Result<()> {
     // get the provider
-    let provider = ProviderBuilder::new().connect_http(
-        ARBITRUM_ONE_RPC_URL
-            .parse()
-            .context("Failed to parse RPC URL")?,
-    );
+    let provider =
+        ProviderBuilder::new().connect_http(RPC_URL.parse().context("Failed to parse RPC URL")?);
     // create contract object
     let contract = KmsVerifiable::new(args.contract_address.parse::<Address>()?, provider.clone());
 
@@ -187,11 +184,9 @@ async fn create_arb_provider(
         .context("Failed to create signer from private key")?;
     let wallet = EthereumWallet::from(signer);
 
-    let provider = ProviderBuilder::new().wallet(wallet).connect_http(
-        ARBITRUM_ONE_RPC_URL
-            .parse()
-            .context("Failed to parse RPC URL")?,
-    );
+    let provider = ProviderBuilder::new()
+        .wallet(wallet)
+        .connect_http(RPC_URL.parse().context("Failed to parse RPC URL")?);
 
     Ok(provider)
 }

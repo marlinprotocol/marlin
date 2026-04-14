@@ -1,7 +1,7 @@
 use clap::{ValueEnum, builder::PossibleValue};
 
 use crate::{
-    configs::arb::{ARBITRUM_ONE_RPC_URL, OYSTER_MARKET_ADDRESS, USDC_ADDRESS},
+    configs::arb::{MARKET_ADDRESS, RPC_URL, USDC_ADDRESS},
     deployment::{adapter::DeploymentAdapter, evm::EvmAdapter},
 };
 
@@ -37,8 +37,8 @@ pub fn get_deployment_adapter(
 ) -> Box<dyn DeploymentAdapter> {
     match deployment {
         Deployment::Arb => Box::new(EvmAdapter {
-            rpc_url: rpc_url.unwrap_or(ARBITRUM_ONE_RPC_URL.to_owned()),
-            market_address: OYSTER_MARKET_ADDRESS.to_owned(),
+            rpc_url: rpc_url.unwrap_or(RPC_URL.to_owned()),
+            market_address: MARKET_ADDRESS.to_owned(),
             usdc_address: USDC_ADDRESS.to_owned(),
             sender_address: None,
         }),
