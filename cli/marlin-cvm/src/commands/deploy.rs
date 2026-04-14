@@ -12,7 +12,6 @@ use crate::{
     },
 };
 
-use alloy::primitives::U256;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use reqwest::Client;
@@ -206,7 +205,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     );
     info!(
         "Total rate: {:.6} USDC/hour",
-        (total_rate.to::<u128>() * 3600) as f64 / 1e18
+        total_rate as f64 * 3600f64 / 1e18
     );
 
     let image_url = args
@@ -340,10 +339,8 @@ fn find_minimum_rate_instance(
         .iter()
         .filter(|rate| rate.instance == instance)
         .min_by(|a, b| {
-            let a_rate =
-                U256::from_str_radix(a.min_rate.trim_start_matches("0x"), 16).unwrap_or(U256::MAX);
-            let b_rate =
-                U256::from_str_radix(b.min_rate.trim_start_matches("0x"), 16).unwrap_or(U256::MAX);
+            let a_rate = u64::from_str_radix(&a.min_rate, 10).unwrap_or(u64::MAX);
+            let b_rate = u64::from_str_radix(&b.min_rate, 10).unwrap_or(u64::MAX);
             a_rate.cmp(&b_rate)
         })
         .cloned()
@@ -364,31 +361,28 @@ async fn calculate_total_cost(
     cp_url: &str,
     extra_decimals: u32,
 ) -> Result<(u64, u64)> {
-    let instance_secondly_rate_usdc =
-        U256::from_str_radix(instance_rate.min_rate.trim_start_matches("0x"), 16)?;
+    let instance_secondly_rate_usdc = u64::from_str_radix(&instance_rate.min_rate, 10)?;
 
-    let instance_cost_scaled = U256::from(duration)
+    let instance_cost_scaled = u64::from(duration)
         .checked_mul(instance_secondly_rate_usdc)
         .context("Failed to multiply duration and instance rate")?;
 
     let bandwidth_rate_region = get_bandwidth_rate_for_region(region, cp_url).await?;
-    let bandwidth_cost_scaled = U256::from(
-        calculate_bandwidth_cost(
-            &bandwidth.to_string(),
-            "KBps",
-            bandwidth_rate_region,
-            duration,
-        )
-        .context("Failed to calculate bandwidth cost")?,
-    );
+    let bandwidth_cost_scaled = calculate_bandwidth_cost(
+        &bandwidth.to_string(),
+        "KBps",
+        bandwidth_rate_region,
+        duration,
+    )
+    .context("Failed to calculate bandwidth cost")?;
 
     let bandwidth_rate_scaled = bandwidth_cost_scaled
-        .checked_div(U256::from(duration))
+        .checked_div(u64::from(duration))
         .context("Failed to divide bandwidth cost by duration")?;
     let total_cost_scaled = (instance_cost_scaled
         .checked_add(bandwidth_cost_scaled)
         .context("Failed to add instance and bandwidth costs")?
-        .checked_div(U256::from(10).pow(U256::from(extra_decimals))))
+        .checked_div(10u64.pow(extra_decimals)))
     .context("Failed to divide total cost by 1e12")?;
     let total_rate_scaled = instance_secondly_rate_usdc
         .checked_add(bandwidth_rate_scaled)
