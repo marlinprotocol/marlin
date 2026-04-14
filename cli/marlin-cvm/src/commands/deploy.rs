@@ -362,8 +362,8 @@ async fn calculate_total_cost(
     bandwidth: u32,
     region: &str,
     cp_url: &str,
-    extra_decimals: i64,
-) -> Result<(U256, U256)> {
+    extra_decimals: u32,
+) -> Result<(u64, u64)> {
     let instance_secondly_rate_usdc =
         U256::from_str_radix(instance_rate.min_rate.trim_start_matches("0x"), 16)?;
 

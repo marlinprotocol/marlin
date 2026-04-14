@@ -131,13 +131,13 @@ impl DeploymentAdapter for EvmAdapter {
             metadata: job.metadata,
             balance: job.balance,
             rate: job.rate,
-            last_settled: job.lastSettled.saturating_to::<i64>(),
+            last_settled: job.lastSettled,
         }))
     }
 
     async fn prepare_funds(
         &self,
-        amount_usdc: U256,
+        amount_usdc: u64,
         provider: &ChainProvider,
     ) -> Result<ChainFunds> {
         let ChainProvider::Evm(provider) = provider else {
@@ -172,7 +172,7 @@ impl DeploymentAdapter for EvmAdapter {
                 current_allowance, amount_usdc
             );
             let tx_hash = usdc
-                .approve(market_address, amount_usdc)
+                .approve(market_address, U256::from(amount_usdc))
                 .send()
                 .await
                 .context("Failed to send USDC approval transaction")?
@@ -277,8 +277,8 @@ impl DeploymentAdapter for EvmAdapter {
             JobTransactionKind::Deposit { job_id, amount } => market
                 .jobDeposit(job_id.parse().context("Failed to parse job ID")?, amount)
                 .into_transaction_request(),
-            JobTransactionKind::ReviseRateInitiate { job_id, rate } => market
-                .jobReviseRateInitiate(job_id.parse().context("Failed to parse job ID")?, rate)
+            JobTransactionKind::ReviseRate { job_id, rate } => market
+                .jobReviseRate(job_id.parse().context("Failed to parse job ID")?, rate)
                 .into_transaction_request(),
             JobTransactionKind::Close { job_id } => market
                 .jobClose(job_id.parse().context("Failed to parse job ID")?)

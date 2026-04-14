@@ -3,7 +3,6 @@ use crate::configs::global::{EXTRA_DECIMALS, MIN_WITHDRAW_AMOUNT};
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
-use alloy::primitives::U256;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -76,18 +75,15 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     };
 
     // Check if balance is zero
-    if job_data.balance == U256::ZERO {
+    if job_data.balance == 0 {
         return Err(anyhow!("Cannot withdraw: job balance is 0 USDC"));
     }
 
     // Scale down rate by extra_decimals
-    let scaled_rate = job_data
-        .rate
-        .checked_div(U256::from(10).pow(U256::from(EXTRA_DECIMALS)))
-        .ok_or_else(|| anyhow!("Failed to scale rate"))?;
+    let scaled_rate = job_data.rate / 10u64.pow(EXTRA_DECIMALS);
 
     // Calculate required buffer balance (5 minutes worth of rate)
-    let buffer_seconds = U256::from(BUFFER_MINUTES * 60);
+    let buffer_seconds = BUFFER_MINUTES * 60;
     let buffer_balance = scaled_rate
         .checked_mul(buffer_seconds)
         .ok_or_else(|| anyhow!("Failed to calculate buffer balance"))?;
@@ -96,7 +92,7 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     let current_balance =
         calculate_current_balance(job_data.balance, scaled_rate, job_data.last_settled)?;
 
-    if current_balance == U256::ZERO {
+    if current_balance == 0 {
         info!("Cannot withdraw. Job is already expired.");
         return Ok(());
     }
@@ -133,16 +129,15 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
                 MIN_WITHDRAW_AMOUNT
             ));
         }
-        let amount_u256 = U256::from(amount);
-        if amount_u256 > max_withdrawable {
+        if amount > max_withdrawable {
             return Err(anyhow!(
                 "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC (need to maintain {:.6} USDC buffer)",
-                format_usdc(amount_u256, EXTRA_DECIMALS),
+                format_usdc(amount, EXTRA_DECIMALS),
                 format_usdc(max_withdrawable, EXTRA_DECIMALS),
                 format_usdc(buffer_balance, EXTRA_DECIMALS)
             ));
         }
-        amount_u256
+        amount
     };
 
     info!(
@@ -170,28 +165,25 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 }
 
 /// Calculate the current balance after accounting for time elapsed since last settlement
-fn calculate_current_balance(balance: U256, rate: U256, last_settled: i64) -> Result<U256> {
+fn calculate_current_balance(balance: u64, rate: u64, last_settled: u64) -> Result<u64> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .context("Failed to get current time")?
         .as_secs();
 
-    let last_settled_secs =
-        u64::try_from(last_settled).map_err(|_| anyhow!("Last settled time is negative"))?;
-
-    if last_settled_secs > now {
+    if last_settled > now {
         return Err(anyhow!("Last settled time is in the future"));
     }
 
-    let elapsed_seconds = now.saturating_sub(last_settled_secs);
+    let elapsed_seconds = now.saturating_sub(last_settled);
     debug!(
         "Time calculation: now={}, last_settled={}, elapsed_seconds={}",
-        now, last_settled_secs, elapsed_seconds
+        now, last_settled, elapsed_seconds
     );
 
     // Calculate amount used since last settlement
     let amount_used = rate
-        .checked_mul(U256::from(elapsed_seconds))
+        .checked_mul(elapsed_seconds)
         .ok_or_else(|| anyhow!("Failed to calculate amount used"))?;
 
     debug!(
@@ -205,7 +197,7 @@ fn calculate_current_balance(balance: U256, rate: U256, last_settled: i64) -> Re
             "Usage ({}) exceeds balance ({}), returning 0",
             amount_used, balance
         );
-        return Ok(U256::ZERO);
+        return Ok(0);
     }
 
     // Calculate and return current balance after deducting used amount

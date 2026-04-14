@@ -1,7 +1,6 @@
 use crate::args::wallet::WalletArgs;
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
-use alloy::primitives::U256;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use std::time::Duration;
@@ -67,9 +66,8 @@ pub async fn stop_oyster_instance(args: StopArgs) -> Result<()> {
     info!("Found job, initiating rate update to 0...");
     let job_revise_rate_transaction = deployment_adapter
         .create_job_transaction(
-            JobTransactionKind::ReviseRateInitiate {
+            JobTransactionKind::Close {
                 job_id: job_id.clone(),
-                rate: U256::from(0),
             },
             None,
             &provider,

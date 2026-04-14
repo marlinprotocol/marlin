@@ -3,7 +3,6 @@ use crate::configs::global::{EXTRA_DECIMALS, MIN_DEPOSIT_AMOUNT};
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
-use alloy::primitives::U256;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use tracing::info;
@@ -58,9 +57,6 @@ pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {
         ));
     }
 
-    // Convert amount to U256 with 6 decimals (USDC has 6 decimals)
-    let amount_u256 = U256::from(amount);
-
     let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
 
     // Setup provider
@@ -79,20 +75,15 @@ pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {
 
     info!(
         "Depositing: {:.6} USDC",
-        format_usdc(amount_u256, EXTRA_DECIMALS)
+        format_usdc(amount, EXTRA_DECIMALS)
     );
 
     // First approve USDC transfer
-    let funds = deployment_adapter
-        .prepare_funds(amount_u256, &provider)
-        .await?;
+    let funds = deployment_adapter.prepare_funds(amount, &provider).await?;
 
     let job_deposit_transaction = deployment_adapter
         .create_job_transaction(
-            JobTransactionKind::Deposit {
-                job_id,
-                amount: amount_u256,
-            },
+            JobTransactionKind::Deposit { job_id, amount },
             Some(funds),
             &provider,
         )

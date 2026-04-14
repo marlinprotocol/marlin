@@ -1,4 +1,4 @@
-use alloy::{primitives::U256, rpc::types::TransactionRequest};
+use alloy::rpc::types::TransactionRequest;
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -22,9 +22,9 @@ pub enum ChainFunds {
 #[derive(Debug, Clone)]
 pub struct JobData {
     pub metadata: String,
-    pub balance: U256,
-    pub rate: U256,
-    pub last_settled: i64,
+    pub balance: u64,
+    pub rate: u64,
+    pub last_settled: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -32,16 +32,16 @@ pub enum JobTransactionKind {
     Create {
         metadata: String,
         operator: String,
-        rate: U256,
-        balance: U256,
+        rate: u64,
+        balance: u64,
     },
     Deposit {
         job_id: String,
-        amount: U256,
+        amount: u64,
     },
-    ReviseRateInitiate {
+    ReviseRate {
         job_id: String,
-        rate: U256,
+        rate: u64,
     },
     Close {
         job_id: String,
@@ -52,7 +52,7 @@ pub enum JobTransactionKind {
     },
     Withdraw {
         job_id: String,
-        amount: U256,
+        amount: u64,
     },
 }
 
@@ -70,11 +70,8 @@ pub trait DeploymentAdapter: Send + Sync {
         provider: &ChainProvider,
     ) -> Result<Option<JobData>>;
 
-    async fn prepare_funds(
-        &self,
-        amount_usdc: U256,
-        provider: &ChainProvider,
-    ) -> Result<ChainFunds>;
+    async fn prepare_funds(&self, amount_usdc: u64, provider: &ChainProvider)
+    -> Result<ChainFunds>;
     async fn create_job_transaction(
         &self,
         kind: JobTransactionKind,
