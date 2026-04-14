@@ -64,10 +64,16 @@ impl PcrArgs {
         Ok(None)
     }
 
-    pub fn load_required(self, default_preset: Option<String>) -> Result<[Option<[u8; 48]>; 12]> {
+    pub fn load_required(self, default_preset: Option<String>) -> Result<[[u8; 48]; 12]> {
         self.load(default_preset)
-            .transpose()
-            .ok_or(anyhow!("Pcrs parameter is required."))?
+            .context("Failed to get pcrs")?
+            .ok_or(anyhow!("Pcrs are required"))?
+            .into_iter()
+            .filter_map(|x| x)
+            .collect::<Box<_>>()
+            .as_ref()
+            .try_into()
+            .map_err(|_| anyhow!("All 12 pcrs are required"))
     }
 }
 
