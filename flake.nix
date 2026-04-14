@@ -128,24 +128,30 @@
       "x86_64-linux" = nixpkgs.legacyPackages."x86_64-linux".alejandra;
       "aarch64-linux" = nixpkgs.legacyPackages."aarch64-linux".alejandra;
     };
-    legacyPackages = {
-      "x86_64-linux" = systemBuilder {
-        system = "x86_64-linux";
-        efi_arch = "x64";
-        repart_arch = "x86-64";
-      } // serverBuilder {
-        system = "x86_64-linux";
-        rust_target = "x86_64-unknown-linux-musl";
-      };
-      "aarch64-linux" = systemBuilder {
-        system = "aarch64-linux";
-        efi_arch = "aa64";
-        repart_arch = "arm64";
-      } // serverBuilder {
-        system = "aarch64-linux";
-        rust_target = "aarch64-unknown-linux-musl";
-      };
-    };
+    legacyPackages = nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate {} [
+      {
+        "x86_64-linux" = systemBuilder {
+          system = "x86_64-linux";
+          efi_arch = "x64";
+          repart_arch = "x86-64";
+        };
+        "aarch64-linux" = systemBuilder {
+          system = "aarch64-linux";
+          efi_arch = "aa64";
+          repart_arch = "arm64";
+        };
+      }
+      {
+        "x86_64-linux" = serverBuilder {
+          system = "x86_64-linux";
+          rust_target = "x86_64-unknown-linux-musl";
+        };
+        "aarch64-linux" = serverBuilder {
+          system = "aarch64-linux";
+          rust_target = "aarch64-unknown-linux-musl";
+        };
+      }
+    ];
     # check if all derivations are valid
     # does NOT check if everything builds properly, too expensive
     # just preliminiary evaluation stage checks
