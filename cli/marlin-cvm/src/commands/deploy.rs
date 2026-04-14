@@ -54,9 +54,9 @@ pub struct DeployArgs {
     #[arg(long)]
     operator: Option<String>,
 
-    /// URL of the enclave image
+    /// AMI id of the enclave image
     #[arg(long)]
-    image_url: Option<String>,
+    image: Option<String>,
 
     /// Region for deployment
     #[arg(long, default_value = "ap-south-1")]
@@ -199,8 +199,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         total_rate as f64 * 3600f64 / 1e18
     );
 
-    let image_url = args
-        .image_url
+    let image = args
+        .image
         .map(Result::Ok)
         .unwrap_or(match args.preset.as_str() {
             "blue" => match args.arch {
@@ -213,16 +213,14 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
                         .into(),
                 ),
             },
-            _ => Err(anyhow!("Image URL is required")),
+            _ => Err(anyhow!("Image is required")),
         })?;
 
     // Create metadata
     let metadata = create_metadata(
         &selected_instance.instance,
         &args.region,
-        selected_instance.memory,
-        selected_instance.cpu,
-        &image_url,
+        &image,
         &args.job_name,
         &args
             .init_params
@@ -373,20 +371,15 @@ async fn calculate_total_cost(
 fn create_metadata(
     instance: &str,
     region: &str,
-    memory: u32,
-    vcpu: u32,
-    url: &str,
+    image: &str,
     name: &str,
     init_params: &str,
 ) -> String {
     serde_json::json!({
         "instance": instance,
         "region": region,
-        "memory": memory,
-        "vcpu": vcpu,
-        "url": url,
+        "image": image,
         "name": name,
-        "family": "tuna",
         "init_params": init_params,
     })
     .to_string()
