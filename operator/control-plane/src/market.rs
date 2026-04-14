@@ -70,6 +70,13 @@ pub async fn main_task(
             continue;
         };
 
+        // throttle the loop
+        if events.len() == 0 {
+            info!("No new events, sleeping for a bit");
+            sleep(Duration::from_secs(2)).await;
+            continue;
+        }
+
         for event in events {
             // create job task on open
             if event.event_name == JobEventName::Opened {
