@@ -8,7 +8,7 @@
 #include <linux/ip.h>
 
 #define NUM_ENTRIES 65536
-#define MAX_CAPACITY 1000000000000ULL // 1 TB
+#define MAX_CAPACITY (1ULL << 40) // 1 TiB
 
 struct rate_config {
   __u64 rate;      // tokens (bytes) per 2^30 ns
