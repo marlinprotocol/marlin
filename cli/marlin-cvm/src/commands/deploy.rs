@@ -40,7 +40,7 @@ pub struct DeployArgs {
     preset: String,
 
     /// Platform architecture (e.g. amd64, arm64)
-    #[arg(long, default_value = "arm64")]
+    #[arg(long)]
     arch: Platform,
 
     #[command(flatten)]
