@@ -212,8 +212,7 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
 
                 Some(RateCard {
                     instance: instance_type.into(),
-                    min_rate: (price * (100 + premium as u128) * 10u128.pow(12) / 360000)
-                        .to_string(),
+                    min_rate: (price * (100 + premium as u128) * 10u128.pow(6) / 360000).try_into().unwrap(),
                     cpu: v["product"]["attributes"]["vcpu"]
                         .as_str()
                         .unwrap()
@@ -256,7 +255,7 @@ async fn run_region((region, profile, premium): (String, &String, usize)) -> Vec
 #[derive(Serialize, Debug)]
 struct RateCard {
     instance: String,
-    min_rate: String,
+    min_rate: u64,
     cpu: usize,
     memory: usize,
     arch: String,
