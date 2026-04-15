@@ -232,6 +232,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         .prepare_funds(total_cost, &provider)
         .await?;
 
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
     let job_create_transaction = deployment_adapter
         .create_job_transaction(
             JobTransactionKind::Create {
