@@ -250,7 +250,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         .send_transaction(true, job_create_transaction, &provider)
         .await?
         .ok_or(anyhow!("Failed to get the Job ID"))?;
-    info!("Job created with ID: {:?}", job_id);
+    info!("Job created with ID: {}", job_id);
 
     info!("Waiting for 3 minutes for enclave to start...");
     tokio::time::sleep(Duration::from_secs(180)).await;
@@ -379,7 +379,7 @@ fn create_metadata(
     .to_string()
 }
 
-async fn wait_for_ip_address(url: &str, job_id: String, region: &str) -> Result<String> {
+async fn wait_for_ip_address(url: &str, job_id: u64, region: &str) -> Result<String> {
     let client = reqwest::Client::new();
     let mut last_response = String::new();
 

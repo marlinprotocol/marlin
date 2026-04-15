@@ -83,7 +83,7 @@ pub trait DeploymentAdapter: Send + Sync {
         is_create_job: bool,
         transaction: ChainTransaction,
         provider: &ChainProvider,
-    ) -> Result<Option<String>>;
+    ) -> Result<Option<u64>>;
 
     fn get_sender_address(&self) -> String;
 }

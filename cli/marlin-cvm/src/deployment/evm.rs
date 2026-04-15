@@ -196,7 +196,7 @@ impl DeploymentAdapter for EvmAdapter {
         is_create_job: bool,
         transaction: ChainTransaction,
         provider: &ChainProvider,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<u64>> {
         let ChainProvider::Evm(provider) = provider else {
             return Err(anyhow!("Internal error"));
         };
@@ -231,7 +231,10 @@ impl DeploymentAdapter for EvmAdapter {
             for log in receipt.inner.logs().iter() {
                 if log.topics()[0] == job_opened_topic {
                     info!("Found JobOpened event");
-                    return Ok(Some(log.topics()[1].0.encode_hex_with_prefix()));
+                    return Ok(Some(u64::from_be_bytes(
+                        // SAFETY: slice is the correct size
+                        log.topics()[1].0[24..32].try_into().unwrap(),
+                    )));
                 }
             }
 
