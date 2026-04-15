@@ -42,11 +42,10 @@ pub async fn get_bandwidth_rate_for_region(region_code: &str, cp_url: &str) -> R
     Err(anyhow::anyhow!("Region not found or parsing failed"))
 }
 
-pub fn calculate_bandwidth_cost(
-    bandwidth: &str,
+pub fn calculate_bandwidth_rate(
+    bandwidth: u64,
     bandwidth_unit: &str,
     bandwidth_rate_for_region_scaled: u64,
-    duration: u64,
 ) -> Result<u64> {
     let unit_conversion_divisor = OYSTER_BANDWIDTH_UNITS_LIST
         .iter()
@@ -54,15 +53,9 @@ pub fn calculate_bandwidth_cost(
         .map(|unit| unit.value)
         .context("Failed to find bandwidth unit")?;
 
-    let bandwidth_u64 = bandwidth
-        .parse::<u64>()
-        .context("Failed to parse bandwidth as u64")?;
-
-    (bandwidth_u64)
+    (bandwidth)
         .checked_mul(bandwidth_rate_for_region_scaled)
         .context("Failed to multiply bandwidth and bandwidth rate")?
-        .checked_mul(u64::from(duration))
-        .context("Failed to multiply duration and bandwidth rate")?
         .checked_add(unit_conversion_divisor - 1)
         .context("Failed to add unit conversion divisor minus one")?
         .checked_div(unit_conversion_divisor)

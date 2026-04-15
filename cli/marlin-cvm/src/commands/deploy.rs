@@ -9,7 +9,7 @@ use crate::{
     deployment::{Deployment, adapter::JobTransactionKind, get_deployment_adapter},
     types::Platform,
     utils::{
-        bandwidth::{calculate_bandwidth_cost, get_bandwidth_rate_for_region},
+        bandwidth::{calculate_bandwidth_rate, get_bandwidth_rate_for_region},
         format_rate, format_usdc,
     },
 };
@@ -336,34 +336,30 @@ async fn calculate_total_cost(
     cp_url: &str,
     extra_decimals: u32,
 ) -> Result<(u64, u64)> {
-    let instance_secondly_rate_usdc = instance_rate.min_rate;
-
-    let instance_cost_scaled = u64::from(duration)
-        .checked_mul(instance_secondly_rate_usdc)
+    let compute_rate = instance_rate.min_rate;
+    let compute_cost = u64::from(duration)
+        .checked_mul(compute_rate)
         .context("Failed to multiply duration and instance rate")?;
 
     let bandwidth_rate_region = get_bandwidth_rate_for_region(region, cp_url).await?;
-    let bandwidth_cost_scaled = calculate_bandwidth_cost(
-        &bandwidth.to_string(),
-        "KBps",
-        bandwidth_rate_region,
-        duration,
-    )
-    .context("Failed to calculate bandwidth cost")?;
+    let bandwidth_rate = calculate_bandwidth_rate(bandwidth.into(), "KBps", bandwidth_rate_region)
+        .context("Failed to calculate bandwidth cost")?;
+    let bandwidth_cost = u64::from(duration)
+        .checked_mul(bandwidth_rate)
+        .context("Failed to multiply duration and bandwidth rate")?;
 
-    let bandwidth_rate_scaled = bandwidth_cost_scaled
-        .checked_div(u64::from(duration))
-        .context("Failed to divide bandwidth cost by duration")?;
-    let total_cost_scaled = (instance_cost_scaled
-        .checked_add(bandwidth_cost_scaled)
+    let total_cost = (compute_cost)
+        .checked_add(bandwidth_cost)
         .context("Failed to add instance and bandwidth costs")?
-        .checked_div(10u64.pow(extra_decimals)))
-    .context("Failed to divide total cost by 1e12")?;
-    let total_rate_scaled = instance_secondly_rate_usdc
-        .checked_add(bandwidth_rate_scaled)
+        .checked_add(10u64.pow(extra_decimals) - 1)
+        .context("Failed to add 10 pow extra - 1")?
+        .checked_div(10u64.pow(extra_decimals))
+        .context("Failed to divide total cost by 1e12")?;
+    let total_rate = compute_rate
+        .checked_add(bandwidth_rate)
         .context("Failed to add instance and bandwidth rates")?;
 
-    Ok((total_cost_scaled, total_rate_scaled))
+    Ok((total_cost, total_rate))
 }
 
 fn create_metadata(
