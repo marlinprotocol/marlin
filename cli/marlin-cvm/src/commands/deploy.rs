@@ -7,7 +7,7 @@ use crate::{
     types::Platform,
     utils::{
         bandwidth::{calculate_bandwidth_cost, get_bandwidth_rate_for_region},
-        format_usdc,
+        format_rate, format_usdc,
     },
 };
 
@@ -191,10 +191,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     .await?;
 
     info!("Total cost: {:.6} USDC", format_usdc(total_cost));
-    info!(
-        "Total rate: {:.6} USDC/hour",
-        total_rate as f64 * 3600f64 / 1e12
-    );
+    info!("Total rate: {:.6} USDC/hour", format_rate(total_rate));
 
     let image = args
         .image
