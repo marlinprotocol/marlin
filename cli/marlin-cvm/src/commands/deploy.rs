@@ -190,10 +190,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     )
     .await?;
 
-    info!(
-        "Total cost: {:.6} USDC",
-        format_usdc(total_cost, EXTRA_DECIMALS)
-    );
+    info!("Total cost: {:.6} USDC", format_usdc(total_cost));
     info!(
         "Total rate: {:.6} USDC/hour",
         total_rate as f64 * 3600f64 / 1e12

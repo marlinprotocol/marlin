@@ -1,5 +1,5 @@
 use crate::args::wallet::WalletArgs;
-use crate::configs::global::{EXTRA_DECIMALS, MIN_DEPOSIT_AMOUNT};
+use crate::configs::global::MIN_DEPOSIT_AMOUNT;
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
@@ -73,10 +73,7 @@ pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {
         return Err(anyhow!("Job {} does not exist", job_id));
     }
 
-    info!(
-        "Depositing: {:.6} USDC",
-        format_usdc(amount, EXTRA_DECIMALS)
-    );
+    info!("Depositing: {:.6} USDC", format_usdc(amount));
 
     // First approve USDC transfer
     let funds = deployment_adapter.prepare_funds(amount, &provider).await?;

@@ -99,8 +99,8 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!(
         "Current balance: {:.6} USDC, Required buffer: {:.6} USDC",
-        format_usdc(current_balance, EXTRA_DECIMALS),
-        format_usdc(buffer_balance, EXTRA_DECIMALS)
+        format_usdc(current_balance),
+        format_usdc(buffer_balance)
     );
 
     // Calculate maximum withdrawable amount (in USDC with 6 decimals)
@@ -111,8 +111,8 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     } else {
         return Err(anyhow!(
             "Cannot withdraw: current balance ({:.6} USDC) is less than required buffer ({:.6} USDC)",
-            format_usdc(current_balance, EXTRA_DECIMALS),
-            format_usdc(buffer_balance, EXTRA_DECIMALS)
+            format_usdc(current_balance),
+            format_usdc(buffer_balance)
         ));
     };
 
@@ -132,9 +132,9 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
         if amount > max_withdrawable {
             return Err(anyhow!(
                 "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC (need to maintain {:.6} USDC buffer)",
-                format_usdc(amount, EXTRA_DECIMALS),
-                format_usdc(max_withdrawable, EXTRA_DECIMALS),
-                format_usdc(buffer_balance, EXTRA_DECIMALS)
+                format_usdc(amount),
+                format_usdc(max_withdrawable),
+                format_usdc(buffer_balance)
             ));
         }
         amount
@@ -142,7 +142,7 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!(
         "Initiating withdrawal of {:.6} USDC",
-        format_usdc(amount_u256, EXTRA_DECIMALS)
+        format_usdc(amount_u256)
     );
 
     // Call jobWithdraw function with amount in USDC
