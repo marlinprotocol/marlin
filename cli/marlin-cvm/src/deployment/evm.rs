@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy::{
     hex::ToHexExt,
     network::EthereumWallet,
-    primitives::{Address, FixedBytes, U256, keccak256},
+    primitives::{Address, FixedBytes, U256},
     providers::{
         Provider, ProviderBuilder, RootProvider, WalletProvider,
         fillers::{
@@ -13,6 +13,7 @@ use alloy::{
     },
     signers::local::PrivateKeySigner,
     sol,
+    sol_types::SolEvent,
 };
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
@@ -224,9 +225,7 @@ impl DeploymentAdapter for EvmAdapter {
 
         if is_create_job {
             // Calculate event signature hash
-            let job_opened_signature =
-                "JobOpened(bytes32,string,address,address,uint256,uint256,uint256)";
-            let job_opened_topic = keccak256(job_opened_signature.as_bytes());
+            let job_opened_topic = Market::MarketJobOpened::SIGNATURE_HASH;
 
             // Look for JobOpened event
             for log in receipt.inner.logs().iter() {
