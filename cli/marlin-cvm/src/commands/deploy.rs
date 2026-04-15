@@ -196,7 +196,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     );
     info!(
         "Total rate: {:.6} USDC/hour",
-        total_rate as f64 * 3600f64 / 1e18
+        total_rate as f64 * 3600f64 / 1e12
     );
 
     let image = args
