@@ -330,7 +330,7 @@ impl<'a> JobState<'a> {
             allowed_regions,
             balance: 5,
             last_settled: context.now_timestamp(),
-            rate: 1,
+            rate: 10u64.pow(EXTRA_DECIMALS),
             min_rate: u64::MAX,
             bandwidth: 0,
             image: String::new(),
