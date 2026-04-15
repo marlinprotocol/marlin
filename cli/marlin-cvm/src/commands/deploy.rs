@@ -252,8 +252,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         .ok_or(anyhow!("Failed to get the Job ID"))?;
     info!("Job created with ID: {}", job_id);
 
-    info!("Waiting for 3 minutes for enclave to start...");
-    tokio::time::sleep(Duration::from_secs(180)).await;
+    info!("Waiting for 20 seconds for enclave to start...");
+    tokio::time::sleep(Duration::from_secs(20)).await;
 
     let ip_address = wait_for_ip_address(&cp_url, job_id, &args.region).await?;
     info!("IP address obtained: {}", ip_address);
