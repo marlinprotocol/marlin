@@ -49,23 +49,11 @@ in rec {
         Type = "oneshot";
         RemainAfterExit = true;
 
-        # The script logic:
-        # 1. Get the line describing the route to 1.1.1.1
-        # 2. Extract the word after "dev"
-        # 3. Run ethtool on that interface
         ExecStart = pkgs.writeShellScript "set-ethtool-combined" ''
-          # Find the interface name (e.g., ens5, eth0)
-          IFACE=$(${pkgs.iproute2}/bin/ip -o route get 1.1.1.1 | ${pkgs.gnused}/bin/sed -n 's/.*dev \([^ ]*\).*/\1/p')
-
-          if [ -z "$IFACE" ]; then
-            echo "Could not determine default interface. Skipping ethtool optimization."
-            exit 0
-          fi
-
-          echo "Detected primary interface: $IFACE"
+          echo "Setting up ebpf program on ens6"
 
           # Apply the setting
-          ${pkgs.ethtool}/bin/ethtool -L "$IFACE" combined 1
+          ${pkgs.ethtool}/bin/ethtool -L ens6 combined 1
         '';
       };
     };
@@ -82,7 +70,7 @@ in rec {
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = pkgs.writeShellScript "load-ebpf" ''
-          ${pkgs.iproute2}/bin/ip link set dev $(${pkgs.iproute2}/bin/ip route get 1.1.1.1 | grep -oP '(?<=dev )[^ ]+') xdp obj ${default} sec xdp
+          ${pkgs.iproute2}/bin/ip link set dev ens6 xdp obj ${default} sec xdp
         '';
       };
     };
