@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use crate::{
     args::{init_params::InitParamsArgs, wallet::WalletArgs},
-    configs::{self, global::EXTRA_DECIMALS},
+    configs::{
+        self,
+        global::{EXTRA_DECIMALS, NOTICE_PERIOD},
+    },
     deployment::{Deployment, adapter::JobTransactionKind, get_deployment_adapter},
     types::Platform,
     utils::{
@@ -179,7 +182,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
 
     // Calculate costs
     // SAFETY: will be some value if simulation is not opted
-    let duration_seconds = (args.duration_in_minutes.unwrap() as u64) * 60;
+    let duration_seconds = (args.duration_in_minutes.unwrap() as u64) * 60 + NOTICE_PERIOD;
+    info!("Adding {NOTICE_PERIOD} seconds to the duration to pay for the notice period.");
     let (total_cost, total_rate) = calculate_total_cost(
         &selected_instance,
         duration_seconds,

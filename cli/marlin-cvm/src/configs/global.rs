@@ -9,3 +9,4 @@ pub const MIN_DEPOSIT_AMOUNT: u64 = 1; // Minimum 0.000001 USDC
 pub const MIN_WITHDRAW_AMOUNT: u64 = 1; // Minimum 0.000001 USDC
 
 pub const EXTRA_DECIMALS: u32 = 6;
+pub const NOTICE_PERIOD: u64 = 120;
