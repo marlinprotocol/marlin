@@ -106,7 +106,7 @@ struct RateCard {
 #[derive(Serialize, Deserialize, Clone)]
 struct InstanceRate {
     instance: String,
-    min_rate: String,
+    min_rate: u64,
     cpu: u32,
     memory: u32,
     arch: String,
@@ -316,8 +316,8 @@ fn find_minimum_rate_instance(
         .iter()
         .filter(|rate| rate.instance == instance)
         .min_by(|a, b| {
-            let a_rate = u64::from_str_radix(&a.min_rate, 10).unwrap_or(u64::MAX);
-            let b_rate = u64::from_str_radix(&b.min_rate, 10).unwrap_or(u64::MAX);
+            let a_rate = a.min_rate;
+            let b_rate = b.min_rate;
             a_rate.cmp(&b_rate)
         })
         .cloned()
@@ -338,7 +338,7 @@ async fn calculate_total_cost(
     cp_url: &str,
     extra_decimals: u32,
 ) -> Result<(u64, u64)> {
-    let instance_secondly_rate_usdc = u64::from_str_radix(&instance_rate.min_rate, 10)?;
+    let instance_secondly_rate_usdc = instance_rate.min_rate;
 
     let instance_cost_scaled = u64::from(duration)
         .checked_mul(instance_secondly_rate_usdc)
