@@ -63,6 +63,8 @@ pub fn calculate_bandwidth_cost(
         .context("Failed to multiply bandwidth and bandwidth rate")?
         .checked_mul(u64::from(duration))
         .context("Failed to multiply duration and bandwidth rate")?
+        .checked_add(unit_conversion_divisor - 1)
+        .context("Failed to add unit conversion divisor minus one")?
         .checked_div(unit_conversion_divisor)
         .context("Failed to divide by unit conversion divisor")
 }
