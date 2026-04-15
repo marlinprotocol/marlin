@@ -8,11 +8,11 @@ pub struct BandwidthUnit {
 pub const OYSTER_BANDWIDTH_UNITS_LIST: [BandwidthUnit; 3] = [
     BandwidthUnit {
         id: "KBps",
-        value: 1 << 20,
+        value: 1_000_000,
     },
     BandwidthUnit {
         id: "MBps",
-        value: 1 << 10,
+        value: 1_000,
     },
     BandwidthUnit {
         id: "GBps",
