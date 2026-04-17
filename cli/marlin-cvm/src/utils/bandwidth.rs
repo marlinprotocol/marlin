@@ -1,25 +1,5 @@
 use anyhow::{Context, Result};
 
-pub struct BandwidthUnit {
-    pub id: &'static str,
-    pub value: u64,
-}
-
-pub const OYSTER_BANDWIDTH_UNITS_LIST: [BandwidthUnit; 3] = [
-    BandwidthUnit {
-        id: "KBps",
-        value: 1_000_000,
-    },
-    BandwidthUnit {
-        id: "MBps",
-        value: 1_000,
-    },
-    BandwidthUnit {
-        id: "GBps",
-        value: 1,
-    },
-];
-
 pub async fn get_bandwidth_rate_for_region(region_code: &str, cp_url: &str) -> Result<u64> {
     let client = reqwest::Client::new();
     let response = client.get(format!("{}/bandwidth", cp_url)).send().await?;
@@ -43,15 +23,10 @@ pub async fn get_bandwidth_rate_for_region(region_code: &str, cp_url: &str) -> R
 }
 
 pub fn calculate_bandwidth_rate(
-    bandwidth: u64,
-    bandwidth_unit: &str,
+    bandwidth: u64, // KBps
     bandwidth_rate_for_region_scaled: u64,
 ) -> Result<u64> {
-    let unit_conversion_divisor = OYSTER_BANDWIDTH_UNITS_LIST
-        .iter()
-        .find(|unit| unit.id == bandwidth_unit)
-        .map(|unit| unit.value)
-        .context("Failed to find bandwidth unit")?;
+    let unit_conversion_divisor = 1000_000;
 
     (bandwidth)
         .checked_mul(bandwidth_rate_for_region_scaled)

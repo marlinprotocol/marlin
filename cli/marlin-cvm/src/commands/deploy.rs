@@ -282,7 +282,7 @@ async fn calculate_total_cost(
         .context("Failed to multiply duration and instance rate")?;
 
     let bandwidth_rate_region = get_bandwidth_rate_for_region(region, cp_url).await?;
-    let bandwidth_rate = calculate_bandwidth_rate(bandwidth.into(), "KBps", bandwidth_rate_region)
+    let bandwidth_rate = calculate_bandwidth_rate(bandwidth.into(), bandwidth_rate_region)
         .context("Failed to calculate bandwidth cost")?;
     let bandwidth_cost = u64::from(duration)
         .checked_mul(bandwidth_rate)
