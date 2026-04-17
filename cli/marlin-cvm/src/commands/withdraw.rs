@@ -1,5 +1,5 @@
 use crate::args::wallet::WalletArgs;
-use crate::configs::global::{EXTRA_DECIMALS, MIN_WITHDRAW_AMOUNT};
+use crate::configs::global::EXTRA_DECIMALS;
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
@@ -123,12 +123,6 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     } else {
         let amount =
             amount.ok_or_else(|| anyhow!("Amount must be specified when not using --max"))?;
-        if amount < MIN_WITHDRAW_AMOUNT {
-            return Err(anyhow!(
-                "Amount must be at least {} (0.000001 USDC)",
-                MIN_WITHDRAW_AMOUNT
-            ));
-        }
         if amount > max_withdrawable {
             return Err(anyhow!(
                 "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC (need to maintain {:.6} USDC buffer)",

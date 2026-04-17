@@ -1,5 +1,4 @@
 use crate::args::wallet::WalletArgs;
-use crate::configs::global::MIN_DEPOSIT_AMOUNT;
 use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
@@ -48,14 +47,6 @@ pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {
     let amount = args.amount;
     let wallet_private_key = &args.wallet.load_required()?;
     let job_id = args.job_id;
-
-    // Input validation
-    if amount < MIN_DEPOSIT_AMOUNT {
-        return Err(anyhow!(
-            "Amount must be at least {} (0.000001 USDC)",
-            MIN_DEPOSIT_AMOUNT
-        ));
-    }
 
     let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
 

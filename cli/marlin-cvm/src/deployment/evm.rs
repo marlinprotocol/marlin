@@ -206,12 +206,14 @@ impl DeploymentAdapter for EvmAdapter {
         };
 
         // Create job_open call
+        info!("Sending market transaction...");
         let tx_hash = provider
             .send_transaction(*transaction.clone())
             .await?
+            .inspect(|x| info!("Waiting for a transaction receipt..., {:?}", x))
             .watch()
             .await?;
-        info!("Transaction hash: {:?}", tx_hash);
+        info!("Market transaction: {:?}", tx_hash);
 
         let receipt = provider
             .get_transaction_receipt(tx_hash)
