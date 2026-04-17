@@ -30,4 +30,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"]}
 ureq = "3.3.0"
 
 [patch.crates-io]
-aws-nitro-enclaves-cose = { git = "https://github.com/awslabs/aws-nitro-enclaves-cose", default-features = false, optional = true }
+aws-nitro-enclaves-cose = { git = "https://github.com/awslabs/aws-nitro-enclaves-cose", optional = true }
