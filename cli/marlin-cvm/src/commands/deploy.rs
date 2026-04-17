@@ -21,8 +21,6 @@ use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tracing::info;
 
-use super::simulate::{LOCAL_DEV_IMAGE, SimulateArgs, simulate};
-
 // Retry Configuration
 const IP_CHECK_RETRIES: u32 = 20;
 const IP_CHECK_INTERVAL: u64 = 15;
@@ -74,8 +72,8 @@ pub struct DeployArgs {
     bandwidth: u32,
 
     /// Duration in minutes
-    #[arg(long, required_unless_present = "simulate")]
-    duration_in_minutes: Option<u32>,
+    #[arg(long)]
+    duration_in_minutes: u64,
 
     /// Job name
     #[arg(long, default_value = "")]
@@ -84,14 +82,6 @@ pub struct DeployArgs {
     /// Init params
     #[command(flatten)]
     init_params: InitParamsArgs,
-
-    /// Simulate the enclave locally
-    #[arg(long, conflicts_with = "image")]
-    simulate: bool,
-
-    /// Application ports to expose out of the local oyster simulation
-    #[arg(long, requires = "simulate")]
-    simulate_expose_ports: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -116,17 +106,6 @@ struct InstanceRate {
 }
 
 pub async fn deploy(args: DeployArgs) -> Result<()> {
-    // Start simulation if dry_run flag is opted
-    if args.simulate {
-        if args.preset == "blue" {
-            return start_simulation(args).await;
-        } else {
-            return Err(anyhow!(
-                "Dry run is only supported for blue images based deployments!"
-            ));
-        }
-    }
-
     tracing::info!("Starting deployment...");
 
     let operator = parse_operator(&args.deployment, args.operator);
@@ -181,8 +160,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
             .context("Configuration not supported by operator")?;
 
     // Calculate costs
-    // SAFETY: will be some value if simulation is not opted
-    let duration_seconds = (args.duration_in_minutes.unwrap() as u64) * 60 + NOTICE_PERIOD;
+    let duration_seconds = (args.duration_in_minutes) * 60 + NOTICE_PERIOD;
     info!("Adding {NOTICE_PERIOD} seconds to the duration to pay for the notice period.");
     let (total_cost, total_rate) = calculate_total_cost(
         &selected_instance,
@@ -267,26 +245,6 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     info!("Enclave is ready! IP address: {}", ip_address);
 
     Ok(())
-}
-
-async fn start_simulation(args: DeployArgs) -> Result<()> {
-    let simulate_args = SimulateArgs {
-        docker_compose: args.init_params.docker_compose,
-        docker_images: Vec::new(),
-        init_params: args.init_params.init_params.unwrap_or_default(),
-        expose_ports: args.simulate_expose_ports,
-        dev_image: LOCAL_DEV_IMAGE.to_string(),
-        container_memory: None,
-        job_name: if args.job_name.is_empty() {
-            "oyster_local_dev_container".to_string()
-        } else {
-            args.job_name
-        },
-        cleanup_cache: true,
-        no_local_images: true,
-    };
-
-    simulate(simulate_args).await
 }
 
 fn parse_operator(deployment: &Deployment, operator: Option<String>) -> String {
