@@ -71,7 +71,6 @@ pub trait DeploymentAdapter: Send + Sync {
     ) -> Result<u64>;
     async fn job_deposit(&mut self, job_id: u64, amount: u64) -> Result<()>;
     async fn job_withdraw(&mut self, job_id: u64, amount: u64) -> Result<()>;
-    async fn job_revise_rate(&mut self, job_id: u64, rate: u64) -> Result<()>;
     async fn job_close(&mut self, job_id: u64) -> Result<()>;
     async fn job_metadata_update(&mut self, job_id: u64, new_metadata: String) -> Result<()>;
 }

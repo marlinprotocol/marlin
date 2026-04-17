@@ -333,30 +333,6 @@ impl DeploymentAdapter for EvmAdapter {
         Ok(())
     }
 
-    async fn job_revise_rate(&mut self, job_id: u64, rate: u64) -> Result<()> {
-        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
-        let provider = ProviderBuilder::new()
-            .disable_recommended_fillers()
-            .wallet(EthereumWallet::from(signer))
-            .connect_http(self.rpc_url.clone());
-
-        let market = Market::new(self.market_address, &provider);
-
-        info!("Sending jobReviseRate transaction...");
-        let tx = market
-            .jobReviseRate(job_id, rate)
-            .send()
-            .await
-            .context("Failed to send transaction")?;
-        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-        Self::watch(&provider, tx.tx_hash().clone(), 60)
-            .await
-            .context("Failed to get receipt, transaction might still have been included")?;
-        info!("Transaction included: {:?}", tx.tx_hash());
-
-        Ok(())
-    }
-
     async fn job_close(&mut self, job_id: u64) -> Result<()> {
         let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
         let provider = ProviderBuilder::new()
