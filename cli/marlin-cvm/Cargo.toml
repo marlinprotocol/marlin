@@ -17,7 +17,6 @@ hex = "0.4.3"
 k256 = "0.13.4"
 lazy_static = "1.5.0"
 libsodium-sys-stable = "1.24.0"
-openssl = { version = "0.10", features = ["vendored"] }
 marlin-sdk = { version = "0.1.3", default-features = false, features = ["attestation"] }
 prettytable-rs = "0.10"
 reqwest = { version = "0.13.2", features = ["multipart", "json", "stream"] }
