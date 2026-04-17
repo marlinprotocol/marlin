@@ -1,22 +1,25 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use alloy::{
     hex::ToHexExt,
-    network::EthereumWallet,
-    primitives::{Address, FixedBytes, U256},
+    network::{Ethereum, EthereumWallet},
+    primitives::{Address, B256, FixedBytes, U256},
     providers::{
-        Provider, ProviderBuilder, RootProvider, WalletProvider,
+        PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider, WalletProvider,
         fillers::{
             ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, SimpleNonceManager,
             WalletFiller,
         },
     },
+    rpc::types::TransactionReceipt,
     signers::local::PrivateKeySigner,
     sol,
     sol_types::SolEvent,
 };
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
+use reqwest::Url;
+use tokio::time::{Instant, sleep};
 use tracing::info;
 
 use crate::deployment::adapter::{
@@ -54,7 +57,7 @@ pub type EvmProvider = FillProvider<
 >;
 
 pub struct EvmAdapter {
-    pub rpc_url: String,
+    pub rpc_url: Url,
     pub market_address: Address,
     pub usdc_address: Address,
     pub signer: Option<PrivateKeySigner>,
@@ -68,7 +71,7 @@ impl EvmAdapter {
         wallet_private_key: Option<&str>,
     ) -> Result<Self> {
         Ok(EvmAdapter {
-            rpc_url,
+            rpc_url: rpc_url.parse().context("Failed to parse rpc url")?,
             market_address: market_address
                 .parse()
                 .context("Failed to parse market address")?,
@@ -83,44 +86,72 @@ impl EvmAdapter {
                 .transpose()?,
         })
     }
+
+    async fn watch(provider: impl Provider, tx_hash: B256, timeout: u64) -> Result<()> {
+        let end = Instant::now() + Duration::from_secs(timeout);
+        loop {
+            tokio::select! {
+                tx = provider.get_transaction_by_hash(tx_hash) => {
+                    let tx = tx.context("Failed to get transaction by hash")?;
+                    if let Some(tx) = tx && tx.block_hash.is_some() {
+                        return Ok(())
+                    };
+                    // tx not found
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+                _ = sleep(end.duration_since(Instant::now())) => {
+                    bail!("Timed out waiting for transaction");
+                }
+            }
+        }
+    }
+
+    async fn get_receipt(
+        provider: impl Provider,
+        tx_hash: B256,
+        timeout: u64,
+    ) -> Result<TransactionReceipt> {
+        let end = Instant::now() + Duration::from_secs(timeout);
+        loop {
+            tokio::select! {
+                tx = provider.get_transaction_receipt(tx_hash) => {
+                    let tx = tx.context("Failed to get transaction by hash")?;
+                    if let Some(tx) = tx && tx.block_hash.is_some() {
+                        return Ok(tx)
+                    };
+                    // tx not found
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+                _ = sleep(end.duration_since(Instant::now())) => {
+                    bail!("Timed out waiting for transaction");
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
 impl DeploymentAdapter for EvmAdapter {
-    async fn create_provider_with_wallet(
-        &mut self,
-        wallet_private_key: &str,
-    ) -> Result<ChainProvider> {
-        let private_key = FixedBytes::<32>::from_slice(
-            &hex::decode(wallet_private_key).context("Failed to decode private key")?,
-        );
-
-        let signer = PrivateKeySigner::from_bytes(&private_key)
-            .context("Failed to create signer from private key")?;
-        self.sender_address = Some(signer.address());
-
-        let wallet = EthereumWallet::from(signer);
-
-        let provider = ProviderBuilder::default()
-            .with_gas_estimation()
-            .with_simple_nonce_management()
-            .fetch_chain_id()
-            .wallet(wallet)
-            .connect_http(self.rpc_url.parse().context("Failed to parse RPC URL")?);
-
-        Ok(ChainProvider::Evm(provider))
+    async fn get_sender_address(&self) -> Result<String> {
+        Ok(self
+            .signer
+            .as_ref()
+            .ok_or(anyhow!("No signer set"))?
+            .address()
+            .to_checksum(None))
     }
 
-    async fn get_operator_cp(&self, operator: &str, provider: &ChainProvider) -> Result<String> {
-        let ChainProvider::Evm(provider) = provider else {
-            return Err(anyhow!("Internal error"));
-        };
-
-        let market_address = Address::from_str(&self.market_address)?;
-        let operator_address = Address::from_str(operator)?;
+    async fn get_operator_cp(&self, operator: &str) -> Result<String> {
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(self.rpc_url.clone());
+        let operator_address =
+            Address::from_str(operator).context("Failed to parse operator address")?;
 
         // Create contract instance
-        let market = Market::new(market_address, provider);
+        let market = Market::new(self.market_address, provider);
 
         // Call providers function to get CP URL
         let cp_url = market.providers(operator_address).call().await?;
@@ -128,23 +159,17 @@ impl DeploymentAdapter for EvmAdapter {
         Ok(cp_url)
     }
 
-    async fn get_job_data_if_exists(
-        &self,
-        job_id: String,
-        provider: &ChainProvider,
-    ) -> Result<Option<JobData>> {
-        let ChainProvider::Evm(provider) = provider else {
-            return Err(anyhow!("Internal error"));
-        };
-
-        let market_address = Address::from_str(&self.market_address)?;
+    async fn get_job_data_if_exists(&self, job_id: u64) -> Result<Option<JobData>> {
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(self.rpc_url.clone());
 
         // Create contract instance
-        let market = Market::new(market_address, provider);
+        let market = Market::new(self.market_address, provider);
 
         // Check if job exists
         let job = market
-            .jobs(job_id.parse().context("Failed to parse job ID")?)
+            .jobs(job_id)
             .call()
             .await
             .context("Failed to fetch job details")?;
@@ -161,169 +186,247 @@ impl DeploymentAdapter for EvmAdapter {
         }))
     }
 
-    async fn prepare_funds(
-        &self,
-        amount_usdc: u64,
-        provider: &ChainProvider,
-    ) -> Result<ChainFunds> {
-        let ChainProvider::Evm(provider) = provider else {
-            return Err(anyhow!("Internal error"));
-        };
-
-        let usdc_address: Address = self
-            .usdc_address
-            .parse()
-            .context("Failed to parse USDC address")?;
-        let market_address: Address = self
-            .market_address
-            .parse()
-            .context("Failed to parse market address")?;
-        let signer_address = provider
-            .signer_addresses()
-            .next()
-            .ok_or_else(|| anyhow!("No signer address found"))?;
-        let usdc = Token::new(usdc_address, provider);
+    async fn job_create(
+        &mut self,
+        metadata: &str,
+        operator: &str,
+        rate: u64,
+        balance: u64,
+    ) -> Result<u64> {
+        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
+        let signer_address = signer.address();
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .wallet(EthereumWallet::from(signer))
+            .connect_http(self.rpc_url.clone());
+        let usdc = Token::new(self.usdc_address, &provider);
 
         // Get the current allowance
         let current_allowance = usdc
-            .allowance(signer_address, market_address)
+            .allowance(signer_address, self.market_address)
             .call()
             .await
             .context("Failed to get current USDC allowance")?;
 
         // Only approve if the current allowance is less than the required amount
-        if current_allowance < amount_usdc {
+        if current_allowance < balance {
             info!(
                 "Current allowance ({}) is less than required amount ({}), approving USDC transfer...",
-                current_allowance, amount_usdc
+                current_allowance, balance
             );
-            let tx_hash = usdc
-                .approve(market_address, U256::from(amount_usdc))
+            let tx = usdc
+                .approve(self.market_address, U256::from(balance))
                 .send()
                 .await
-                .context("Failed to send USDC approval transaction")?
-                .watch()
+                .context("Failed to send USDC approval transaction")?;
+            info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+            Self::watch(&provider, tx.tx_hash().clone(), 60)
                 .await
-                .context("Failed to get USDC approval transaction hash")?;
-
-            info!("USDC approval transaction: {:?}", tx_hash);
+                .context("Failed to get receipt, transaction might still have been included")?;
+            info!("Transaction included: {:?}", tx.tx_hash());
         } else {
             info!(
                 "Current allowance ({}) is sufficient for the required amount ({}), skipping approval",
-                current_allowance, amount_usdc
+                current_allowance, balance
             );
         }
-        Ok(ChainFunds::Evm(()))
-    }
 
-    async fn send_transaction(
-        &self,
-        is_create_job: bool,
-        transaction: ChainTransaction,
-        provider: &ChainProvider,
-    ) -> Result<Option<u64>> {
-        let ChainProvider::Evm(provider) = provider else {
-            return Err(anyhow!("Internal error"));
-        };
+        let market = Market::new(self.market_address, &provider);
 
-        let ChainTransaction::Evm(transaction) = transaction else {
-            return Err(anyhow!("Internal error"));
-        };
-
-        // Create job_open call
-        info!("Sending market transaction...");
-        let tx_hash = provider
-            .send_transaction(*transaction.clone())
-            .await?
-            .inspect(|x| info!("Waiting for a transaction receipt..., {:?}", x))
-            .watch()
-            .await?;
-        info!("Market transaction: {:?}", tx_hash);
-
-        let receipt = provider
-            .get_transaction_receipt(tx_hash)
-            .await?
-            .ok_or_else(|| anyhow!("Transaction receipt not found"))?;
-
-        // Add logging to check transaction status
-        if !receipt.status() {
-            return Err(anyhow!("Transaction failed - check contract interaction"));
-        }
-
-        if is_create_job {
-            // Calculate event signature hash
-            let job_opened_topic = Market::MarketJobOpened::SIGNATURE_HASH;
-
-            // Look for JobOpened event
-            for log in receipt.inner.logs().iter() {
-                if log.topics()[0] == job_opened_topic {
-                    info!("Found JobOpened event");
-                    return Ok(Some(u64::from_be_bytes(
-                        // SAFETY: slice is the correct size
-                        log.topics()[1].0[24..32].try_into().unwrap(),
-                    )));
-                }
-            }
-
-            // If we can't find the JobOpened event
-            info!("No JobOpened event found. All topics:");
-            for log in receipt.inner.logs().iter() {
-                info!("Event topics: {:?}", log.topics());
-            }
-
-            return Err(anyhow!(
-                "Could not find JobOpened event in transaction receipt"
-            ));
-        }
-
-        Ok(None)
-    }
-
-    async fn create_job_transaction(
-        &self,
-        kind: JobTransactionKind,
-        _fund: Option<ChainFunds>,
-        provider: &ChainProvider,
-    ) -> Result<ChainTransaction> {
-        let ChainProvider::Evm(provider) = provider else {
-            return Err(anyhow!("Internal error"));
-        };
-
-        let market_address = self.market_address.parse::<Address>()?;
-
-        // Load OysterMarket contract using Alloy
-        let market = Market::new(market_address, provider);
-
-        Ok(ChainTransaction::Evm(Box::new(match kind {
-            JobTransactionKind::Create {
-                metadata,
-                operator,
+        // Create jobOpen call
+        info!("Sending jobOpen transaction...");
+        let tx = market
+            .jobOpen(
+                metadata.into(),
+                operator
+                    .parse()
+                    .context(anyhow!("Failed to parse operator address"))?,
                 rate,
                 balance,
-            } => market
-                .jobOpen(metadata, operator.parse::<Address>()?, rate, balance)
-                .into_transaction_request(),
-            JobTransactionKind::Deposit { job_id, amount } => market
-                .jobDeposit(job_id.parse().context("Failed to parse job ID")?, amount)
-                .into_transaction_request(),
-            JobTransactionKind::ReviseRate { job_id, rate } => market
-                .jobReviseRate(job_id.parse().context("Failed to parse job ID")?, rate)
-                .into_transaction_request(),
-            JobTransactionKind::Close { job_id } => market
-                .jobClose(job_id.parse().context("Failed to parse job ID")?)
-                .into_transaction_request(),
-            JobTransactionKind::Update { job_id, metadata } => market
-                .jobMetadataUpdate(job_id.parse().context("Failed to parse job ID")?, metadata)
-                .into_transaction_request(),
-            JobTransactionKind::Withdraw { job_id, amount } => market
-                .jobWithdraw(job_id.parse().context("Failed to parse job ID")?, amount)
-                .into_transaction_request(),
-        })))
+            )
+            .send()
+            .await
+            .context("Failed to send transaction")?;
+        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+        let receipt = Self::get_receipt(&provider, tx.tx_hash().clone(), 60)
+            .await
+            .context("Failed to get receipt, transaction might still have been included")?;
+        info!("Transaction included: {:?}", tx.tx_hash());
+
+        // Calculate event signature hash
+        let job_opened_topic = Market::MarketJobOpened::SIGNATURE_HASH;
+
+        // Look for JobOpened event
+        for log in receipt.inner.logs().iter() {
+            if log.topics()[0] == job_opened_topic {
+                info!("Found JobOpened event");
+                return Ok(u64::from_be_bytes(
+                    // SAFETY: slice is the correct size
+                    log.topics()[1].0[24..32].try_into().unwrap(),
+                ));
+            }
+        }
+
+        // If we can't find the JobOpened event
+        info!("No JobOpened event found. All topics:");
+        for log in receipt.inner.logs().iter() {
+            info!("Event topics: {:?}", log.topics());
+        }
+
+        return Err(anyhow!(
+            "Could not find JobOpened event in transaction receipt"
+        ));
     }
 
-    fn get_sender_address(&self) -> String {
-        self.sender_address
-            .map(|addr| addr.to_string())
-            .unwrap_or_default()
+    async fn job_deposit(&mut self, job_id: u64, amount: u64) -> Result<()> {
+        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
+        let signer_address = signer.address();
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .wallet(EthereumWallet::from(signer))
+            .connect_http(self.rpc_url.clone());
+        let usdc = Token::new(self.usdc_address, &provider);
+
+        // Get the current allowance
+        let current_allowance = usdc
+            .allowance(signer_address, self.market_address)
+            .call()
+            .await
+            .context("Failed to get current USDC allowance")?;
+
+        // Only approve if the current allowance is less than the required amount
+        if current_allowance < amount {
+            info!(
+                "Current allowance ({}) is less than required amount ({}), approving USDC transfer...",
+                current_allowance, amount
+            );
+            let tx = usdc
+                .approve(self.market_address, U256::from(amount))
+                .send()
+                .await
+                .context("Failed to send USDC approval transaction")?;
+            info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+            Self::watch(&provider, tx.tx_hash().clone(), 60)
+                .await
+                .context("Failed to get receipt, transaction might still have been included")?;
+            info!("Transaction included: {:?}", tx.tx_hash());
+        } else {
+            info!(
+                "Current allowance ({}) is sufficient for the required amount ({}), skipping approval",
+                current_allowance, amount
+            );
+        }
+
+        let market = Market::new(self.market_address, &provider);
+
+        info!("Sending jobDeposit transaction...");
+        let tx = market
+            .jobDeposit(job_id, amount)
+            .send()
+            .await
+            .context("Failed to send transaction")?;
+        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+        Self::watch(&provider, tx.tx_hash().clone(), 60)
+            .await
+            .context("Failed to get receipt, transaction might still have been included")?;
+        info!("Transaction included: {:?}", tx.tx_hash());
+
+        Ok(())
+    }
+
+    async fn job_withdraw(&mut self, job_id: u64, amount: u64) -> Result<()> {
+        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .wallet(EthereumWallet::from(signer))
+            .connect_http(self.rpc_url.clone());
+
+        let market = Market::new(self.market_address, &provider);
+
+        info!("Sending jobWithdraw transaction...");
+        let tx = market
+            .jobWithdraw(job_id, amount)
+            .send()
+            .await
+            .context("Failed to send transaction")?;
+        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+        Self::watch(&provider, tx.tx_hash().clone(), 60)
+            .await
+            .context("Failed to get receipt, transaction might still have been included")?;
+        info!("Transaction included: {:?}", tx.tx_hash());
+
+        Ok(())
+    }
+
+    async fn job_revise_rate(&mut self, job_id: u64, rate: u64) -> Result<()> {
+        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .wallet(EthereumWallet::from(signer))
+            .connect_http(self.rpc_url.clone());
+
+        let market = Market::new(self.market_address, &provider);
+
+        info!("Sending jobReviseRate transaction...");
+        let tx = market
+            .jobReviseRate(job_id, rate)
+            .send()
+            .await
+            .context("Failed to send transaction")?;
+        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+        Self::watch(&provider, tx.tx_hash().clone(), 60)
+            .await
+            .context("Failed to get receipt, transaction might still have been included")?;
+        info!("Transaction included: {:?}", tx.tx_hash());
+
+        Ok(())
+    }
+
+    async fn job_close(&mut self, job_id: u64) -> Result<()> {
+        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .wallet(EthereumWallet::from(signer))
+            .connect_http(self.rpc_url.clone());
+
+        let market = Market::new(self.market_address, &provider);
+
+        info!("Sending jobClose transaction...");
+        let tx = market
+            .jobClose(job_id)
+            .send()
+            .await
+            .context("Failed to send transaction")?;
+        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+        Self::watch(&provider, tx.tx_hash().clone(), 60)
+            .await
+            .context("Failed to get receipt, transaction might still have been included")?;
+        info!("Transaction included: {:?}", tx.tx_hash());
+
+        Ok(())
+    }
+
+    async fn job_metadata_update(&mut self, job_id: u64, new_metadata: String) -> Result<()> {
+        let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .wallet(EthereumWallet::from(signer))
+            .connect_http(self.rpc_url.clone());
+
+        let market = Market::new(self.market_address, &provider);
+
+        info!("Sending jobMetadataUpdate transaction...");
+        let tx = market
+            .jobMetadataUpdate(job_id, new_metadata)
+            .send()
+            .await
+            .context("Failed to send transaction")?;
+        info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
+        Self::watch(&provider, tx.tx_hash().clone(), 60)
+            .await
+            .context("Failed to get receipt, transaction might still have been included")?;
+        info!("Transaction included: {:?}", tx.tx_hash());
+
+        Ok(())
     }
 }
