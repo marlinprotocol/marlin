@@ -1,16 +1,9 @@
 use std::{str::FromStr, time::Duration};
 
 use alloy::{
-    hex::ToHexExt,
-    network::{Ethereum, EthereumWallet},
-    primitives::{Address, B256, FixedBytes, U256},
-    providers::{
-        PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider, WalletProvider,
-        fillers::{
-            ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, SimpleNonceManager,
-            WalletFiller,
-        },
-    },
+    network::EthereumWallet,
+    primitives::{Address, B256, U256},
+    providers::{Provider, ProviderBuilder},
     rpc::types::TransactionReceipt,
     signers::local::PrivateKeySigner,
     sol,
@@ -22,9 +15,7 @@ use reqwest::Url;
 use tokio::time::{Instant, sleep};
 use tracing::info;
 
-use crate::deployment::adapter::{
-    ChainFunds, ChainProvider, ChainTransaction, JobData, JobTransactionKind,
-};
+use crate::deployment::adapter::JobData;
 
 use super::adapter::DeploymentAdapter;
 
@@ -41,20 +32,6 @@ sol!(
     Token,
     "src/abis/Token.json"
 );
-
-pub type EvmProvider = FillProvider<
-    JoinFill<
-        JoinFill<
-            JoinFill<
-                JoinFill<alloy::providers::Identity, GasFiller>,
-                NonceFiller<SimpleNonceManager>,
-            >,
-            ChainIdFiller,
-        >,
-        WalletFiller<EthereumWallet>,
-    >,
-    RootProvider,
->;
 
 pub struct EvmAdapter {
     pub rpc_url: Url,

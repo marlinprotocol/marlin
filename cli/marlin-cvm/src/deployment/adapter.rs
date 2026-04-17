@@ -1,23 +1,5 @@
-use alloy::rpc::types::TransactionRequest;
 use anyhow::Result;
 use async_trait::async_trait;
-
-use crate::deployment::evm::EvmProvider;
-
-#[derive(Clone)]
-pub enum ChainProvider {
-    Evm(EvmProvider),
-}
-
-#[derive(Debug, Clone)]
-pub enum ChainTransaction {
-    Evm(Box<TransactionRequest>),
-}
-
-#[derive(Debug, Clone)]
-pub enum ChainFunds {
-    Evm(()),
-}
 
 #[derive(Debug, Clone)]
 pub struct JobData {
@@ -25,35 +7,6 @@ pub struct JobData {
     pub balance: u64,
     pub rate: u64,
     pub last_settled: u64,
-}
-
-#[derive(Debug, Clone)]
-pub enum JobTransactionKind {
-    Create {
-        metadata: String,
-        operator: String,
-        rate: u64,
-        balance: u64,
-    },
-    Deposit {
-        job_id: String,
-        amount: u64,
-    },
-    ReviseRate {
-        job_id: String,
-        rate: u64,
-    },
-    Close {
-        job_id: String,
-    },
-    Update {
-        job_id: String,
-        metadata: String,
-    },
-    Withdraw {
-        job_id: String,
-        amount: u64,
-    },
 }
 
 #[async_trait]
