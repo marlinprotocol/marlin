@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use commands::{
-    deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs, image_id::ImageArgs,
-    kms_contract::KmsContractArgs, list::ListArgs, simulate::SimulateArgs, stop::StopArgs,
+    close::CloseArgs, deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs,
+    image_id::ImageArgs, kms_contract::KmsContractArgs, list::ListArgs, simulate::SimulateArgs,
     update::UpdateArgs, verify::VerifyArgs, withdraw::WithdrawArgs,
 };
 
@@ -38,7 +38,7 @@ enum Commands {
     List(ListArgs),
     Update(UpdateArgs),
     Deposit(DepositArgs),
-    Stop(StopArgs),
+    Close(CloseArgs),
     Withdraw(WithdrawArgs),
     ComputeImageId(ImageArgs),
     KmsDerive(KmsDeriveArgs),
@@ -58,7 +58,7 @@ async fn main() {
         Commands::List(args) => commands::list::list_jobs(args).await,
         Commands::Update(args) => commands::update::update_job(args).await,
         Commands::Deposit(args) => commands::deposit::deposit_to_job(args).await,
-        Commands::Stop(args) => commands::stop::stop_oyster_instance(args).await,
+        Commands::Close(args) => commands::close::close_job(args).await,
         Commands::Withdraw(args) => commands::withdraw::withdraw_from_job(args).await,
         Commands::ComputeImageId(args) => commands::image_id::compute_image_id(args),
         Commands::KmsDerive(args) => commands::derive::kms_derive(args).await,

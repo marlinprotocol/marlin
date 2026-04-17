@@ -4,9 +4,9 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use tracing::info;
 
-/// Stop an Oyster CVM instance
+/// Close a CVM instance
 #[derive(Args)]
-pub struct StopArgs {
+pub struct CloseArgs {
     /// Deployment (e.g. arb, sui, bsc)
     #[arg(long, default_value = "arb")]
     deployment: Deployment,
@@ -23,11 +23,11 @@ pub struct StopArgs {
     rpc: Option<String>,
 }
 
-pub async fn stop_oyster_instance(args: StopArgs) -> Result<()> {
+pub async fn close_job(args: CloseArgs) -> Result<()> {
     let job_id = args.job_id;
     let wallet_private_key = &args.wallet.load_required()?;
 
-    info!("Stopping oyster instance with:");
+    info!("Closing job with:");
     info!("  Job ID: {}", job_id);
 
     let mut deployment_adapter =
