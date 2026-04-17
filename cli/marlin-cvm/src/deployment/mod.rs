@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use clap::{ValueEnum, builder::PossibleValue};
 
 use crate::{
@@ -34,13 +35,17 @@ impl ValueEnum for Deployment {
 pub fn get_deployment_adapter(
     deployment: Deployment,
     rpc_url: Option<String>,
-) -> Box<dyn DeploymentAdapter> {
+    wallet_private_key: Option<&str>,
+) -> Result<Box<dyn DeploymentAdapter>> {
     match deployment {
-        Deployment::Arb => Box::new(EvmAdapter {
-            rpc_url: rpc_url.unwrap_or(RPC_URL.to_owned()),
-            market_address: MARKET_ADDRESS.to_owned(),
-            usdc_address: USDC_ADDRESS.to_owned(),
-            sender_address: None,
-        }),
+        Deployment::Arb => Ok(Box::new(
+            EvmAdapter::new(
+                rpc_url.unwrap_or(RPC_URL.to_owned()),
+                MARKET_ADDRESS.to_owned(),
+                USDC_ADDRESS.to_owned(),
+                wallet_private_key,
+            )
+            .context("Failed to create evm adapter for arb")?,
+        )),
     }
 }
