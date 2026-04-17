@@ -169,8 +169,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
             .map(Result::Ok)
             .unwrap_or(match args.preset.as_str() {
                 "blue" => match args.arch {
-                    Platform::AMD64 => Ok("c6a.xlarge".into()),
-                    Platform::ARM64 => Ok("c6g.large".into()),
+                    Platform::AMD64 => Ok("c6a.large".into()),
+                    Platform::ARM64 => Ok("c8g.medium".into()),
                 },
                 _ => Err(anyhow!("Instance type is required")),
             })?;
