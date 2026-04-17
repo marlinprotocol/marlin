@@ -1,6 +1,5 @@
 use crate::args::init_params::InitParamsArgs;
 use crate::args::wallet::WalletArgs;
-use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::types::Platform;
 use anyhow::{Context, Result, anyhow};
@@ -16,7 +15,7 @@ pub struct UpdateArgs {
 
     /// Job ID
     #[arg(long)]
-    job_id: String,
+    job_id: u64,
 
     #[command(flatten)]
     wallet: WalletArgs,
@@ -55,17 +54,12 @@ pub async fn update_job(args: UpdateArgs) -> Result<()> {
     let job_id = args.job_id;
     let image_url = args.image_url;
 
-    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
+    let mut deployment_adapter =
+        get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
+            .context("Failed to create deployment adapter")?;
 
-    let provider = deployment_adapter
-        .create_provider_with_wallet(wallet_private_key)
-        .await
-        .context("Failed to create provider")?;
-
-    let Some(job_data) = deployment_adapter
-        .get_job_data_if_exists(job_id.clone(), &provider)
-        .await?
-    else {
+    // Check if job exists
+    let Some(job_data) = deployment_adapter.get_job_data_if_exists(job_id).await? else {
         return Err(anyhow!("Job {} does not exist", job_id));
     };
 
@@ -92,18 +86,9 @@ pub async fn update_job(args: UpdateArgs) -> Result<()> {
         serde_json::to_string_pretty(&metadata)?
     );
 
-    let job_update_transaction = deployment_adapter
-        .create_job_transaction(
-            JobTransactionKind::Update {
-                job_id,
-                metadata: serde_json::to_string(&metadata)?,
-            },
-            None,
-            &provider,
-        )
-        .await?;
-    let _ = deployment_adapter
-        .send_transaction(false, job_update_transaction, &provider)
+    // Update job
+    deployment_adapter
+        .job_metadata_update(job_id, serde_json::to_string(&metadata)?)
         .await?;
 
     Ok(())

@@ -1,10 +1,7 @@
 use crate::args::wallet::WalletArgs;
-use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
-use std::time::Duration;
-use tokio::time::sleep;
 use tracing::info;
 
 /// Stop an Oyster CVM instance
@@ -16,7 +13,7 @@ pub struct StopArgs {
 
     /// Job ID
     #[arg(short = 'j', long, required = true)]
-    job_id: String,
+    job_id: u64,
 
     #[command(flatten)]
     wallet: WalletArgs,
@@ -41,67 +38,24 @@ pub async fn stop_oyster_instance(args: StopArgs) -> Result<()> {
     info!("Stopping oyster instance with:");
     info!("  Job ID: {}", job_id);
 
-    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
-
-    // Setup provider
-    let provider = deployment_adapter
-        .create_provider_with_wallet(wallet_private_key)
-        .await
-        .context("Failed to create provider")?;
+    let mut deployment_adapter =
+        get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
+            .context("Failed to create deployment adapter")?;
 
     info!(
         "Signer address: {:?}",
-        deployment_adapter.get_sender_address()
+        deployment_adapter.get_sender_address().await?
     );
 
     // Check if job exists
-    let job_data = deployment_adapter
-        .get_job_data_if_exists(job_id.clone(), &provider)
-        .await?;
+    let job_data = deployment_adapter.get_job_data_if_exists(job_id).await?;
     if job_data.is_none() {
         return Err(anyhow!("Job {} does not exist", job_id));
     }
 
-    // First, set the job's rate to 0 using the jobReviseRateInitiate call.
-    info!("Found job, initiating rate update to 0...");
-    let job_revise_rate_transaction = deployment_adapter
-        .create_job_transaction(
-            JobTransactionKind::Close {
-                job_id: job_id.clone(),
-            },
-            None,
-            &provider,
-        )
-        .await?;
-    let _ = deployment_adapter
-        .send_transaction(false, job_revise_rate_transaction, &provider)
-        .await
-        .context("Failed to send rate revise transaction")?;
-
-    info!("Job rate updated successfully to 0!");
-
-    // Wait for 5 minutes before closing the job.
-    info!("Waiting for 5 minutes before closing the job...");
-    sleep(Duration::from_secs(300)).await;
-
-    // Check if job is already closed before attempting to close
-    let job_exists = deployment_adapter
-        .get_job_data_if_exists(job_id.clone(), &provider)
-        .await?;
-    if job_exists.is_none() {
-        info!("Job is already closed!");
-        return Ok(());
-    }
-
-    // Only proceed with closing if job still exists
+    // Close job
     info!("Initiating job close...");
-    let job_close_transaction = deployment_adapter
-        .create_job_transaction(JobTransactionKind::Close { job_id }, None, &provider)
-        .await?;
-    let _ = deployment_adapter
-        .send_transaction(false, job_close_transaction, &provider)
-        .await
-        .context("Failed to send stop transaction")?;
+    deployment_adapter.job_close(job_id).await?;
 
     info!("Instance stopped successfully!");
     Ok(())

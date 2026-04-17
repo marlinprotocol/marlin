@@ -6,7 +6,7 @@ use crate::{
         self,
         global::{EXTRA_DECIMALS, NOTICE_PERIOD},
     },
-    deployment::{Deployment, adapter::JobTransactionKind, get_deployment_adapter},
+    deployment::{Deployment, get_deployment_adapter},
     types::Platform,
     utils::{
         bandwidth::{calculate_bandwidth_rate, get_bandwidth_rate_for_region},
@@ -110,15 +110,16 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
 
     let operator = parse_operator(&args.deployment, args.operator);
 
-    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
-
-    let provider = deployment_adapter
-        .create_provider_with_wallet(&args.wallet.load_required()?)
-        .await?;
+    let mut deployment_adapter = get_deployment_adapter(
+        args.deployment,
+        args.rpc,
+        Some(&args.wallet.load_required()?),
+    )
+    .context("Failed to create deployment adapter")?;
 
     // Get CP URL using the configured provider
     let cp_url = deployment_adapter
-        .get_operator_cp(&operator, &provider)
+        .get_operator_cp(&operator)
         .await
         .context("Failed to get CP URL")?
         .trim_end_matches('/')
@@ -205,31 +206,10 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
             .unwrap_or("".into()),
     );
 
-    // Approve USDC
-    let funds = deployment_adapter
-        .prepare_funds(total_cost, &provider)
-        .await?;
-
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    let job_create_transaction = deployment_adapter
-        .create_job_transaction(
-            JobTransactionKind::Create {
-                metadata,
-                operator,
-                rate: total_rate,
-                balance: total_cost,
-            },
-            Some(funds),
-            &provider,
-        )
-        .await?;
-
     // Create job
     let job_id = deployment_adapter
-        .send_transaction(true, job_create_transaction, &provider)
-        .await?
-        .ok_or(anyhow!("Failed to get the Job ID"))?;
+        .job_create(&metadata, &operator, total_rate, total_cost)
+        .await?;
     info!("Job created with ID: {}", job_id);
 
     info!("Waiting for 20 seconds for enclave to start...");

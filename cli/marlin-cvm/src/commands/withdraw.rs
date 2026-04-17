@@ -1,15 +1,11 @@
 use crate::args::wallet::WalletArgs;
 use crate::configs::global::EXTRA_DECIMALS;
-use crate::deployment::adapter::JobTransactionKind;
 use crate::deployment::{Deployment, get_deployment_adapter};
 use crate::utils::format_usdc;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info};
-
-// Withdrawal Settings
-const BUFFER_MINUTES: u64 = 7; // Required buffer time in minutes
 
 /// Withdraw funds from an existing job
 #[derive(Args)]
@@ -20,7 +16,7 @@ pub struct WithdrawArgs {
 
     /// Job ID
     #[arg(short, long, required = true)]
-    job_id: String,
+    job_id: u64,
 
     /// Amount to withdraw in USDC (e.g. 1000000 = 1 USDC since USDC has 6 decimal places)
     #[arg(short, long, required_unless_present = "max")]
@@ -54,39 +50,22 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!("Starting withdrawal process...");
 
-    let mut deployment_adapter = get_deployment_adapter(args.deployment, args.rpc);
-
-    // Setup provider
-    let provider = deployment_adapter
-        .create_provider_with_wallet(wallet_private_key)
-        .await
-        .context("Failed to create provider")?;
+    let mut deployment_adapter =
+        get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
+            .context("Failed to create deployment adapter")?;
 
     info!(
         "Signer address: {:?}",
-        deployment_adapter.get_sender_address()
+        deployment_adapter.get_sender_address().await?
     );
 
-    let Some(job_data) = deployment_adapter
-        .get_job_data_if_exists(job_id.clone(), &provider)
-        .await?
-    else {
+    // Check if job exists
+    let Some(job_data) = deployment_adapter.get_job_data_if_exists(job_id).await? else {
         return Err(anyhow!("Job {} does not exist", job_id));
     };
 
-    // Check if balance is zero
-    if job_data.balance == 0 {
-        return Err(anyhow!("Cannot withdraw: job balance is 0 USDC"));
-    }
-
     // Scale down rate by extra_decimals
     let scaled_rate = job_data.rate / 10u64.pow(EXTRA_DECIMALS);
-
-    // Calculate required buffer balance (5 minutes worth of rate)
-    let buffer_seconds = BUFFER_MINUTES * 60;
-    let buffer_balance = scaled_rate
-        .checked_mul(buffer_seconds)
-        .ok_or_else(|| anyhow!("Failed to calculate buffer balance"))?;
 
     // Calculate current balance after accounting for elapsed time
     let current_balance =
@@ -97,38 +76,20 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
         return Ok(());
     }
 
-    info!(
-        "Current balance: {:.6} USDC, Required buffer: {:.6} USDC",
-        format_usdc(current_balance),
-        format_usdc(buffer_balance)
-    );
-
-    // Calculate maximum withdrawable amount (in USDC with 6 decimals)
-    let max_withdrawable = if current_balance > buffer_balance {
-        current_balance
-            .checked_sub(buffer_balance)
-            .ok_or_else(|| anyhow!("Failed to calculate withdrawable amount"))?
-    } else {
-        return Err(anyhow!(
-            "Cannot withdraw: current balance ({:.6} USDC) is less than required buffer ({:.6} USDC)",
-            format_usdc(current_balance),
-            format_usdc(buffer_balance)
-        ));
-    };
+    info!("Current balance: {:.6} USDC", format_usdc(current_balance));
 
     // Determine withdrawal amount (in USDC with 6 decimals)
-    let amount_u256 = if max {
+    let withdraw_amount = if max {
         info!("Maximum withdrawal requested");
-        max_withdrawable
+        current_balance
     } else {
         let amount =
             amount.ok_or_else(|| anyhow!("Amount must be specified when not using --max"))?;
-        if amount > max_withdrawable {
+        if amount > current_balance {
             return Err(anyhow!(
-                "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC (need to maintain {:.6} USDC buffer)",
+                "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC",
                 format_usdc(amount),
-                format_usdc(max_withdrawable),
-                format_usdc(buffer_balance)
+                format_usdc(current_balance),
             ));
         }
         amount
@@ -136,22 +97,12 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!(
         "Initiating withdrawal of {:.6} USDC",
-        format_usdc(amount_u256)
+        format_usdc(withdraw_amount)
     );
 
-    // Call jobWithdraw function with amount in USDC
-    let job_withdraw_transaction = deployment_adapter
-        .create_job_transaction(
-            JobTransactionKind::Withdraw {
-                job_id,
-                amount: amount_u256,
-            },
-            None,
-            &provider,
-        )
-        .await?;
-    let _ = deployment_adapter
-        .send_transaction(false, job_withdraw_transaction, &provider)
+    // Withdraw from job
+    deployment_adapter
+        .job_withdraw(job_id, withdraw_amount)
         .await?;
 
     info!("Withdrawal successful!");
