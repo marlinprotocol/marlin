@@ -172,6 +172,9 @@ impl DeploymentAdapter for EvmAdapter {
         let signer_address = signer.address();
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
+            .with_simple_nonce_management()
+            .with_gas_estimation()
+            .fetch_chain_id()
             .wallet(EthereumWallet::from(signer))
             .connect_http(self.rpc_url.clone());
         let usdc = Token::new(self.usdc_address, &provider);
@@ -258,6 +261,9 @@ impl DeploymentAdapter for EvmAdapter {
         let signer_address = signer.address();
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
+            .with_simple_nonce_management()
+            .with_gas_estimation()
+            .fetch_chain_id()
             .wallet(EthereumWallet::from(signer))
             .connect_http(self.rpc_url.clone());
         let usdc = Token::new(self.usdc_address, &provider);
@@ -313,6 +319,9 @@ impl DeploymentAdapter for EvmAdapter {
         let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
+            .with_simple_nonce_management()
+            .with_gas_estimation()
+            .fetch_chain_id()
             .wallet(EthereumWallet::from(signer))
             .connect_http(self.rpc_url.clone());
 
@@ -337,6 +346,9 @@ impl DeploymentAdapter for EvmAdapter {
         let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
+            .with_simple_nonce_management()
+            .with_gas_estimation()
+            .fetch_chain_id()
             .wallet(EthereumWallet::from(signer))
             .connect_http(self.rpc_url.clone());
 
@@ -361,6 +373,9 @@ impl DeploymentAdapter for EvmAdapter {
         let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
+            .with_simple_nonce_management()
+            .with_gas_estimation()
+            .fetch_chain_id()
             .wallet(EthereumWallet::from(signer))
             .connect_http(self.rpc_url.clone());
 
