@@ -18,9 +18,9 @@ pub struct WithdrawArgs {
     #[arg(short, long, required = true)]
     job_id: u64,
 
-    /// Amount to withdraw in USDC (e.g. 1000000 = 1 USDC since USDC has 6 decimal places)
+    /// Amount to withdraw in USDC (e.g. 0.01234)
     #[arg(short, long, required_unless_present = "max")]
-    amount: Option<u64>,
+    amount: Option<f64>,
 
     /// Withdraw all remaining balance
     #[arg(long, conflicts_with = "amount")]
@@ -46,7 +46,7 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     let job_id = args.job_id;
     let wallet_private_key = &args.wallet.load_required()?;
     let max = args.max;
-    let amount = args.amount;
+    let amount = args.amount.map(|x| (x * 1000000f64) as u64);
 
     info!("Starting withdrawal process...");
 

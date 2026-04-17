@@ -16,9 +16,9 @@ pub struct DepositArgs {
     #[arg(short, long, required = true)]
     job_id: u64,
 
-    /// Amount to deposit in USDC (e.g. 1000000 = 1 USDC since USDC has 6 decimal places)
+    /// Amount to deposit in USDC (e.g. 0.0123)
     #[arg(short, long, required = true)]
-    amount: u64,
+    amount: f64,
 
     #[command(flatten)]
     wallet: WalletArgs,
@@ -43,7 +43,7 @@ pub struct DepositArgs {
 pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {
     info!("Starting deposit...");
 
-    let amount = args.amount;
+    let amount = (args.amount * 1000000f64) as u64;
     let wallet_private_key = &args.wallet.load_required()?;
     let job_id = args.job_id;
 
