@@ -15,9 +15,7 @@ use reqwest::Url;
 use tokio::time::{Instant, sleep};
 use tracing::info;
 
-use crate::deployment::adapter::JobData;
-
-use super::adapter::DeploymentAdapter;
+use super::{DeploymentAdapter, JobData};
 
 sol!(
     #[allow(missing_docs)]
