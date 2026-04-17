@@ -24,14 +24,6 @@ pub struct UpdateArgs {
     #[arg(long)]
     rpc: Option<String>,
 
-    /// Auth token (optional for sui rpc)
-    #[arg(long)]
-    auth_token: Option<String>,
-
-    /// Gas coin ID for Sui chain transactions (optional, will be chosen automatically from user's account via simulation results)
-    #[arg(long)]
-    gas_coin: Option<String>,
-
     /// New URL of the enclave image
     #[arg(long)]
     image_url: Option<String>,

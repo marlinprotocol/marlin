@@ -26,18 +26,6 @@ pub struct DepositArgs {
     /// RPC URL (optional)
     #[arg(long)]
     rpc: Option<String>,
-
-    /// Auth token (optional for sui rpc)
-    #[arg(long)]
-    auth_token: Option<String>,
-
-    /// USDC coin ID for Sui chain based enclave payment (optional, will be picked automatically from user's account if not provided)
-    #[arg(long)]
-    usdc_coin: Option<String>,
-
-    /// Gas coin ID for Sui chain transactions (optional, will be chosen automatically from user's account via simulation results)
-    #[arg(long)]
-    gas_coin: Option<String>,
 }
 
 pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {

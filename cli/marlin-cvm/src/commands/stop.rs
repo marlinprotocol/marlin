@@ -21,14 +21,6 @@ pub struct StopArgs {
     /// RPC URL (optional)
     #[arg(long)]
     rpc: Option<String>,
-
-    /// Auth token (optional for sui rpc)
-    #[arg(long)]
-    auth_token: Option<String>,
-
-    /// Gas coin ID for Sui chain transactions (optional, will be chosen automatically from user's account via simulation results)
-    #[arg(long)]
-    gas_coin: Option<String>,
 }
 
 pub async fn stop_oyster_instance(args: StopArgs) -> Result<()> {
