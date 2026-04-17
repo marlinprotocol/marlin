@@ -17,7 +17,7 @@ use libsodium_sys::{crypto_box_SEALBYTES, crypto_box_seal, sodium_init};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::{args::pcr::preset_to_pcr_preset, types::Platform};
+use crate::{arch::Arch, args::pcr::preset_to_pcr_preset};
 
 use super::pcr::PcrArgs;
 
@@ -61,7 +61,7 @@ pub struct InitParamsArgs {
 }
 
 impl InitParamsArgs {
-    pub fn load(self, preset: String, arch: Platform) -> Result<Option<String>> {
+    pub fn load(self, preset: String, arch: Arch) -> Result<Option<String>> {
         // check for encoded params
         if self.init_params_encoded.is_some() {
             return Ok(self.init_params_encoded.clone());

@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use crate::{
+    arch::Arch,
     args::{init_params::InitParamsArgs, wallet::WalletArgs},
     configs::{
         self,
         global::{EXTRA_DECIMALS, NOTICE_PERIOD},
     },
     deployment::{Deployment, get_deployment_adapter},
-    types::Platform,
     utils::{
         bandwidth::{calculate_bandwidth_rate, get_bandwidth_rate_for_region},
         format_rate, format_usdc,
@@ -42,7 +42,7 @@ pub struct DeployArgs {
 
     /// Platform architecture (e.g. amd64, arm64)
     #[arg(long)]
-    arch: Platform,
+    arch: Arch,
 
     #[command(flatten)]
     wallet: WalletArgs,
@@ -149,8 +149,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
             .map(Result::Ok)
             .unwrap_or(match args.preset.as_str() {
                 "blue" => match args.arch {
-                    Platform::AMD64 => Ok("c6a.large".into()),
-                    Platform::ARM64 => Ok("c8g.medium".into()),
+                    Arch::AMD64 => Ok("c6a.large".into()),
+                    Arch::ARM64 => Ok("c8g.medium".into()),
                 },
                 _ => Err(anyhow!("Instance type is required")),
             })?;
@@ -181,11 +181,11 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         .map(Result::Ok)
         .unwrap_or(match args.preset.as_str() {
             "blue" => match args.arch {
-                Platform::AMD64 => Ok(
+                Arch::AMD64 => Ok(
                     "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_amd64.eif"
                         .into(),
                 ),
-                Platform::ARM64 => Ok(
+                Arch::ARM64 => Ok(
                     "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_arm64.eif"
                         .into(),
                 ),

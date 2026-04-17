@@ -1,7 +1,7 @@
+use crate::arch::Arch;
 use crate::args::init_params::InitParamsArgs;
 use crate::args::wallet::WalletArgs;
 use crate::deployment::{Deployment, get_deployment_adapter};
-use crate::types::Platform;
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use tracing::info;
@@ -42,7 +42,7 @@ pub struct UpdateArgs {
 
     /// Platform architecture (e.g. amd64, arm64)
     #[arg(long, default_value = "arm64")]
-    arch: Platform,
+    arch: Arch,
 
     /// New init params
     #[command(flatten)]

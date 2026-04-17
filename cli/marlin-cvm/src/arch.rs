@@ -1,21 +1,21 @@
 use clap::ValueEnum;
 
 #[derive(Debug, Clone)]
-pub enum Platform {
+pub enum Arch {
     AMD64,
     ARM64,
 }
 
-impl Platform {
+impl Arch {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Platform::AMD64 => "amd64",
-            Platform::ARM64 => "arm64",
+            Arch::AMD64 => "amd64",
+            Arch::ARM64 => "arm64",
         }
     }
 }
 
-impl ValueEnum for Platform {
+impl ValueEnum for Arch {
     fn value_variants<'a>() -> &'a [Self] {
         &[Self::AMD64, Self::ARM64]
     }

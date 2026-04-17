@@ -3,7 +3,7 @@ use clap::Args;
 use serde_json;
 use tracing::info;
 
-use crate::types::Platform;
+use crate::arch::Arch;
 
 #[derive(Args, Debug, Clone)]
 #[group(multiple = true)]
@@ -76,7 +76,7 @@ impl PcrArgs {
     }
 }
 
-pub fn preset_to_pcr_preset(preset: &str, _arch: &Platform) -> Option<String> {
+pub fn preset_to_pcr_preset(preset: &str, _arch: &Arch) -> Option<String> {
     match preset {
         _ => None,
     }

@@ -7,9 +7,9 @@ use tracing::info;
 
 use marlin::attestation::{AWS_ROOT_KEY, AttestationExpectations};
 
+use crate::arch::Arch;
 use crate::args::pcr::{PcrArgs, preset_to_pcr_preset};
 use crate::configs::global::DEFAULT_ATTESTATION_PORT;
-use crate::types::Platform;
 
 /// Verify Oyster Enclave Attestation
 ///
@@ -72,7 +72,7 @@ pub struct VerifyArgs {
 
     /// Platform architecture (e.g. amd64, arm64)
     #[arg(long, default_value = "arm64")]
-    arch: Platform,
+    arch: Arch,
 }
 
 pub async fn verify(args: VerifyArgs) -> Result<()> {
@@ -171,7 +171,7 @@ fn get_pcrs(
     pcr: PcrArgs,
     pcr16: Option<String>,
     preset: Option<String>,
-    arch: Platform,
+    arch: Arch,
 ) -> Result<[Option<[u8; 48]>; 12]> {
     pcr.load(preset.and_then(|x| preset_to_pcr_preset(&x, &arch)))
 

@@ -6,11 +6,11 @@ use commands::{
     update::UpdateArgs, verify::VerifyArgs, withdraw::WithdrawArgs,
 };
 
+mod arch;
 mod args;
 mod commands;
 mod configs;
 mod deployment;
-mod types;
 mod utils;
 
 use tracing_subscriber::EnvFilter;

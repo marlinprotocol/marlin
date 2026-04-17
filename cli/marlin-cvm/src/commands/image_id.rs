@@ -6,11 +6,11 @@ use k256::sha2::Sha384;
 use tracing::info;
 
 use crate::{
+    arch::Arch,
     args::{
         init_params::{InitParamsArgs, InitParamsList},
         pcr::preset_to_pcr_preset,
     },
-    types::Platform,
 };
 
 /// Get Image ID
@@ -22,7 +22,7 @@ pub struct ImageArgs {
 
     /// Platform architecture (e.g. amd64, arm64)
     #[arg(long, default_value = "arm64")]
-    arch: Platform,
+    arch: Arch,
 
     #[command(flatten)]
     init_params: InitParamsArgs,
