@@ -1,4 +1,3 @@
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::{
     deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs, image_id::ImageArgs,
@@ -47,7 +46,7 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     setup_logging();
 
     let cli = Cli::parse();
@@ -70,6 +69,4 @@ async fn main() -> Result<()> {
         tracing::error!("Error: {e:#}");
         std::process::exit(1);
     }
-
-    Ok(())
 }
