@@ -57,7 +57,29 @@ pub struct EvmAdapter {
     pub rpc_url: String,
     pub market_address: String,
     pub usdc_address: String,
-    pub sender_address: Option<Address>,
+    pub signer: Option<PrivateKeySigner>,
+}
+
+impl EvmAdapter {
+    fn new(
+        rpc_url: String,
+        market_address: String,
+        usdc_address: String,
+        wallet_private_key: Option<&str>,
+    ) -> Result<Self> {
+        let signer = wallet_private_key
+            .map(|key| {
+                key.parse::<PrivateKeySigner>()
+                    .context("Failed to parse wallet key")
+            })
+            .transpose()?;
+        Ok(EvmAdapter {
+            rpc_url,
+            market_address,
+            usdc_address,
+            signer,
+        })
+    }
 }
 
 #[async_trait]
