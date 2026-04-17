@@ -4,7 +4,6 @@ pub mod derive;
 pub mod image_id;
 pub mod kms_contract;
 pub mod list;
-pub mod log;
 pub mod simulate;
 pub mod stop;
 pub mod update;

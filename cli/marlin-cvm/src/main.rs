@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::{
     deploy::DeployArgs, deposit::DepositArgs, derive::KmsDeriveArgs, image_id::ImageArgs,
-    kms_contract::KmsContractArgs, list::ListArgs, log::LogArgs, simulate::SimulateArgs,
-    stop::StopArgs, update::UpdateArgs, verify::VerifyArgs, withdraw::WithdrawArgs,
+    kms_contract::KmsContractArgs, list::ListArgs, simulate::SimulateArgs, stop::StopArgs,
+    update::UpdateArgs, verify::VerifyArgs, withdraw::WithdrawArgs,
 };
 
 mod args;
@@ -38,7 +38,6 @@ enum Commands {
     Verify(VerifyArgs),
     List(ListArgs),
     Update(UpdateArgs),
-    Logs(LogArgs),
     Deposit(DepositArgs),
     Stop(StopArgs),
     Withdraw(WithdrawArgs),
@@ -59,7 +58,6 @@ async fn main() -> Result<()> {
         Commands::Deploy(args) => commands::deploy::deploy(args).await,
         Commands::List(args) => commands::list::list_jobs(args).await,
         Commands::Update(args) => commands::update::update_job(args).await,
-        Commands::Logs(args) => commands::log::stream_logs(args).await,
         Commands::Deposit(args) => commands::deposit::deposit_to_job(args).await,
         Commands::Stop(args) => commands::stop::stop_oyster_instance(args).await,
         Commands::Withdraw(args) => commands::withdraw::withdraw_from_job(args).await,
