@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use clap::{ValueEnum, builder::PossibleValue};
 
-use crate::configs::arb::{MARKET_ADDRESS, RPC_URL, USDC_ADDRESS};
+use crate::configs::arb;
 
 pub mod evm;
 
@@ -37,9 +37,9 @@ pub fn get_deployment_adapter(
     match deployment {
         Deployment::Arb => Ok(Box::new(
             evm::EvmAdapter::new(
-                rpc_url.unwrap_or(RPC_URL.to_owned()),
-                MARKET_ADDRESS.to_owned(),
-                USDC_ADDRESS.to_owned(),
+                rpc_url.unwrap_or(arb::RPC_URL.to_owned()),
+                arb::MARKET_ADDRESS.to_owned(),
+                arb::USDC_ADDRESS.to_owned(),
                 wallet_private_key,
             )
             .context("Failed to create evm adapter for arb")?,
