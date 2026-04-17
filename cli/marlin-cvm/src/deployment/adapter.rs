@@ -58,32 +58,21 @@ pub enum JobTransactionKind {
 
 #[async_trait]
 pub trait DeploymentAdapter: Send + Sync {
-    async fn create_provider_with_wallet(
+    async fn get_sender_address(&self) -> Result<String>;
+    async fn get_operator_cp(&self, operator: &str) -> Result<String>;
+    async fn get_job_data_if_exists(&self, job_id: u64) -> Result<Option<JobData>>;
+
+    // return job id
+    async fn job_create(
         &mut self,
-        wallet_private_key: &str,
-    ) -> Result<ChainProvider>;
-
-    async fn get_operator_cp(&self, operator: &str, provider: &ChainProvider) -> Result<String>;
-    async fn get_job_data_if_exists(
-        &self,
-        job_id: String,
-        provider: &ChainProvider,
-    ) -> Result<Option<JobData>>;
-
-    async fn prepare_funds(&self, amount_usdc: u64, provider: &ChainProvider)
-    -> Result<ChainFunds>;
-    async fn create_job_transaction(
-        &self,
-        kind: JobTransactionKind,
-        fund: Option<ChainFunds>,
-        provider: &ChainProvider,
-    ) -> Result<ChainTransaction>;
-    async fn send_transaction(
-        &self,
-        is_create_job: bool,
-        transaction: ChainTransaction,
-        provider: &ChainProvider,
-    ) -> Result<Option<u64>>;
-
-    fn get_sender_address(&self) -> String;
+        metadata: &str,
+        operator: &str,
+        rate: u64,
+        balance: u64,
+    ) -> Result<u64>;
+    async fn job_deposit(&mut self, amount: u64) -> Result<()>;
+    async fn job_withdraw(&mut self, amount: u64) -> Result<()>;
+    async fn job_revise_rate(&mut self, rate: u64) -> Result<()>;
+    async fn job_close(&mut self) -> Result<()>;
+    async fn job_metadata_update(&mut self, new_metadata: String) -> Result<()>;
 }
