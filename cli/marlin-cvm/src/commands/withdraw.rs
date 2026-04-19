@@ -15,12 +15,8 @@ pub struct WithdrawArgs {
     job_id: u64,
 
     /// Amount to withdraw in USDC (e.g. 0.01234)
-    #[arg(short, long, required_unless_present = "max")]
-    amount: Option<f64>,
-
-    /// Withdraw all remaining balance
-    #[arg(long, conflicts_with = "amount")]
-    max: bool,
+    #[arg(short, long)]
+    amount: f64,
 
     /// Deployment
     #[arg(long, help_heading = "Deployment options", default_value = "arb")]
@@ -37,8 +33,7 @@ pub struct WithdrawArgs {
 pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
     let job_id = args.job_id;
     let wallet_private_key = &args.wallet.load_required()?;
-    let max = args.max;
-    let amount = args.amount.map(|x| (x * 1000000f64) as u64);
+    let amount = (args.amount * 1000000f64) as u64;
 
     info!("Starting withdrawal process...");
 
@@ -70,32 +65,18 @@ pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
 
     info!("Current balance: {:.6} USDC", format_usdc(current_balance));
 
-    // Determine withdrawal amount (in USDC with 6 decimals)
-    let withdraw_amount = if max {
-        info!("Maximum withdrawal requested");
-        current_balance
-    } else {
-        let amount =
-            amount.ok_or_else(|| anyhow!("Amount must be specified when not using --max"))?;
-        if amount > current_balance {
-            return Err(anyhow!(
-                "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC",
-                format_usdc(amount),
-                format_usdc(current_balance),
-            ));
-        }
-        amount
-    };
+    if amount > current_balance {
+        return Err(anyhow!(
+            "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC",
+            format_usdc(amount),
+            format_usdc(current_balance),
+        ));
+    }
 
-    info!(
-        "Initiating withdrawal of {:.6} USDC",
-        format_usdc(withdraw_amount)
-    );
+    info!("Initiating withdrawal of {:.6} USDC", format_usdc(amount));
 
     // Withdraw from job
-    deployment_adapter
-        .job_withdraw(job_id, withdraw_amount)
-        .await?;
+    deployment_adapter.job_withdraw(job_id, amount).await?;
 
     info!("Withdrawal successful!");
     Ok(())
