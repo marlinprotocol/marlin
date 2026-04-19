@@ -25,21 +25,25 @@ use super::pcr::PcrArgs;
 #[group(multiple = true)]
 pub struct InitParamsArgs {
     /// Base64 encoded init params
-    #[arg(short = 'e', long, conflicts_with = "init_params")]
+    #[arg(
+        long,
+        help_heading = "Initialization parameters options",
+        conflicts_with = "init_params"
+    )]
     pub init_params_encoded: Option<String>,
 
     /// Init params list, supports the following forms:
     /// `<enclave path>:<should attest, 0 or 1>:<should encrypt, 0 or 1>:utf8:<string>`
     /// `<enclave path>:<should attest, 0 or 1>:<should encrypt, 0 or 1>:file:<local path>`
-    #[arg(short = 'i', long)]
+    #[arg(long, help_heading = "Initialization parameters options")]
     pub init_params: Option<Vec<String>>,
 
     /// KMS endpoint for fetching public key for encryption
-    #[arg(short = 'k', long)]
+    #[arg(long, help_heading = "Initialization parameters options")]
     pub kms_endpoint: Option<String>,
 
     /// KMS response signature verification key
-    #[arg(long)]
+    #[arg(long, help_heading = "Initialization parameters options")]
     pub kms_verification_key: Option<String>,
 
     /// Expected PCRs of the decryptor
@@ -47,16 +51,24 @@ pub struct InitParamsArgs {
     pub pcrs: PcrArgs,
 
     /// Encalve verifier contract address
-    #[arg(long, requires = "chain_id")]
+    #[arg(
+        long,
+        help_heading = "Initialization parameters options",
+        requires = "chain_id"
+    )]
     pub contract_address: Option<String>,
 
     /// Chain ID for KMS contract root server
-    #[arg(long, requires = "contract_address")]
+    #[arg(
+        long,
+        help_heading = "Initialization parameters options",
+        requires = "contract_address"
+    )]
     pub chain_id: Option<u64>,
 
     /// Docker compose file defining services to run,
     /// set as first init param
-    #[arg(long)]
+    #[arg(long, help_heading = "Initialization parameters options")]
     pub docker_compose: Option<String>,
 }
 

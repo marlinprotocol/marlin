@@ -10,10 +10,6 @@ use tracing::{debug, info};
 /// Withdraw funds from an existing job
 #[derive(Args)]
 pub struct WithdrawArgs {
-    /// Deployment (e.g. arb, sui, bsc)
-    #[arg(long, default_value = "arb")]
-    deployment: Deployment,
-
     /// Job ID
     #[arg(short, long, required = true)]
     job_id: u64,
@@ -26,12 +22,16 @@ pub struct WithdrawArgs {
     #[arg(long, conflicts_with = "amount")]
     max: bool,
 
+    /// Deployment
+    #[arg(long, help_heading = "Deployment options", default_value = "arb")]
+    deployment: Deployment,
+
+    /// RPC URL
+    #[arg(long, help_heading = "RPC options")]
+    rpc: Option<String>,
+
     #[command(flatten)]
     wallet: WalletArgs,
-
-    /// RPC URL (optional)
-    #[arg(long)]
-    rpc: Option<String>,
 }
 
 pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {

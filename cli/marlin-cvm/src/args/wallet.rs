@@ -8,11 +8,15 @@ use clap::Args;
 pub struct WalletArgs {
     /// Wallet private key for transaction signing
     /// [Base64 OR Bech32 (with prefix 'suiprivkey') encoded 33-byte private key (flag || private_key) for Sui chain]
-    #[arg(long, conflicts_with = "wallet_file")]
+    #[arg(long, help_heading = "Wallet options", conflicts_with = "wallet_file")]
     wallet_private_key: Option<String>,
 
     /// Wallet private key file containing hex encoded private key
-    #[arg(long, conflicts_with = "wallet_private_key")]
+    #[arg(
+        long,
+        help_heading = "Wallet options",
+        conflicts_with = "wallet_private_key"
+    )]
     wallet_file: Option<String>,
 }
 
@@ -32,8 +36,8 @@ impl WalletArgs {
     }
 
     pub fn load_required(&self) -> Result<String> {
-        self.load().transpose().ok_or(anyhow!(
-            "Wallet parameter is required, specify one of wallet-private-key or wallet-file."
-        ))?
+        self.load()
+            .transpose()
+            .ok_or(anyhow!("Specify one of wallet-private-key or wallet-file."))?
     }
 }

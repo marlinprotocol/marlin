@@ -26,33 +26,22 @@ const ATTESTATION_INTERVAL: u64 = 15;
 const TCP_CHECK_RETRIES: u32 = 20;
 const TCP_CHECK_INTERVAL: u64 = 15;
 
-/// Deploy an Oyster CVM instance
+/// Deploy a CVM job
 #[derive(Args, Debug)]
 pub struct DeployArgs {
-    /// Deployment (e.g. arb, sui, bsc)
-    #[arg(long, default_value = "arb")]
-    deployment: Deployment,
-
     /// Preset for parameters (e.g. blue)
     #[arg(long, default_value = "blue")]
     preset: String,
 
-    /// Platform architecture (e.g. amd64, arm64)
+    /// CVM architecture
     #[arg(long)]
     arch: Arch,
-
-    #[command(flatten)]
-    wallet: WalletArgs,
-
-    /// RPC URL (optional)
-    #[arg(long)]
-    rpc: Option<String>,
 
     /// Operator address
     #[arg(long)]
     operator: Option<String>,
 
-    /// AMI id of the enclave image
+    /// AMI ID to deploy as a CVM
     #[arg(long)]
     image: Option<String>,
 
@@ -64,21 +53,32 @@ pub struct DeployArgs {
     #[arg(long)]
     instance_type: Option<String>,
 
-    /// Optional bandwidth in KBps (default: 10)
+    /// Average bandwidth cap in KBps
     #[arg(long, default_value = "10")]
     bandwidth: u32,
 
-    /// Duration in minutes
+    /// Job duration in minutes
     #[arg(long)]
     duration_in_minutes: u64,
 
     /// Job name
     #[arg(long, default_value = "")]
-    job_name: String,
+    name: String,
 
-    /// Init params
+    /// Initialization parameters
     #[command(flatten)]
     init_params: InitParamsArgs,
+
+    /// Deployment
+    #[arg(long, help_heading = "Deployment options", default_value = "arb")]
+    deployment: Deployment,
+
+    /// RPC URL
+    #[arg(long, help_heading = "RPC options")]
+    rpc: Option<String>,
+
+    #[command(flatten)]
+    wallet: WalletArgs,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -195,7 +195,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         &selected_instance.instance,
         &args.region,
         &image,
-        &args.job_name,
+        &args.name,
         &args
             .init_params
             .load(args.preset, args.arch)

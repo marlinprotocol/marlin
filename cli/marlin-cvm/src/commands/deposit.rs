@@ -8,10 +8,6 @@ use tracing::info;
 /// Deposit funds to an existing job
 #[derive(Args)]
 pub struct DepositArgs {
-    /// Deployment (e.g. arb, sui, bsc)
-    #[arg(long, default_value = "arb")]
-    deployment: Deployment,
-
     /// Job ID
     #[arg(short, long, required = true)]
     job_id: u64,
@@ -20,12 +16,16 @@ pub struct DepositArgs {
     #[arg(short, long, required = true)]
     amount: f64,
 
+    /// Deployment
+    #[arg(long, help_heading = "Deployment options", default_value = "arb")]
+    deployment: Deployment,
+
+    /// RPC URL
+    #[arg(long, help_heading = "RPC options")]
+    rpc: Option<String>,
+
     #[command(flatten)]
     wallet: WalletArgs,
-
-    /// RPC URL (optional)
-    #[arg(long)]
-    rpc: Option<String>,
 }
 
 pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {

@@ -9,20 +9,9 @@ use tracing::info;
 /// Update existing deployments
 #[derive(Args)]
 pub struct UpdateArgs {
-    /// Deployment (e.g. arb, sui, bsc)
-    #[arg(long, default_value = "arb")]
-    deployment: Deployment,
-
     /// Job ID
     #[arg(long)]
     job_id: u64,
-
-    #[command(flatten)]
-    wallet: WalletArgs,
-
-    /// RPC URL (optional)
-    #[arg(long)]
-    rpc: Option<String>,
 
     /// New URL of the enclave image
     #[arg(long)]
@@ -39,6 +28,17 @@ pub struct UpdateArgs {
     /// New init params
     #[command(flatten)]
     init_params: InitParamsArgs,
+
+    /// Deployment
+    #[arg(long, help_heading = "Deployment options", default_value = "arb")]
+    deployment: Deployment,
+
+    /// RPC URL
+    #[arg(long, help_heading = "RPC options")]
+    rpc: Option<String>,
+
+    #[command(flatten)]
+    wallet: WalletArgs,
 }
 
 pub async fn update_job(args: UpdateArgs) -> Result<()> {

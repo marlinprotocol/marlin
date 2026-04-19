@@ -9,11 +9,11 @@ use crate::arch::Arch;
 #[group(multiple = true)]
 pub struct PcrArgs {
     /// Preset PCRs for known enclave images
-    #[arg(long, conflicts_with_all = ["pcr_json"])]
+    #[arg(long, help_heading = "PCRs options", conflicts_with_all = ["pcr_json"])]
     pub pcr_preset: Option<String>,
 
     /// Path to PCR JSON file
-    #[arg(long, conflicts_with_all = ["pcr_preset"])]
+    #[arg(long, help_heading = "PCRs options", conflicts_with_all = ["pcr_preset"])]
     pub pcr_json: Option<String>,
 }
 
@@ -65,14 +65,21 @@ impl PcrArgs {
     }
 
     pub fn load_required(self, default_preset: Option<String>) -> Result<[[u8; 48]; 12]> {
-        self.load(default_preset)
+        self.load(default_preset.clone())
             .context("Failed to get pcrs")?
             .into_iter()
             .filter_map(|x| x)
             .collect::<Box<_>>()
             .as_ref()
             .try_into()
-            .map_err(|_| anyhow!("All 12 pcrs are required"))
+            .map_err(|_| {
+                anyhow!(
+                    "Specify one of pcr-preset or pcr-json{}",
+                    default_preset
+                        .map(|x| format!(": preset {x} is not recognized"))
+                        .unwrap_or(String::new())
+                )
+            })
     }
 }
 
