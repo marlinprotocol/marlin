@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
-use clap::Args;
+use clap::{Args, ValueEnum, builder::PossibleValue};
 use serde_json;
 use tracing::info;
 
@@ -10,7 +10,7 @@ use crate::arch::Arch;
 pub struct PcrArgs {
     /// Preset PCRs for known enclave images
     #[arg(long, help_heading = "PCRs options", conflicts_with_all = ["pcr_json"])]
-    pub pcr_preset: Option<String>,
+    pub pcr_preset: Option<PcrPreset>,
 
     /// Path to PCR JSON file
     #[arg(long, help_heading = "PCRs options", conflicts_with_all = ["pcr_preset"])]
@@ -18,7 +18,7 @@ pub struct PcrArgs {
 }
 
 impl PcrArgs {
-    pub fn load(self, default_preset: Option<String>) -> Result<[Option<[u8; 48]>; 12]> {
+    pub fn load(self, default_preset: Option<PcrPreset>) -> Result<[Option<[u8; 48]>; 12]> {
         if let Some(ref path) = self.pcr_json {
             let file = std::fs::File::open(path)?;
             let parsed = serde_json::from_reader::<_, serde_json::Value>(file)
@@ -54,9 +54,9 @@ impl PcrArgs {
             return Ok(pcrs);
         }
 
-        if let Some(ref name) = self.pcr_preset.or(default_preset) {
-            info!(name, "PCR preset");
-            return match name.as_str() {
+        if let Some(ref preset) = self.pcr_preset.or(default_preset) {
+            info!(preset = preset.as_str(), "PCR preset");
+            return match preset {
                 _ => bail!("Unknown PCR preset"),
             };
         }
@@ -64,8 +64,8 @@ impl PcrArgs {
         Ok([None; 12])
     }
 
-    pub fn load_required(self, default_preset: Option<String>) -> Result<[[u8; 48]; 12]> {
-        self.load(default_preset.clone())
+    pub fn load_required(self, default_preset: Option<PcrPreset>) -> Result<[[u8; 48]; 12]> {
+        self.load(default_preset)
             .context("Failed to get pcrs")?
             .into_iter()
             .filter_map(|x| x)
@@ -76,16 +76,36 @@ impl PcrArgs {
                 anyhow!(
                     "Specify one of pcr-preset or pcr-json{}",
                     default_preset
-                        .map(|x| format!(": preset {x} is not recognized"))
+                        .map(|x| format!(": preset {} is not recognized", x.as_str()))
                         .unwrap_or(String::new())
                 )
             })
     }
 }
 
-pub fn preset_to_pcr_preset(preset: &str, _arch: &Arch) -> Option<String> {
+pub fn preset_to_pcr_preset(preset: &str, _arch: &Arch) -> Option<PcrPreset> {
     match preset {
         _ => None,
     }
-    .map(str::to_owned)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PcrPreset {}
+
+impl PcrPreset {
+    fn as_str(&self) -> &'static str {
+        match self {
+            _ => "None",
+        }
+    }
+}
+
+impl ValueEnum for PcrPreset {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        Some(self.as_str().into())
+    }
 }
