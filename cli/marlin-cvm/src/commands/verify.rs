@@ -66,9 +66,9 @@ pub struct VerifyArgs {
     #[arg(long)]
     preset: Option<String>,
 
-    /// Platform architecture (e.g. amd64, arm64)
-    #[arg(long, default_value = "arm64")]
-    arch: Arch,
+    /// Platform architecture
+    #[arg(long)]
+    arch: Option<Arch>,
 }
 
 pub async fn verify(args: VerifyArgs) -> Result<()> {
@@ -76,7 +76,8 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
         .pcrs
         .load(
             args.preset
-                .and_then(|x| preset_to_pcr_preset(&x, &args.arch)),
+                .zip(args.arch)
+                .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
         )
         .context("Failed to load PCR data")?;
 
