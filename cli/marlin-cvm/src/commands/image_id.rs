@@ -17,12 +17,12 @@ use crate::{
 #[derive(Args, Debug)]
 pub struct ImageArgs {
     /// Preset for parameters (e.g. blue)
-    #[arg(long, default_value = "blue")]
-    preset: String,
+    #[arg(long)]
+    preset: Option<String>,
 
-    /// Platform architecture (e.g. amd64, arm64)
-    #[arg(long, default_value = "arm64")]
-    arch: Arch,
+    /// Platform architecture
+    #[arg(long)]
+    arch: Option<Arch>,
 
     #[command(flatten)]
     init_params: InitParamsArgs,
@@ -33,12 +33,17 @@ pub fn compute_image_id(args: ImageArgs) -> Result<()> {
         .init_params
         .pcrs
         .clone()
-        .load_required(preset_to_pcr_preset(&args.preset, &args.arch))
+        .load_required(
+            args.preset
+                .as_ref()
+                .zip(args.arch.as_ref())
+                .and_then(|(preset, arch)| preset_to_pcr_preset(preset, arch)),
+        )
         .context("Failed to load PCRs")?;
     let mut pcr16 = [0u8; 48];
     if let Some(init_param_b64) = args
         .init_params
-        .load(Some(args.preset), Some(args.arch))
+        .load(args.preset, args.arch)
         .context("Failed to load init params")?
     {
         let init_param_json = String::from_utf8(BASE64_STANDARD.decode(init_param_b64)?)?;
