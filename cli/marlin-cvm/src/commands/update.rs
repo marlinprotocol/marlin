@@ -6,28 +6,28 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use tracing::info;
 
-/// Update existing deployments
+/// Update existing job
 #[derive(Args)]
 pub struct UpdateArgs {
     /// Job ID
     #[arg(long)]
     job_id: u64,
 
-    /// New URL of the enclave image
+    /// New AMI ID for the CVM
     #[arg(long)]
-    image_url: Option<String>,
-
-    /// Preset for init params (e.g. blue)
-    #[arg(long, default_value = "blue")]
-    preset: String,
-
-    /// Platform architecture (e.g. amd64, arm64)
-    #[arg(long, default_value = "arm64")]
-    arch: Arch,
+    image: Option<String>,
 
     /// New init params
     #[command(flatten)]
     init_params: InitParamsArgs,
+
+    /// Preset for parameters (e.g. blue)
+    #[arg(long)]
+    preset: Option<String>,
+
+    /// CVM architecture
+    #[arg(long)]
+    arch: Option<Arch>,
 
     /// Deployment
     #[arg(long, help_heading = "Deployment options", default_value = "arb")]
@@ -44,30 +44,36 @@ pub struct UpdateArgs {
 pub async fn update_job(args: UpdateArgs) -> Result<()> {
     let wallet_private_key = &args.wallet.load_required()?;
     let job_id = args.job_id;
-    let image_url = args.image_url;
+    let image = args.image;
 
     let mut deployment_adapter =
         get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
             .context("Failed to create deployment adapter")?;
 
     // Check if job exists
-    let Some(job_data) = deployment_adapter.get_job_data_if_exists(job_id).await? else {
+    let Some(job_data) = deployment_adapter
+        .get_job_data_if_exists(job_id)
+        .await
+        .context("Failed to query job data")?
+    else {
         return Err(anyhow!("Job {} does not exist", job_id));
     };
 
-    let mut metadata = serde_json::from_str::<serde_json::Value>(&job_data.metadata)?;
+    let mut metadata = serde_json::from_str::<serde_json::Value>(&job_data.metadata)
+        .context("Failed to decode metadata as json")?;
     info!(
         "Original metadata: {}",
-        serde_json::to_string_pretty(&metadata)?
+        serde_json::to_string_pretty(&metadata)
+            .context("Should never happen, failed to stringify a Value")?
     );
 
-    if let Some(image_url) = image_url {
-        metadata["url"] = serde_json::Value::String(image_url);
+    if let Some(image) = image {
+        metadata["image"] = serde_json::Value::String(image);
     }
 
     if let Some(init_params) = args
         .init_params
-        .load(Some(args.preset), Some(args.arch))
+        .load(args.preset, args.arch)
         .context("Failed to load init params")?
     {
         metadata["init_params"] = init_params.into();
@@ -75,13 +81,17 @@ pub async fn update_job(args: UpdateArgs) -> Result<()> {
 
     info!(
         "Updated metadata: {}",
-        serde_json::to_string_pretty(&metadata)?
+        serde_json::to_string_pretty(&metadata)
+            .context("Should never happen, failed to stringify a Value")?
     );
 
     // Update job
+    info!("Updating metadata...");
     deployment_adapter
         .job_metadata_update(job_id, serde_json::to_string(&metadata)?)
-        .await?;
+        .await
+        .context("Failed to make metadata update transaction")?;
+    info!("Update successful!");
 
     Ok(())
 }
