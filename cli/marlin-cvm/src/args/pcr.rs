@@ -1,11 +1,10 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, ValueEnum, builder::PossibleValue};
+use k256::sha2::{Digest, Sha384};
 use serde_json;
 use tracing::info;
 
 use crate::arch::Arch;
-
-// TODO: Handle dynamic PCRs with app digests
 
 #[derive(Args, Debug, Clone)]
 #[group(multiple = true)]
@@ -17,10 +16,17 @@ pub struct PcrArgs {
     /// Path to PCR JSON file
     #[arg(long, help_heading = "PCRs options", conflicts_with_all = ["pcr_preset"])]
     pub pcr_json: Option<String>,
+
+    /// Initialization parameters digest to extend PCR15 with
+    #[arg(long, help_heading = "PCRs options")]
+    pub digest: Option<String>,
 }
 
 impl PcrArgs {
-    pub fn load(self, default_preset: Option<PcrPreset>) -> Result<[Option<[u8; 48]>; 12]> {
+    fn load_without_digest(
+        self,
+        default_preset: Option<PcrPreset>,
+    ) -> Result<[Option<[u8; 48]>; 12]> {
         if let Some(ref path) = self.pcr_json {
             let file = std::fs::File::open(path)?;
             let parsed = serde_json::from_reader::<_, serde_json::Value>(file)
@@ -64,6 +70,26 @@ impl PcrArgs {
         }
 
         Ok([None; 12])
+    }
+
+    pub fn load(self, default_preset: Option<PcrPreset>) -> Result<[Option<[u8; 48]>; 12]> {
+        let digest = self.digest.clone();
+        let mut pcrs = self.load_without_digest(default_preset)?;
+        let Some(digest) = digest else {
+            return Ok(pcrs);
+        };
+
+        let digest = hex::decode(digest).context("Failed to hex decode digest")?;
+
+        let Some(pcr) = pcrs[11] else {
+            bail!("PCR15 is required in order to extend with digest");
+        };
+
+        let mut hasher = Sha384::new_with_prefix(pcr);
+        hasher.update(digest);
+        pcrs[11] = Some(hasher.finalize().into());
+
+        Ok(pcrs)
     }
 
     pub fn load_required(self, default_preset: Option<PcrPreset>) -> Result<[[u8; 48]; 12]> {
