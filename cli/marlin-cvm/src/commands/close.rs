@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use tracing::info;
 
-/// Close a CVM job
+/// Close an existing job
 #[derive(Args)]
 pub struct CloseArgs {
     /// Job ID
@@ -45,17 +45,20 @@ pub async fn close_job(args: CloseArgs) -> Result<()> {
     );
 
     // Check if job exists
-    let job_data = deployment_adapter
+    let Some(_) = deployment_adapter
         .get_job_data_if_exists(job_id)
         .await
-        .context("Failed to get job data")?;
-    if job_data.is_none() {
+        .context("Failed to query job data")?
+    else {
         return Err(anyhow!("Job {} does not exist", job_id));
-    }
+    };
 
     // Close job
     info!("Initiating job close...");
-    deployment_adapter.job_close(job_id).await?;
+    deployment_adapter
+        .job_close(job_id)
+        .await
+        .context("Failed to make close transaction")?;
     info!("Job closed successfully!");
 
     Ok(())
