@@ -198,7 +198,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         &args.name,
         &args
             .init_params
-            .load(args.preset, args.arch)
+            .load(Some(args.preset), Some(args.arch))
             .context("Failed to load init params")?
             .unwrap_or("".into()),
     );

@@ -73,7 +73,7 @@ pub struct InitParamsArgs {
 }
 
 impl InitParamsArgs {
-    pub fn load(self, preset: String, arch: Arch) -> Result<Option<String>> {
+    pub fn load(self, preset: Option<String>, arch: Option<Arch>) -> Result<Option<String>> {
         // check for encoded params
         if self.init_params_encoded.is_some() {
             return Ok(self.init_params_encoded.clone());
@@ -174,10 +174,9 @@ impl InitParamsArgs {
         info!(digest = hex::encode(digest), "Computed digest");
 
         // load pcrs
-        // use pcrs of the blue base image by default
         let pcrs = self
             .pcrs
-            .load_required(preset_to_pcr_preset(&preset, &arch))
+            .load_required(preset.zip(arch).and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)))
             .context("Failed to load PCRs")?;
 
         // TODO: measure digest into pcrs
