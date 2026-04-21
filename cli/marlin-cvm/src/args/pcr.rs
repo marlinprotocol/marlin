@@ -5,6 +5,8 @@ use tracing::info;
 
 use crate::arch::Arch;
 
+// TODO: Handle dynamic PCRs with app digests
+
 #[derive(Args, Debug, Clone)]
 #[group(multiple = true)]
 pub struct PcrArgs {

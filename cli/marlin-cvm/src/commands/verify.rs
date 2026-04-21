@@ -11,10 +11,10 @@ use crate::arch::Arch;
 use crate::args::pcr::{PcrArgs, preset_to_pcr_preset};
 use crate::configs::global::DEFAULT_ATTESTATION_PORT;
 
-/// Verify Oyster Enclave Attestation
+/// Verify CVM attestation
 ///
-/// For verifying a running enclave (among other flags):
-///   --enclave-ip <ENCLAVE_IP>
+/// For verifying a running cvm (among other flags):
+///   --cvm-ip <CVM_IP>
 ///
 /// For verifying an existing attestation (among other flags):
 ///   --attestation-hex <ATTESTATION_HEX>
@@ -24,23 +24,23 @@ use crate::configs::global::DEFAULT_ATTESTATION_PORT;
 #[derive(Args)]
 pub struct VerifyArgs {
     /// Hex encoded attestation
-    #[arg(short = 'x', long, conflicts_with_all = ["enclave_ip", "attestation_hex_file"])]
+    #[arg(short = 'x', long, conflicts_with_all = ["cvm_ip", "attestation_hex_file"])]
     attestation_hex: Option<String>,
 
     /// Path to file containing a hex encoded attestation
-    #[arg(long, conflicts_with_all = ["enclave_ip", "attestation_hex"])]
+    #[arg(long, conflicts_with_all = ["cvm_ip", "attestation_hex"])]
     attestation_hex_file: Option<String>,
 
-    /// Enclave IP
+    /// CVM IP
     #[arg(short = 'e', long, conflicts_with_all = ["attestation_hex", "attestation_hex_file"])]
-    enclave_ip: Option<String>,
+    cvm_ip: Option<String>,
+
+    /// Attestation port
+    #[arg(short = 'p', long, default_value_t = DEFAULT_ATTESTATION_PORT)]
+    attestation_port: u16,
 
     #[command(flatten)]
-    pcr: PcrArgs,
-
-    /// Optional PCR16, hex encoded
-    #[arg(long)]
-    pcr16: Option<String>,
+    pcrs: PcrArgs,
 
     /// Attestation user data, hex encoded
     #[arg(short = 'u', long)]
@@ -49,10 +49,6 @@ pub struct VerifyArgs {
     /// Image id, hex encoded
     #[arg(short = 'i', long)]
     image_id: Option<String>,
-
-    /// Attestation Port (default: 1300)
-    #[arg(short = 'p', long, default_value_t = DEFAULT_ATTESTATION_PORT)]
-    attestation_port: u16,
 
     /// Maximum age of attestation (in milliseconds) (default: 300000)
     #[arg(short = 'a', long, default_value = "300000")]
@@ -76,47 +72,66 @@ pub struct VerifyArgs {
 }
 
 pub async fn verify(args: VerifyArgs) -> Result<()> {
-    let pcrs = get_pcrs(args.pcr, args.pcr16, args.preset, args.arch)
+    let pcrs = args
+        .pcrs
+        .load(
+            args.preset
+                .and_then(|x| preset_to_pcr_preset(&x, &args.arch)),
+        )
         .context("Failed to load PCR data")?;
 
     // parse or fetch attestation
     let attestation = if let Some(attestation_hex) = args.attestation_hex {
         info!("Parsing attestation");
-        let attestation = hex::decode(attestation_hex)?.into_boxed_slice();
+        let attestation = hex::decode(attestation_hex)
+            .context("Failed to hex decode attestation")?
+            .into_boxed_slice();
         info!("Successfully parsed attestation");
 
         attestation
     } else if let Some(attestation_hex_file) = args.attestation_hex_file {
         info!("Reading attestation from {attestation_hex_file}");
-        let attestation_hex = read(&attestation_hex_file).await?.into_boxed_slice();
-        let attestation = hex::decode(attestation_hex)?.into_boxed_slice();
+        let attestation_hex = read(&attestation_hex_file)
+            .await
+            .context("Failed to read attestation from file")?
+            .into_boxed_slice();
+        let attestation = hex::decode(attestation_hex)
+            .context("Failed to hex decode attestation")?
+            .into_boxed_slice();
         info!("Read attestation from {attestation_hex_file}");
 
         attestation
-    } else if let Some(enclave_ip) = args.enclave_ip {
+    } else if let Some(cvm_ip) = args.cvm_ip {
         let attestation_endpoint = format!(
             "http://{}:{}/attestation/raw",
-            enclave_ip, args.attestation_port
+            cvm_ip, args.attestation_port
         );
         info!(
             "Connecting to attestation endpoint: {}",
             attestation_endpoint
         );
-
-        let attestation_doc = reqwest::get(attestation_endpoint).await?.bytes().await?;
+        let attestation_doc = reqwest::get(attestation_endpoint)
+            .await
+            .context("Failed to get attestation request")?
+            .bytes()
+            .await
+            .context("Failed to get attestation response")?;
         info!("Successfully fetched attestation document");
 
         attestation_doc.to_vec().into_boxed_slice()
     } else {
         bail!(
-            "Could not get attestation, either enclave-ip, attestation-hex or attestation-hex-file must be specified"
+            "Could not get attestation, either cvm-ip, attestation-hex or attestation-hex-file must be specified"
         )
     };
 
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as u64;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("Failed to get current timestamp")?
+        .as_millis() as u64;
     let user_data = args
         .user_data
-        .map(|d| hex::decode(d).map_err(|_| anyhow::anyhow!("User data must be hex encoded")))
+        .map(|d| hex::decode(d).context("User data must be hex encoded"))
         .transpose()?;
     let root_public_key =
         hex::decode(args.root_public_key).context("Failed to decode root public key hex string")?;
@@ -124,7 +139,7 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
         .image_id
         .map(|x| {
             hex::decode(x)
-                .context("Failed to decode root public key hex string")?
+                .context("Failed to decode image id hex string")?
                 .try_into()
                 .map_err(|_| anyhow!("incorrect image id size"))
         })
@@ -144,7 +159,7 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
         .context("Failed to verify attestation document")?;
 
     info!("Root public key: {}", hex::encode(decoded.root_public_key));
-    info!("Enclave public key: {}", hex::encode(decoded.public_key));
+    info!("CVM public key: {}", hex::encode(decoded.public_key));
     info!("Image id: {}", hex::encode(decoded.image_id));
     info!("User data: {}", hex::encode(&decoded.user_data));
     if let Ok(user_data) = String::from_utf8(decoded.user_data.to_vec()) {
@@ -157,23 +172,13 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
     info!(
         timestamp = attestation_expectations.timestamp_ms,
         age = attestation_expectations.age_ms.map(|x| x.0),
-        pcrs = ?attestation_expectations.pcrs.map(|x| Some(hex::encode(x?))),
-        enclave_public_key = attestation_expectations.public_key.map(hex::encode),
+        pcrs = ?attestation_expectations.pcrs.map(|x| x.map(hex::encode)),
+        cvm_public_key = attestation_expectations.public_key.map(hex::encode),
         user_data = attestation_expectations.user_data.map(hex::encode),
         root_public_key = attestation_expectations.root_public_key.map(hex::encode),
         image_id = attestation_expectations.image_id.map(hex::encode),
         "Verified against expectations: "
     );
+
     Ok(())
-}
-
-fn get_pcrs(
-    pcr: PcrArgs,
-    pcr16: Option<String>,
-    preset: Option<String>,
-    arch: Arch,
-) -> Result<[Option<[u8; 48]>; 12]> {
-    pcr.load(preset.and_then(|x| preset_to_pcr_preset(&x, &arch)))
-
-    // TODO: do something with pcr16
 }
