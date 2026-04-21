@@ -5,7 +5,7 @@ use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use tracing::info;
 
-/// Deposit funds to an existing job
+/// Deposit funds into an existing job
 #[derive(Args)]
 pub struct DepositArgs {
     /// Job ID
@@ -40,16 +40,20 @@ pub async fn deposit_to_job(args: DepositArgs) -> Result<()> {
             .context("Failed to create deployment adapter")?;
 
     // Check if job exists
-    let job_data = deployment_adapter.get_job_data_if_exists(job_id).await?;
-    if job_data.is_none() {
+    let Some(_) = deployment_adapter
+        .get_job_data_if_exists(job_id)
+        .await
+        .context("Failed to query job data")?
+    else {
         return Err(anyhow!("Job {} does not exist", job_id));
-    }
+    };
 
+    // Deposit into job
     info!("Depositing: {:.6} USDC", format_usdc(amount));
-
-    // Call jobDeposit function
-    deployment_adapter.job_deposit(job_id, amount).await?;
-
+    deployment_adapter
+        .job_deposit(job_id, amount)
+        .await
+        .context("Failed to make deposit transaction")?;
     info!("Deposit successful!");
 
     Ok(())
