@@ -62,20 +62,21 @@ pub struct VerifyArgs {
     #[arg(long, default_value_t = hex::encode(AWS_ROOT_KEY))]
     root_public_key: String,
 
-    /// Preset for parameters (e.g. blue)
-    #[arg(long)]
-    preset: Option<String>,
+    /// Preset for parameters (e.g. blue, none). Pass none to disable.
+    #[arg(long, default_value = "blue")]
+    preset: String,
 
-    /// Platform architecture
+    /// CVM architecture, required for preset to apply to most parameters
     #[arg(long)]
     arch: Option<Arch>,
 }
 
 pub async fn verify(args: VerifyArgs) -> Result<()> {
+    let preset = Some(args.preset).filter(|x| x != "none");
     let pcrs = args
         .pcrs
         .load(
-            args.preset
+            preset
                 .zip(args.arch)
                 .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
         )
