@@ -24,7 +24,7 @@ use crate::configs::global::DEFAULT_ATTESTATION_PORT;
 #[derive(Args)]
 pub struct VerifyArgs {
     /// Hex encoded attestation
-    #[arg(short = 'x', long, conflicts_with_all = ["cvm_ip", "attestation_hex_file"])]
+    #[arg(long, conflicts_with_all = ["cvm_ip", "attestation_hex_file"])]
     attestation_hex: Option<String>,
 
     /// Path to file containing a hex encoded attestation
@@ -32,34 +32,34 @@ pub struct VerifyArgs {
     attestation_hex_file: Option<String>,
 
     /// CVM IP
-    #[arg(short = 'e', long, conflicts_with_all = ["attestation_hex", "attestation_hex_file"])]
+    #[arg(long, conflicts_with_all = ["attestation_hex", "attestation_hex_file"])]
     cvm_ip: Option<String>,
 
     /// Attestation port
-    #[arg(short = 'p', long, default_value_t = DEFAULT_ATTESTATION_PORT)]
+    #[arg(long, default_value_t = DEFAULT_ATTESTATION_PORT)]
     attestation_port: u16,
 
     #[command(flatten)]
     pcrs: PcrArgs,
 
     /// Attestation user data, hex encoded
-    #[arg(short = 'u', long)]
+    #[arg(long)]
     user_data: Option<String>,
 
     /// Image id, hex encoded
-    #[arg(short = 'i', long)]
+    #[arg(long)]
     image_id: Option<String>,
 
     /// Maximum age of attestation (in milliseconds) (default: 300000)
-    #[arg(short = 'a', long, default_value = "300000")]
+    #[arg(long, default_value = "300000")]
     max_age: u64,
 
     /// Attestation timestamp (in milliseconds)
-    #[arg(short = 't', long, default_value = "0")]
+    #[arg(long, default_value = "0")]
     timestamp: u64,
 
     /// Root public key
-    #[arg(short = 'r', long, default_value_t = hex::encode(AWS_ROOT_KEY))]
+    #[arg(long, default_value_t = hex::encode(AWS_ROOT_KEY))]
     root_public_key: String,
 
     /// Preset for parameters (e.g. blue)
