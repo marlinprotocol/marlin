@@ -7,11 +7,13 @@ use clap::Args;
 #[group(multiple = true)]
 pub struct WalletArgs {
     /// Wallet private key for transaction signing
+    /// [Hex (without prefix '0x') for EVM chains]
     /// [Base64 OR Bech32 (with prefix 'suiprivkey') encoded 33-byte private key (flag || private_key) for Sui chain]
     #[arg(long, help_heading = "Wallet options", conflicts_with = "wallet_file")]
     wallet_private_key: Option<String>,
 
-    /// Wallet private key file containing hex encoded private key
+    /// Wallet private key file containing the private key encoded the same as the
+    /// wallet-private-key option
     #[arg(
         long,
         help_heading = "Wallet options",
