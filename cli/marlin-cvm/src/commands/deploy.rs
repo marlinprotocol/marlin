@@ -26,16 +26,16 @@ const ATTESTATION_INTERVAL: u64 = 15;
 const TCP_CHECK_RETRIES: u32 = 20;
 const TCP_CHECK_INTERVAL: u64 = 15;
 
-/// Deploy a CVM job
+/// Deploy a new job
 #[derive(Args, Debug)]
 pub struct DeployArgs {
     /// Preset for parameters (e.g. blue)
-    #[arg(long, default_value = "blue")]
-    preset: String,
+    #[arg(long)]
+    preset: Option<String>,
 
     /// CVM architecture
     #[arg(long)]
-    arch: Arch,
+    arch: Option<Arch>,
 
     /// Operator address
     #[arg(long)]
@@ -141,16 +141,16 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         ));
     }
 
-    let instance_type =
-        args.instance_type
-            .map(Result::Ok)
-            .unwrap_or(match args.preset.as_str() {
-                "blue" => match args.arch {
-                    Arch::AMD64 => Ok("c6a.large".into()),
-                    Arch::ARM64 => Ok("c8g.medium".into()),
-                },
-                _ => Err(anyhow!("Instance type is required")),
-            })?;
+    let instance_type = args.instance_type.map(Result::Ok).unwrap_or_else(|| {
+        let arch = args.arch.as_ref().ok_or(anyhow!("Either instance-type or arch is required."))?;
+        match args.preset.as_ref().map(String::as_str) {
+            None => match arch {
+                Arch::AMD64 => Ok("c6a.large".into()),
+                Arch::ARM64 => Ok("c8g.medium".into()),
+            },
+            _ => Err(anyhow!("Given preset and arch do not have a default instance type, instance-type is required")),
+        }
+    })?;
 
     // Fetch operator min rates with early validation
     let selected_instance =
@@ -168,16 +168,19 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         &cp_url,
         EXTRA_DECIMALS,
     )
-    .await?;
+    .await
+    .context("Failed to calculate total cost")?;
 
     info!("Total cost: {:.6} USDC", format_usdc(total_cost));
     info!("Total rate: {:.6} USDC/hour", format_rate(total_rate));
 
-    let image = args
-        .image
-        .map(Result::Ok)
-        .unwrap_or(match args.preset.as_str() {
-            "blue" => match args.arch {
+    let image = args.image.map(Result::Ok).unwrap_or_else(|| {
+        let (preset, arch) = args.preset.as_ref().zip(args.arch.as_ref()).ok_or(anyhow!(
+            "Either image or a valid preset and arch is required."
+        ))?;
+        match preset.as_str() {
+            "blue" => match arch {
+                // TODO: Replace with the correct ami ids
                 Arch::AMD64 => Ok(
                     "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_amd64.eif"
                         .into(),
@@ -187,8 +190,11 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
                         .into(),
                 ),
             },
-            _ => Err(anyhow!("Image is required")),
-        })?;
+            _ => Err(anyhow!(
+                "Given preset and arch do not have a default image, image is required"
+            )),
+        }
+    })?;
 
     // Create metadata
     let metadata = create_metadata(
@@ -198,7 +204,7 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         &args.name,
         &args
             .init_params
-            .load(Some(args.preset), Some(args.arch))
+            .load(args.preset, args.arch)
             .context("Failed to load init params")?
             .unwrap_or("".into()),
     );
@@ -206,7 +212,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     // Create job
     let job_id = deployment_adapter
         .job_create(&metadata, &operator, total_rate, total_cost)
-        .await?;
+        .await
+        .context("Failed to send create transaction")?;
     info!("Job created with ID: {}", job_id);
 
     info!("Waiting for 20 seconds for enclave to start...");
