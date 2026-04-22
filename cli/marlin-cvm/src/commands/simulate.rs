@@ -352,8 +352,8 @@ impl SimulateArgs {
 
         // Define memory configuration for the container based on user input
         let mut config_args = vec![];
-        if args.container_memory.is_some() {
-            config_args.push(format!("--memory={}", args.container_memory.unwrap()));
+        if let Some(memory) = args.container_memory {
+            config_args.push(format!("--memory={}", memory));
         }
 
         info!("Starting the dev container with user specified parameters");

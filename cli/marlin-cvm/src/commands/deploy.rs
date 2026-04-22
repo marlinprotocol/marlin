@@ -145,7 +145,7 @@ impl DeployArgs {
 
         let instance_type = args.instance_type.map(Result::Ok).unwrap_or_else(|| {
         let arch = args.arch.as_ref().ok_or(anyhow!("Either instance-type or arch is required."))?;
-        match args.preset.as_ref().map(String::as_str) {
+        match args.preset.as_deref() {
             None => match arch {
                 Arch::AMD64 => Ok("c6a.large".into()),
                 Arch::ARM64 => Ok("c8g.medium".into()),
@@ -284,14 +284,14 @@ async fn calculate_total_cost(
     extra_decimals: u32,
 ) -> Result<(u64, u64)> {
     let compute_rate = instance_rate.min_rate;
-    let compute_cost = u64::from(duration)
+    let compute_cost = duration
         .checked_mul(compute_rate)
         .context("Failed to multiply duration and instance rate")?;
 
     let bandwidth_rate_region = get_bandwidth_rate_for_region(region, cp_url).await?;
     let bandwidth_rate = calculate_bandwidth_rate(bandwidth.into(), bandwidth_rate_region)
         .context("Failed to calculate bandwidth cost")?;
-    let bandwidth_cost = u64::from(duration)
+    let bandwidth_cost = duration
         .checked_mul(bandwidth_rate)
         .context("Failed to multiply duration and bandwidth rate")?;
 
@@ -335,15 +335,12 @@ fn calculate_bandwidth_rate(
     bandwidth: u64, // KBps
     bandwidth_rate_for_region_scaled: u64,
 ) -> Result<u64> {
-    let unit_conversion_divisor = 1000_000;
+    let unit_conversion_divisor = 1_000_000;
 
-    (bandwidth)
+    Ok(bandwidth
         .checked_mul(bandwidth_rate_for_region_scaled)
         .context("Failed to multiply bandwidth and bandwidth rate")?
-        .checked_add(unit_conversion_divisor - 1)
-        .context("Failed to add unit conversion divisor minus one")?
-        .checked_div(unit_conversion_divisor)
-        .context("Failed to divide by unit conversion divisor")
+        .div_ceil(unit_conversion_divisor))
 }
 
 fn create_metadata(

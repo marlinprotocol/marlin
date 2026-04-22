@@ -58,7 +58,7 @@ impl ImageArgs {
                     .as_ref()
                     .zip(args.arch.as_ref())
                     .and_then(|(preset, arch)| preset_to_pcr_preset(preset, arch)),
-                digest.as_ref().map(Vec::as_slice),
+                digest.as_deref(),
             )
             .context("Failed to load PCRs")?;
 

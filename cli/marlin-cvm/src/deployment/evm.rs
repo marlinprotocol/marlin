@@ -198,7 +198,7 @@ impl DeploymentAdapter for EvmAdapter {
                 .await
                 .context("Failed to send USDC approval transaction")?;
             info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-            Self::watch(&provider, tx.tx_hash().clone(), 60)
+            Self::watch(&provider, *tx.tx_hash(), 60)
                 .await
                 .context("Failed to get receipt, transaction might still have been included")?;
             info!("Transaction included: {:?}", tx.tx_hash());
@@ -226,7 +226,7 @@ impl DeploymentAdapter for EvmAdapter {
             .await
             .context("Failed to send transaction")?;
         info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-        let receipt = Self::get_receipt(&provider, tx.tx_hash().clone(), 60)
+        let receipt = Self::get_receipt(&provider, *tx.tx_hash(), 60)
             .await
             .context("Failed to get receipt, transaction might still have been included")?;
         info!("Transaction included: {:?}", tx.tx_hash());
@@ -287,7 +287,7 @@ impl DeploymentAdapter for EvmAdapter {
                 .await
                 .context("Failed to send USDC approval transaction")?;
             info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-            Self::watch(&provider, tx.tx_hash().clone(), 60)
+            Self::watch(&provider, *tx.tx_hash(), 60)
                 .await
                 .context("Failed to get receipt, transaction might still have been included")?;
             info!("Transaction included: {:?}", tx.tx_hash());
@@ -307,7 +307,7 @@ impl DeploymentAdapter for EvmAdapter {
             .await
             .context("Failed to send transaction")?;
         info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-        Self::watch(&provider, tx.tx_hash().clone(), 60)
+        Self::watch(&provider, *tx.tx_hash(), 60)
             .await
             .context("Failed to get receipt, transaction might still have been included")?;
         info!("Transaction included: {:?}", tx.tx_hash());
@@ -334,7 +334,7 @@ impl DeploymentAdapter for EvmAdapter {
             .await
             .context("Failed to send transaction")?;
         info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-        Self::watch(&provider, tx.tx_hash().clone(), 60)
+        Self::watch(&provider, *tx.tx_hash(), 60)
             .await
             .context("Failed to get receipt, transaction might still have been included")?;
         info!("Transaction included: {:?}", tx.tx_hash());
@@ -361,7 +361,7 @@ impl DeploymentAdapter for EvmAdapter {
             .await
             .context("Failed to send transaction")?;
         info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-        Self::watch(&provider, tx.tx_hash().clone(), 60)
+        Self::watch(&provider, *tx.tx_hash(), 60)
             .await
             .context("Failed to get receipt, transaction might still have been included")?;
         info!("Transaction included: {:?}", tx.tx_hash());
@@ -388,7 +388,7 @@ impl DeploymentAdapter for EvmAdapter {
             .await
             .context("Failed to send transaction")?;
         info!("Transaction sent, waiting for receipt: {:?}", tx.tx_hash());
-        Self::watch(&provider, tx.tx_hash().clone(), 60)
+        Self::watch(&provider, *tx.tx_hash(), 60)
             .await
             .context("Failed to get receipt, transaction might still have been included")?;
         info!("Transaction included: {:?}", tx.tx_hash());

@@ -89,7 +89,7 @@ impl PcrArgs {
         {
             bail!("Digest parameter does not match expected digest");
         }
-        let digest = args_digest.as_ref().map(|x| x.as_slice()).or(force_digest);
+        let digest = args_digest.as_deref().or(force_digest);
 
         let mut pcrs = self.load_without_digest(default_preset)?;
         let Some(digest) = digest else {
@@ -115,7 +115,7 @@ impl PcrArgs {
         self.load(default_preset, force_digest)
             .context("Failed to get pcrs")?
             .into_iter()
-            .filter_map(|x| x)
+            .flatten()
             .collect::<Box<_>>()
             .as_ref()
             .try_into()
@@ -124,7 +124,7 @@ impl PcrArgs {
                     "Specify one of pcr-preset or pcr-json{}",
                     default_preset
                         .map(|x| format!(": preset {} is not recognized", x.as_str()))
-                        .unwrap_or(String::new())
+                        .unwrap_or_default()
                 )
             })
     }
