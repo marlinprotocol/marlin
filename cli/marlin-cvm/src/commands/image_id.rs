@@ -38,6 +38,7 @@ pub fn compute_image_id(args: ImageArgs) -> Result<()> {
                 .as_ref()
                 .zip(args.arch.as_ref())
                 .and_then(|(preset, arch)| preset_to_pcr_preset(preset, arch)),
+            None,
         )
         .context("Failed to load PCRs")?;
     let mut pcr16 = [0u8; 48];

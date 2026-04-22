@@ -78,6 +78,7 @@ pub async fn verify(args: VerifyArgs) -> Result<()> {
             args.preset
                 .zip(args.arch)
                 .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
+            None,
         )
         .context("Failed to load PCR data")?;
 

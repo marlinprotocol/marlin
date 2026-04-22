@@ -72,14 +72,29 @@ impl PcrArgs {
         Ok([None; 12])
     }
 
-    pub fn load(self, default_preset: Option<PcrPreset>) -> Result<[Option<[u8; 48]>; 12]> {
-        let digest = self.digest.clone();
+    pub fn load(
+        self,
+        default_preset: Option<PcrPreset>,
+        force_digest: Option<&[u8]>,
+    ) -> Result<[Option<[u8; 48]>; 12]> {
+        let args_digest = self
+            .digest
+            .as_ref()
+            .map(hex::decode)
+            .transpose()
+            .context("Failed to hex decode digest")?;
+        if let Some(ref args_digest) = args_digest
+            && let Some(force_digest) = force_digest
+            && args_digest.as_slice() != force_digest
+        {
+            bail!("Digest parameter does not match expected digest");
+        }
+        let digest = args_digest.as_ref().map(|x| x.as_slice()).or(force_digest);
+
         let mut pcrs = self.load_without_digest(default_preset)?;
         let Some(digest) = digest else {
             return Ok(pcrs);
         };
-
-        let digest = hex::decode(digest).context("Failed to hex decode digest")?;
 
         let Some(pcr) = pcrs[11] else {
             bail!("PCR15 is required in order to extend with digest");
@@ -92,8 +107,12 @@ impl PcrArgs {
         Ok(pcrs)
     }
 
-    pub fn load_required(self, default_preset: Option<PcrPreset>) -> Result<[[u8; 48]; 12]> {
-        self.load(default_preset)
+    pub fn load_required(
+        self,
+        default_preset: Option<PcrPreset>,
+        force_digest: Option<&[u8]>,
+    ) -> Result<[[u8; 48]; 12]> {
+        self.load(default_preset, force_digest)
             .context("Failed to get pcrs")?
             .into_iter()
             .filter_map(|x| x)

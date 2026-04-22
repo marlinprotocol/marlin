@@ -176,7 +176,12 @@ impl InitParamsArgs {
         // load pcrs
         let pcrs = self
             .pcrs
-            .load_required(preset.zip(arch).and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)))
+            .load_required(
+                preset
+                    .zip(arch)
+                    .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
+                None,
+            )
             .context("Failed to load PCRs")?;
 
         // TODO: measure digest into pcrs
