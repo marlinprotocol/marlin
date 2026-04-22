@@ -242,8 +242,8 @@
       },
       {
         "name": "_metadata",
-        "type": "string",
-        "internalType": "string"
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -255,8 +255,8 @@
     "inputs": [
       {
         "name": "_metadata",
-        "type": "string",
-        "internalType": "string"
+        "type": "bytes",
+        "internalType": "bytes"
       },
       {
         "name": "_provider",
@@ -339,8 +339,8 @@
     "outputs": [
       {
         "name": "metadata",
-        "type": "string",
-        "internalType": "string"
+        "type": "bytes",
+        "internalType": "bytes"
       },
       {
         "name": "owner",
@@ -771,9 +771,9 @@
       },
       {
         "name": "metadata",
-        "type": "string",
+        "type": "bytes",
         "indexed": false,
-        "internalType": "string"
+        "internalType": "bytes"
       }
     ],
     "anonymous": false
@@ -796,9 +796,9 @@
       },
       {
         "name": "metadata",
-        "type": "string",
+        "type": "bytes",
         "indexed": false,
-        "internalType": "string"
+        "internalType": "bytes"
       },
       {
         "name": "owner",
