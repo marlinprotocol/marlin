@@ -2,8 +2,7 @@ use alloy::signers::k256::sha2::{Digest, Sha256};
 use anyhow::{Context, Result};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Args;
-use k256::sha2::Sha384;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     arch::Arch,
@@ -29,36 +28,37 @@ pub struct ImageArgs {
 }
 
 pub fn compute_image_id(args: ImageArgs) -> Result<()> {
-    let pcrs = args
+    let pcr_args = args.init_params.pcrs.clone();
+    let digest = args
         .init_params
-        .pcrs
-        .clone()
+        .load(args.preset.clone(), args.arch.clone())
+        .context("Failed to load init params")?
+        .map(|init_param_b64| -> Result<Vec<u8>> {
+            let init_param_json = String::from_utf8(
+                BASE64_STANDARD.decode(init_param_b64).context("Failed to decode init params from base64")?
+            ).context("Failed to parse init params as string")?;
+
+            let init_param: InitParamsList = serde_json::from_str(&init_param_json).context("Failed to parse init params as json")?;
+            let digest = BASE64_STANDARD
+                .decode(init_param.digest)
+                .context("Failed to decode digest")?;
+            Ok(digest)
+        })
+        .transpose()
+        .inspect_err(|e| {
+            warn!("Error extracting digest from init params, proceeding without an extracted digest: {e:#}")
+        })
+        .unwrap_or(None);
+
+    let pcrs = pcr_args
         .load_required(
             args.preset
                 .as_ref()
                 .zip(args.arch.as_ref())
                 .and_then(|(preset, arch)| preset_to_pcr_preset(preset, arch)),
-            None,
+            digest.as_ref().map(Vec::as_slice),
         )
         .context("Failed to load PCRs")?;
-    let mut pcr16 = [0u8; 48];
-    if let Some(init_param_b64) = args
-        .init_params
-        .load(args.preset, args.arch)
-        .context("Failed to load init params")?
-    {
-        let init_param_json = String::from_utf8(BASE64_STANDARD.decode(init_param_b64)?)?;
-
-        let init_param: InitParamsList = serde_json::from_str(&init_param_json)?;
-        let digest = BASE64_STANDARD.decode(init_param.digest)?;
-
-        let mut pcr_hasher = Sha384::new();
-        pcr_hasher.update([0u8; 48]);
-        pcr_hasher.update(digest);
-        pcr16 = pcr_hasher.finalize().into();
-    };
-
-    // TODO: measure digest into pcrs
 
     // compute image id
     let mut hasher = Sha256::new();
@@ -71,5 +71,6 @@ pub fn compute_image_id(args: ImageArgs) -> Result<()> {
     let hex_image_id = hex::encode(image_id);
 
     info!("Image ID: {}", hex_image_id);
+
     Ok(())
 }

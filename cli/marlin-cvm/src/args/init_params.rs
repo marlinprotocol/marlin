@@ -180,11 +180,9 @@ impl InitParamsArgs {
                 preset
                     .zip(arch)
                     .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
-                None,
+                Some(&digest),
             )
             .context("Failed to load PCRs")?;
-
-        // TODO: measure digest into pcrs
 
         // compute image id
         let mut hasher = Sha256::new();
@@ -194,6 +192,7 @@ impl InitParamsArgs {
         hasher.update(pcrs.as_flattened());
         let image_id: [u8; 32] = hasher.finalize().into();
         info!(image_id = hex::encode(image_id), "Computed image id");
+
         // fetch key
         let pk = fetch_encryption_key_with_pcr(
             self.kms_endpoint
