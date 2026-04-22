@@ -71,116 +71,119 @@ pub struct VerifyArgs {
     arch: Option<Arch>,
 }
 
-pub async fn verify(args: VerifyArgs) -> Result<()> {
-    let pcrs = args
-        .pcrs
-        .load(
-            args.preset
-                .zip(args.arch)
-                .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
-            None,
-        )
-        .context("Failed to load PCR data")?;
+impl VerifyArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        let pcrs = args
+            .pcrs
+            .load(
+                args.preset
+                    .zip(args.arch)
+                    .and_then(|(preset, arch)| preset_to_pcr_preset(&preset, &arch)),
+                None,
+            )
+            .context("Failed to load PCR data")?;
 
-    // parse or fetch attestation
-    let attestation = if let Some(attestation_hex) = args.attestation_hex {
-        info!("Parsing attestation");
-        let attestation = hex::decode(attestation_hex)
-            .context("Failed to hex decode attestation")?
-            .into_boxed_slice();
-        info!("Successfully parsed attestation");
+        // parse or fetch attestation
+        let attestation = if let Some(attestation_hex) = args.attestation_hex {
+            info!("Parsing attestation");
+            let attestation = hex::decode(attestation_hex)
+                .context("Failed to hex decode attestation")?
+                .into_boxed_slice();
+            info!("Successfully parsed attestation");
 
-        attestation
-    } else if let Some(attestation_hex_file) = args.attestation_hex_file {
-        info!("Reading attestation from {attestation_hex_file}");
-        let attestation_hex = read(&attestation_hex_file)
-            .await
-            .context("Failed to read attestation from file")?
-            .into_boxed_slice();
-        let attestation = hex::decode(attestation_hex)
-            .context("Failed to hex decode attestation")?
-            .into_boxed_slice();
-        info!("Read attestation from {attestation_hex_file}");
+            attestation
+        } else if let Some(attestation_hex_file) = args.attestation_hex_file {
+            info!("Reading attestation from {attestation_hex_file}");
+            let attestation_hex = read(&attestation_hex_file)
+                .await
+                .context("Failed to read attestation from file")?
+                .into_boxed_slice();
+            let attestation = hex::decode(attestation_hex)
+                .context("Failed to hex decode attestation")?
+                .into_boxed_slice();
+            info!("Read attestation from {attestation_hex_file}");
 
-        attestation
-    } else if let Some(cvm_ip) = args.cvm_ip {
-        let attestation_endpoint = format!(
-            "http://{}:{}/attestation/raw",
-            cvm_ip, args.attestation_port
-        );
+            attestation
+        } else if let Some(cvm_ip) = args.cvm_ip {
+            let attestation_endpoint = format!(
+                "http://{}:{}/attestation/raw",
+                cvm_ip, args.attestation_port
+            );
+            info!(
+                "Connecting to attestation endpoint: {}",
+                attestation_endpoint
+            );
+            let attestation_doc = reqwest::get(attestation_endpoint)
+                .await
+                .context("Failed to get attestation request")?
+                .bytes()
+                .await
+                .context("Failed to get attestation response")?;
+            info!("Successfully fetched attestation document");
+
+            attestation_doc.to_vec().into_boxed_slice()
+        } else {
+            bail!(
+                "Could not get attestation, either cvm-ip, attestation-hex or attestation-hex-file must be specified"
+            )
+        };
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("Failed to get current timestamp")?
+            .as_millis() as u64;
+        let user_data = args
+            .user_data
+            .map(|d| hex::decode(d).context("User data must be hex encoded"))
+            .transpose()?;
+        let root_public_key = hex::decode(args.root_public_key)
+            .context("Failed to decode root public key hex string")?;
+        let image_id = args
+            .image_id
+            .map(|x| {
+                hex::decode(x)
+                    .context("Failed to decode image id hex string")?
+                    .try_into()
+                    .map_err(|_| anyhow!("incorrect image id size"))
+            })
+            .transpose()?;
+
+        let attestation_expectations = AttestationExpectations {
+            age_ms: Some((args.max_age, now)),
+            pcrs,
+            user_data: user_data.as_deref(),
+            root_public_key: Some(root_public_key.as_slice()),
+            timestamp_ms: (!args.timestamp.eq(&0)).then_some(args.timestamp),
+            public_key: None,
+            image_id: image_id.as_ref(),
+        };
+
+        let decoded = marlin::attestation::verify(&attestation, attestation_expectations.clone())
+            .context("Failed to verify attestation document")?;
+
+        info!("Root public key: {}", hex::encode(decoded.root_public_key));
+        info!("CVM public key: {}", hex::encode(decoded.public_key));
+        info!("Image id: {}", hex::encode(decoded.image_id));
+        info!("User data: {}", hex::encode(&decoded.user_data));
+        if let Ok(user_data) = String::from_utf8(decoded.user_data.to_vec()) {
+            info!("User data, decoded as UTF-8: {user_data}");
+        }
+        for i in 4..=15 {
+            info!("PCR{i}: {}", hex::encode(decoded.pcrs[i - 4]));
+        }
+        info!("Verification successful ✓");
         info!(
-            "Connecting to attestation endpoint: {}",
-            attestation_endpoint
+            timestamp = attestation_expectations.timestamp_ms,
+            age = attestation_expectations.age_ms.map(|x| x.0),
+            pcrs = ?attestation_expectations.pcrs.map(|x| x.map(hex::encode)),
+            cvm_public_key = attestation_expectations.public_key.map(hex::encode),
+            user_data = attestation_expectations.user_data.map(hex::encode),
+            root_public_key = attestation_expectations.root_public_key.map(hex::encode),
+            image_id = attestation_expectations.image_id.map(hex::encode),
+            "Verified against expectations: "
         );
-        let attestation_doc = reqwest::get(attestation_endpoint)
-            .await
-            .context("Failed to get attestation request")?
-            .bytes()
-            .await
-            .context("Failed to get attestation response")?;
-        info!("Successfully fetched attestation document");
 
-        attestation_doc.to_vec().into_boxed_slice()
-    } else {
-        bail!(
-            "Could not get attestation, either cvm-ip, attestation-hex or attestation-hex-file must be specified"
-        )
-    };
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .context("Failed to get current timestamp")?
-        .as_millis() as u64;
-    let user_data = args
-        .user_data
-        .map(|d| hex::decode(d).context("User data must be hex encoded"))
-        .transpose()?;
-    let root_public_key =
-        hex::decode(args.root_public_key).context("Failed to decode root public key hex string")?;
-    let image_id = args
-        .image_id
-        .map(|x| {
-            hex::decode(x)
-                .context("Failed to decode image id hex string")?
-                .try_into()
-                .map_err(|_| anyhow!("incorrect image id size"))
-        })
-        .transpose()?;
-
-    let attestation_expectations = AttestationExpectations {
-        age_ms: Some((args.max_age, now)),
-        pcrs,
-        user_data: user_data.as_deref(),
-        root_public_key: Some(root_public_key.as_slice()),
-        timestamp_ms: (!args.timestamp.eq(&0)).then_some(args.timestamp),
-        public_key: None,
-        image_id: image_id.as_ref(),
-    };
-
-    let decoded = marlin::attestation::verify(&attestation, attestation_expectations.clone())
-        .context("Failed to verify attestation document")?;
-
-    info!("Root public key: {}", hex::encode(decoded.root_public_key));
-    info!("CVM public key: {}", hex::encode(decoded.public_key));
-    info!("Image id: {}", hex::encode(decoded.image_id));
-    info!("User data: {}", hex::encode(&decoded.user_data));
-    if let Ok(user_data) = String::from_utf8(decoded.user_data.to_vec()) {
-        info!("User data, decoded as UTF-8: {user_data}");
+        Ok(())
     }
-    for i in 4..=15 {
-        info!("PCR{i}: {}", hex::encode(decoded.pcrs[i - 4]));
-    }
-    info!("Verification successful ✓");
-    info!(
-        timestamp = attestation_expectations.timestamp_ms,
-        age = attestation_expectations.age_ms.map(|x| x.0),
-        pcrs = ?attestation_expectations.pcrs.map(|x| x.map(hex::encode)),
-        cvm_public_key = attestation_expectations.public_key.map(hex::encode),
-        user_data = attestation_expectations.user_data.map(hex::encode),
-        root_public_key = attestation_expectations.root_public_key.map(hex::encode),
-        image_id = attestation_expectations.image_id.map(hex::encode),
-        "Verified against expectations: "
-    );
-
-    Ok(())
 }

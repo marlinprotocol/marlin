@@ -41,57 +41,60 @@ pub struct UpdateArgs {
     wallet: WalletArgs,
 }
 
-pub async fn update_job(args: UpdateArgs) -> Result<()> {
-    let wallet_private_key = &args.wallet.load_required()?;
-    let job_id = args.job_id;
-    let image = args.image;
+impl UpdateArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        let wallet_private_key = &args.wallet.load_required()?;
+        let job_id = args.job_id;
+        let image = args.image;
 
-    let mut deployment_adapter =
-        get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
-            .context("Failed to create deployment adapter")?;
+        let mut deployment_adapter =
+            get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
+                .context("Failed to create deployment adapter")?;
 
-    // Check if job exists
-    let Some(job_data) = deployment_adapter
-        .get_job_data_if_exists(job_id)
-        .await
-        .context("Failed to query job data")?
-    else {
-        return Err(anyhow!("Job {} does not exist", job_id));
-    };
+        // Check if job exists
+        let Some(job_data) = deployment_adapter
+            .get_job_data_if_exists(job_id)
+            .await
+            .context("Failed to query job data")?
+        else {
+            return Err(anyhow!("Job {} does not exist", job_id));
+        };
 
-    let mut metadata = serde_json::from_str::<serde_json::Value>(&job_data.metadata)
-        .context("Failed to decode metadata as json")?;
-    info!(
-        "Original metadata: {}",
-        serde_json::to_string_pretty(&metadata)
-            .context("Should never happen, failed to stringify a Value")?
-    );
+        let mut metadata = serde_json::from_str::<serde_json::Value>(&job_data.metadata)
+            .context("Failed to decode metadata as json")?;
+        info!(
+            "Original metadata: {}",
+            serde_json::to_string_pretty(&metadata)
+                .context("Should never happen, failed to stringify a Value")?
+        );
 
-    if let Some(image) = image {
-        metadata["image"] = serde_json::Value::String(image);
+        if let Some(image) = image {
+            metadata["image"] = serde_json::Value::String(image);
+        }
+
+        if let Some(init_params) = args
+            .init_params
+            .load(args.preset, args.arch)
+            .context("Failed to load init params")?
+        {
+            metadata["init_params"] = init_params.into();
+        }
+
+        info!(
+            "Updated metadata: {}",
+            serde_json::to_string_pretty(&metadata)
+                .context("Should never happen, failed to stringify a Value")?
+        );
+
+        // Update job
+        info!("Updating metadata...");
+        deployment_adapter
+            .job_metadata_update(job_id, serde_json::to_string(&metadata)?)
+            .await
+            .context("Failed to make metadata update transaction")?;
+        info!("Update successful!");
+
+        Ok(())
     }
-
-    if let Some(init_params) = args
-        .init_params
-        .load(args.preset, args.arch)
-        .context("Failed to load init params")?
-    {
-        metadata["init_params"] = init_params.into();
-    }
-
-    info!(
-        "Updated metadata: {}",
-        serde_json::to_string_pretty(&metadata)
-            .context("Should never happen, failed to stringify a Value")?
-    );
-
-    // Update job
-    info!("Updating metadata...");
-    deployment_adapter
-        .job_metadata_update(job_id, serde_json::to_string(&metadata)?)
-        .await
-        .context("Failed to make metadata update transaction")?;
-    info!("Update successful!");
-
-    Ok(())
 }

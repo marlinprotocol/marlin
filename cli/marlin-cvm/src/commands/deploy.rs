@@ -102,46 +102,48 @@ struct InstanceRate {
     arch: String,
 }
 
-pub async fn deploy(args: DeployArgs) -> Result<()> {
-    tracing::info!("Starting deployment...");
+impl DeployArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        tracing::info!("Starting deployment...");
 
-    let operator = parse_operator(&args.deployment, args.operator);
+        let operator = parse_operator(&args.deployment, args.operator);
 
-    let mut deployment_adapter = get_deployment_adapter(
-        args.deployment,
-        args.rpc,
-        Some(&args.wallet.load_required()?),
-    )
-    .context("Failed to create deployment adapter")?;
+        let mut deployment_adapter = get_deployment_adapter(
+            args.deployment,
+            args.rpc,
+            Some(&args.wallet.load_required()?),
+        )
+        .context("Failed to create deployment adapter")?;
 
-    // Get CP URL using the configured provider
-    let cp_url = deployment_adapter
-        .get_operator_cp(&operator)
-        .await
-        .context("Failed to get CP URL")?
-        .trim_end_matches('/')
-        .to_owned();
-    info!("CP URL for operator: {}", cp_url);
+        // Get CP URL using the configured provider
+        let cp_url = deployment_adapter
+            .get_operator_cp(&operator)
+            .await
+            .context("Failed to get CP URL")?
+            .trim_end_matches('/')
+            .to_owned();
+        info!("CP URL for operator: {}", cp_url);
 
-    // Fetch operator specs from CP URL
-    let spec_url = format!("{}/spec", cp_url);
-    let operator_spec = fetch_operator_spec(&spec_url)
-        .await
-        .context("Failed to fetch operator spec")?;
+        // Fetch operator specs from CP URL
+        let spec_url = format!("{}/spec", cp_url);
+        let operator_spec = fetch_operator_spec(&spec_url)
+            .await
+            .context("Failed to fetch operator spec")?;
 
-    // Validate region is supported
-    if !operator_spec
-        .allowed_regions
-        .iter()
-        .any(|r| r == &args.region)
-    {
-        return Err(anyhow!(
-            "Region '{}' not supported by operator",
-            args.region
-        ));
-    }
+        // Validate region is supported
+        if !operator_spec
+            .allowed_regions
+            .iter()
+            .any(|r| r == &args.region)
+        {
+            return Err(anyhow!(
+                "Region '{}' not supported by operator",
+                args.region
+            ));
+        }
 
-    let instance_type = args.instance_type.map(Result::Ok).unwrap_or_else(|| {
+        let instance_type = args.instance_type.map(Result::Ok).unwrap_or_else(|| {
         let arch = args.arch.as_ref().ok_or(anyhow!("Either instance-type or arch is required."))?;
         match args.preset.as_ref().map(String::as_str) {
             None => match arch {
@@ -152,83 +154,84 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         }
     })?;
 
-    // Fetch operator min rates with early validation
-    let selected_instance =
-        find_minimum_rate_instance(&operator_spec, &args.region, &instance_type)
-            .context("Configuration not supported by operator")?;
+        // Fetch operator min rates with early validation
+        let selected_instance =
+            find_minimum_rate_instance(&operator_spec, &args.region, &instance_type)
+                .context("Configuration not supported by operator")?;
 
-    // Calculate costs
-    let duration_seconds = (args.duration_in_minutes) * 60 + NOTICE_PERIOD;
-    info!("Adding {NOTICE_PERIOD} seconds to the duration to pay for the notice period.");
-    let (total_cost, total_rate) = calculate_total_cost(
-        &selected_instance,
-        duration_seconds,
-        args.bandwidth,
-        &args.region,
-        &cp_url,
-        EXTRA_DECIMALS,
-    )
-    .await
-    .context("Failed to calculate total cost")?;
-
-    info!("Total cost: {:.6} USDC", format_usdc(total_cost));
-    info!("Total rate: {:.6} USDC/hour", format_rate(total_rate));
-
-    let image = args.image.map(Result::Ok).unwrap_or_else(|| {
-        let (preset, arch) = args.preset.as_ref().zip(args.arch.as_ref()).ok_or(anyhow!(
-            "Either image or a valid preset and arch is required."
-        ))?;
-        match preset.as_str() {
-            "blue" => match arch {
-                // TODO: Replace with the correct ami ids
-                Arch::AMD64 => Ok(
-                    "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_amd64.eif"
-                        .into(),
-                ),
-                Arch::ARM64 => Ok(
-                    "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_arm64.eif"
-                        .into(),
-                ),
-            },
-            _ => Err(anyhow!(
-                "Given preset and arch do not have a default image, image is required"
-            )),
-        }
-    })?;
-
-    // Create metadata
-    let metadata = create_metadata(
-        &selected_instance.instance,
-        &args.region,
-        &image,
-        &args.name,
-        &args
-            .init_params
-            .load(args.preset, args.arch)
-            .context("Failed to load init params")?
-            .unwrap_or("".into()),
-    );
-
-    // Create job
-    let job_id = deployment_adapter
-        .job_create(&metadata, &operator, total_rate, total_cost)
+        // Calculate costs
+        let duration_seconds = (args.duration_in_minutes) * 60 + NOTICE_PERIOD;
+        info!("Adding {NOTICE_PERIOD} seconds to the duration to pay for the notice period.");
+        let (total_cost, total_rate) = calculate_total_cost(
+            &selected_instance,
+            duration_seconds,
+            args.bandwidth,
+            &args.region,
+            &cp_url,
+            EXTRA_DECIMALS,
+        )
         .await
-        .context("Failed to send create transaction")?;
-    info!("Job created with ID: {}", job_id);
+        .context("Failed to calculate total cost")?;
 
-    info!("Waiting for 20 seconds for enclave to start...");
-    tokio::time::sleep(Duration::from_secs(20)).await;
+        info!("Total cost: {:.6} USDC", format_usdc(total_cost));
+        info!("Total rate: {:.6} USDC/hour", format_rate(total_rate));
 
-    let ip_address = wait_for_ip_address(&cp_url, job_id, &args.region).await?;
-    info!("IP address obtained: {}", ip_address);
+        let image = args.image.map(Result::Ok).unwrap_or_else(|| {
+            let (preset, arch) = args.preset.as_ref().zip(args.arch.as_ref()).ok_or(anyhow!(
+                "Either image or a valid preset and arch is required."
+            ))?;
+            match preset.as_str() {
+                "blue" => match arch {
+                    // TODO: Replace with the correct ami ids
+                    Arch::AMD64 => Ok(
+                        "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_amd64.eif"
+                            .into(),
+                    ),
+                    Arch::ARM64 => Ok(
+                        "https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_arm64.eif"
+                            .into(),
+                    ),
+                },
+                _ => Err(anyhow!(
+                    "Given preset and arch do not have a default image, image is required"
+                )),
+            }
+        })?;
 
-    if !check_reachability(&ip_address).await {
-        return Err(anyhow!("Reachability check failed after maximum retries"));
+        // Create metadata
+        let metadata = create_metadata(
+            &selected_instance.instance,
+            &args.region,
+            &image,
+            &args.name,
+            &args
+                .init_params
+                .load(args.preset, args.arch)
+                .context("Failed to load init params")?
+                .unwrap_or("".into()),
+        );
+
+        // Create job
+        let job_id = deployment_adapter
+            .job_create(&metadata, &operator, total_rate, total_cost)
+            .await
+            .context("Failed to send create transaction")?;
+        info!("Job created with ID: {}", job_id);
+
+        info!("Waiting for 20 seconds for enclave to start...");
+        tokio::time::sleep(Duration::from_secs(20)).await;
+
+        let ip_address = wait_for_ip_address(&cp_url, job_id, &args.region).await?;
+        info!("IP address obtained: {}", ip_address);
+
+        if !check_reachability(&ip_address).await {
+            return Err(anyhow!("Reachability check failed after maximum retries"));
+        }
+
+        info!("Enclave is ready! IP address: {}", ip_address);
+
+        Ok(())
     }
-
-    info!("Enclave is ready! IP address: {}", ip_address);
-
-    Ok(())
 }
 
 fn parse_operator(deployment: &Deployment, operator: Option<String>) -> String {

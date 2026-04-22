@@ -23,43 +23,46 @@ pub struct CloseArgs {
     wallet: WalletArgs,
 }
 
-pub async fn close_job(args: CloseArgs) -> Result<()> {
-    let job_id = args.job_id;
-    let wallet_private_key = args
-        .wallet
-        .load_required()
-        .context("Wallet parameter is required")?;
+impl CloseArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        let job_id = args.job_id;
+        let wallet_private_key = args
+            .wallet
+            .load_required()
+            .context("Wallet parameter is required")?;
 
-    info!("Closing job with id {job_id}");
+        info!("Closing job with id {job_id}");
 
-    let mut deployment_adapter =
-        get_deployment_adapter(args.deployment, args.rpc, Some(&wallet_private_key))
-            .context("Failed to create deployment adapter")?;
+        let mut deployment_adapter =
+            get_deployment_adapter(args.deployment, args.rpc, Some(&wallet_private_key))
+                .context("Failed to create deployment adapter")?;
 
-    info!(
-        "Signer address: {:?}",
-        deployment_adapter
-            .get_sender_address()
+        info!(
+            "Signer address: {:?}",
+            deployment_adapter
+                .get_sender_address()
+                .await
+                .context("Failed to get sender address")?
+        );
+
+        // Check if job exists
+        let Some(_) = deployment_adapter
+            .get_job_data_if_exists(job_id)
             .await
-            .context("Failed to get sender address")?
-    );
+            .context("Failed to query job data")?
+        else {
+            return Err(anyhow!("Job {} does not exist", job_id));
+        };
 
-    // Check if job exists
-    let Some(_) = deployment_adapter
-        .get_job_data_if_exists(job_id)
-        .await
-        .context("Failed to query job data")?
-    else {
-        return Err(anyhow!("Job {} does not exist", job_id));
-    };
+        // Close job
+        info!("Initiating job close...");
+        deployment_adapter
+            .job_close(job_id)
+            .await
+            .context("Failed to make close transaction")?;
+        info!("Job closed successfully!");
 
-    // Close job
-    info!("Initiating job close...");
-    deployment_adapter
-        .job_close(job_id)
-        .await
-        .context("Failed to make close transaction")?;
-    info!("Job closed successfully!");
-
-    Ok(())
+        Ok(())
+    }
 }

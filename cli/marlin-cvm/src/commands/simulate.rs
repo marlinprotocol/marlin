@@ -75,328 +75,331 @@ struct DockerInspectStats {
     size_rw: u64,
 }
 
-pub async fn simulate(args: SimulateArgs) -> Result<()> {
-    info!("Simulating oyster local dev environment with:");
+impl SimulateArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        info!("Simulating oyster local dev environment with:");
 
-    let Some(docker_compose) = args.docker_compose else {
-        return Err(anyhow!(
-            "Docker-compose file must be provided for simulation!"
-        ));
-    };
-    info!("  Docker compose: {}", docker_compose);
+        let Some(docker_compose) = args.docker_compose else {
+            return Err(anyhow!(
+                "Docker-compose file must be provided for simulation!"
+            ));
+        };
+        info!("  Docker compose: {}", docker_compose);
 
-    let docker_images_list = args.docker_images.join(" ");
-    if !docker_images_list.is_empty() {
-        info!("  Docker images: {}", docker_images_list);
-    }
-
-    let init_params_list = args.init_params.join(" ");
-    if !init_params_list.is_empty() {
-        info!("  Init params: {}", init_params_list);
-    }
-
-    info!(
-        "Pulling dev base image {} to local docker daemon",
-        args.dev_image
-    );
-    let mut pull_image = Command::new("docker")
-        .args(["pull", &args.dev_image])
-        .stdout(Stdio::inherit())
-        .spawn()
-        .context("Failed to pull docker image")?;
-    let _ = pull_image.wait();
-
-    // Define the ports to be exposed out of the container (default attestation ports added)
-    let mut port_args = vec![
-        "-p".to_string(),
-        "1300:1300".to_string(),
-        "-p".to_string(),
-        "1301:1301".to_string(),
-    ];
-    for port in args.expose_ports {
-        port_args.append(&mut vec!["-p".to_string(), format!("{}:{}", &port, &port)]);
-    }
-
-    // Define mount args for the container
-    let mount_args: Arc<Mutex<Vec<String>>> = Mutex::new(Vec::new()).into();
-    // Create directory for local dev files, if not present already
-    if !PathBuf::from(LOCAL_DEV_DIRECTORY).exists() {
-        fs::create_dir_all(LOCAL_DEV_DIRECTORY).context(format!(
-            "Failed to create {} cache directory",
-            LOCAL_DEV_DIRECTORY
-        ))?;
-    }
-
-    // Mount the docker-compose file into the container
-    let docker_compose_host_path =
-        fs::canonicalize(&docker_compose).context("Invalid docker-compose path")?;
-    mount_args.lock().unwrap().append(&mut vec![
-        "-v".to_string(),
-        format!(
-            "{}:/app/docker-compose.yml",
-            docker_compose_host_path.display()
-        ),
-    ]);
-
-    if !args.no_local_images {
-        // Load and mount the docker images required by the docker compose available in the local docker daemon to the container
-        let docker_compose_images = get_required_images(&docker_compose)?;
-
-        if !docker_compose_images.is_empty() {
-            let local_docker_images = Command::new("docker")
-                .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
-                .output()
-                .context("Failed to fetch local docker images")?;
-            let docker_images_stdout = String::from_utf8_lossy(&local_docker_images.stdout);
-
-            let local_docker_compose_images = docker_images_stdout
-                .lines()
-                .map(String::from)
-                .filter(|image| docker_compose_images.contains(image))
-                .collect::<Vec<String>>();
-
-            if !local_docker_compose_images.is_empty() {
-                let local_images_cache =
-                    format!("{}/{}", LOCAL_DEV_DIRECTORY, DOCKER_IMAGE_CACHE_DIRECTORY);
-                if !PathBuf::from(&local_images_cache).exists() {
-                    fs::create_dir_all(&local_images_cache).context(format!(
-                        "Failed to create {} cache directory",
-                        local_images_cache
-                    ))?;
-                }
-
-                let mut save_handles = vec![];
-
-                for image in local_docker_compose_images {
-                    let mount_args_clone = mount_args.clone();
-                    let local_images_cache = local_images_cache.clone();
-
-                    let handle = thread::spawn(move || {
-                        let Ok(image_id) = get_local_image_id(&image).map_err(|err| {
-                            info!("{}", err);
-                            err
-                        }) else {
-                            return;
-                        };
-
-                        if !is_present_in_cache(&image, &image_id, &local_images_cache) {
-                            let _ = load_image_in_cache(&image, &image_id, &local_images_cache)
-                                .map_err(|err| {
-                                    info!("{}", err);
-                                    err
-                                });
-                        }
-
-                        let Ok(local_image_host_path) = fs::canonicalize(get_local_image_path(
-                            &image,
-                            &image_id,
-                            &local_images_cache,
-                        ))
-                        .context("Invalid local docker image path")
-                        .map_err(|err| {
-                            info!("{}", err);
-                            err
-                        }) else {
-                            return;
-                        };
-                        mount_args_clone.lock().unwrap().append(&mut vec![
-                            "-v".to_string(),
-                            format!(
-                                "{}:/app/docker-images/{}",
-                                local_image_host_path.display(),
-                                local_image_host_path.file_name().unwrap().to_str().unwrap()
-                            ),
-                        ]);
-                    });
-
-                    save_handles.push(handle);
-                }
-
-                for handle in save_handles {
-                    let _ = handle.join();
-                }
-            }
+        let docker_images_list = args.docker_images.join(" ");
+        if !docker_images_list.is_empty() {
+            info!("  Docker images: {}", docker_images_list);
         }
-    }
 
-    // Mount the docker images provided by user onto the container
-    for local_image in args.docker_images {
-        let local_image_host_path =
-            fs::canonicalize(local_image).context("Invalid local docker image path")?;
+        let init_params_list = args.init_params.join(" ");
+        if !init_params_list.is_empty() {
+            info!("  Init params: {}", init_params_list);
+        }
+
+        info!(
+            "Pulling dev base image {} to local docker daemon",
+            args.dev_image
+        );
+        let mut pull_image = Command::new("docker")
+            .args(["pull", &args.dev_image])
+            .stdout(Stdio::inherit())
+            .spawn()
+            .context("Failed to pull docker image")?;
+        let _ = pull_image.wait();
+
+        // Define the ports to be exposed out of the container (default attestation ports added)
+        let mut port_args = vec![
+            "-p".to_string(),
+            "1300:1300".to_string(),
+            "-p".to_string(),
+            "1301:1301".to_string(),
+        ];
+        for port in args.expose_ports {
+            port_args.append(&mut vec!["-p".to_string(), format!("{}:{}", &port, &port)]);
+        }
+
+        // Define mount args for the container
+        let mount_args: Arc<Mutex<Vec<String>>> = Mutex::new(Vec::new()).into();
+        // Create directory for local dev files, if not present already
+        if !PathBuf::from(LOCAL_DEV_DIRECTORY).exists() {
+            fs::create_dir_all(LOCAL_DEV_DIRECTORY).context(format!(
+                "Failed to create {} cache directory",
+                LOCAL_DEV_DIRECTORY
+            ))?;
+        }
+
+        // Mount the docker-compose file into the container
+        let docker_compose_host_path =
+            fs::canonicalize(&docker_compose).context("Invalid docker-compose path")?;
         mount_args.lock().unwrap().append(&mut vec![
             "-v".to_string(),
             format!(
-                "{}:/app/docker-images/{}",
-                local_image_host_path.display(),
-                local_image_host_path.file_name().unwrap().to_str().unwrap()
+                "{}:/app/docker-compose.yml",
+                docker_compose_host_path.display()
             ),
         ]);
-    }
 
-    // Mount the init params into the container (create temporary files for the utf8 params)
-    let init_params_path = format!("{}/{}", LOCAL_DEV_DIRECTORY, INIT_PARAMS_DIRECTORY);
-    if !PathBuf::from(&init_params_path).exists() {
-        fs::create_dir_all(&init_params_path).context(format!(
-            "Failed to create {} cache directory",
-            init_params_path
-        ))?;
-    }
+        if !args.no_local_images {
+            // Load and mount the docker images required by the docker compose available in the local docker daemon to the container
+            let docker_compose_images = get_required_images(&docker_compose)?;
 
-    let digest = args
-        .init_params
-        .iter()
-        .map(|param| {
-            // extract components
-            let param_components = param.splitn(5, ":").collect::<Vec<_>>();
-            let should_attest = param_components[1] == "1";
+            if !docker_compose_images.is_empty() {
+                let local_docker_images = Command::new("docker")
+                    .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
+                    .output()
+                    .context("Failed to fetch local docker images")?;
+                let docker_images_stdout = String::from_utf8_lossy(&local_docker_images.stdout);
 
-            // everything should be normal components, no root or current or parent dirs
-            if PathBuf::from(param_components[0])
-                .components()
-                .any(|x| !matches!(x, Component::Normal(_)))
-            {
-                return Err(anyhow!(
-                    "Invalid init param enclave path: {}",
-                    param_components[0]
-                ));
+                let local_docker_compose_images = docker_images_stdout
+                    .lines()
+                    .map(String::from)
+                    .filter(|image| docker_compose_images.contains(image))
+                    .collect::<Vec<String>>();
+
+                if !local_docker_compose_images.is_empty() {
+                    let local_images_cache =
+                        format!("{}/{}", LOCAL_DEV_DIRECTORY, DOCKER_IMAGE_CACHE_DIRECTORY);
+                    if !PathBuf::from(&local_images_cache).exists() {
+                        fs::create_dir_all(&local_images_cache).context(format!(
+                            "Failed to create {} cache directory",
+                            local_images_cache
+                        ))?;
+                    }
+
+                    let mut save_handles = vec![];
+
+                    for image in local_docker_compose_images {
+                        let mount_args_clone = mount_args.clone();
+                        let local_images_cache = local_images_cache.clone();
+
+                        let handle = thread::spawn(move || {
+                            let Ok(image_id) = get_local_image_id(&image).map_err(|err| {
+                                info!("{}", err);
+                                err
+                            }) else {
+                                return;
+                            };
+
+                            if !is_present_in_cache(&image, &image_id, &local_images_cache) {
+                                let _ = load_image_in_cache(&image, &image_id, &local_images_cache)
+                                    .map_err(|err| {
+                                        info!("{}", err);
+                                        err
+                                    });
+                            }
+
+                            let Ok(local_image_host_path) = fs::canonicalize(get_local_image_path(
+                                &image,
+                                &image_id,
+                                &local_images_cache,
+                            ))
+                            .context("Invalid local docker image path")
+                            .map_err(|err| {
+                                info!("{}", err);
+                                err
+                            }) else {
+                                return;
+                            };
+                            mount_args_clone.lock().unwrap().append(&mut vec![
+                                "-v".to_string(),
+                                format!(
+                                    "{}:/app/docker-images/{}",
+                                    local_image_host_path.display(),
+                                    local_image_host_path.file_name().unwrap().to_str().unwrap()
+                                ),
+                            ]);
+                        });
+
+                        save_handles.push(handle);
+                    }
+
+                    for handle in save_handles {
+                        let _ = handle.join();
+                    }
+                }
             }
+        }
 
-            let contents = match param_components[3] {
-                "utf8" => {
-                    let temp_file_path = format!(
-                        "{}/{}",
-                        init_params_path,
+        // Mount the docker images provided by user onto the container
+        for local_image in args.docker_images {
+            let local_image_host_path =
+                fs::canonicalize(local_image).context("Invalid local docker image path")?;
+            mount_args.lock().unwrap().append(&mut vec![
+                "-v".to_string(),
+                format!(
+                    "{}:/app/docker-images/{}",
+                    local_image_host_path.display(),
+                    local_image_host_path.file_name().unwrap().to_str().unwrap()
+                ),
+            ]);
+        }
+
+        // Mount the init params into the container (create temporary files for the utf8 params)
+        let init_params_path = format!("{}/{}", LOCAL_DEV_DIRECTORY, INIT_PARAMS_DIRECTORY);
+        if !PathBuf::from(&init_params_path).exists() {
+            fs::create_dir_all(&init_params_path).context(format!(
+                "Failed to create {} cache directory",
+                init_params_path
+            ))?;
+        }
+
+        let digest = args
+            .init_params
+            .iter()
+            .map(|param| {
+                // extract components
+                let param_components = param.splitn(5, ":").collect::<Vec<_>>();
+                let should_attest = param_components[1] == "1";
+
+                // everything should be normal components, no root or current or parent dirs
+                if PathBuf::from(param_components[0])
+                    .components()
+                    .any(|x| !matches!(x, Component::Normal(_)))
+                {
+                    return Err(anyhow!(
+                        "Invalid init param enclave path: {}",
                         param_components[0]
-                            .rsplit_once('/')
-                            .map_or(param_components[0], |(_, file_name)| file_name)
-                    );
-                    // Write the string to a temporary file
-                    let mut file = File::create(&temp_file_path)
-                        .context("Failed to create temp init param file")?;
-                    writeln!(file, "{}", param_components[4])
-                        .context("Failed to write to temp file")?;
-
-                    let init_param_host_path =
-                        fs::canonicalize(&temp_file_path).context("Invalid init param path")?;
-                    mount_args.lock().unwrap().append(&mut vec![
-                        "-v".to_string(),
-                        format!(
-                            "{}:/init-params/{}",
-                            init_param_host_path.display(),
-                            param_components[0]
-                        ),
-                    ]);
-                    param_components[4].as_bytes().to_vec()
+                    ));
                 }
-                "file" => {
-                    let init_param_host_path =
-                        fs::canonicalize(param_components[4]).context("Invalid init param path")?;
-                    mount_args.lock().unwrap().append(&mut vec![
-                        "-v".to_string(),
-                        format!(
-                            "{}:/init-params/{}",
-                            init_param_host_path.display(),
+
+                let contents = match param_components[3] {
+                    "utf8" => {
+                        let temp_file_path = format!(
+                            "{}/{}",
+                            init_params_path,
                             param_components[0]
-                        ),
-                    ]);
-                    fs::read(param_components[4]).context("Failed to read init param file")?
+                                .rsplit_once('/')
+                                .map_or(param_components[0], |(_, file_name)| file_name)
+                        );
+                        // Write the string to a temporary file
+                        let mut file = File::create(&temp_file_path)
+                            .context("Failed to create temp init param file")?;
+                        writeln!(file, "{}", param_components[4])
+                            .context("Failed to write to temp file")?;
+
+                        let init_param_host_path =
+                            fs::canonicalize(&temp_file_path).context("Invalid init param path")?;
+                        mount_args.lock().unwrap().append(&mut vec![
+                            "-v".to_string(),
+                            format!(
+                                "{}:/init-params/{}",
+                                init_param_host_path.display(),
+                                param_components[0]
+                            ),
+                        ]);
+                        param_components[4].as_bytes().to_vec()
+                    }
+                    "file" => {
+                        let init_param_host_path = fs::canonicalize(param_components[4])
+                            .context("Invalid init param path")?;
+                        mount_args.lock().unwrap().append(&mut vec![
+                            "-v".to_string(),
+                            format!(
+                                "{}:/init-params/{}",
+                                init_param_host_path.display(),
+                                param_components[0]
+                            ),
+                        ]);
+                        fs::read(param_components[4]).context("Failed to read init param file")?
+                    }
+                    _ => return Err(anyhow!("Unknown param type: {}", param_components[3])),
+                };
+
+                info!(path = param_components[0], should_attest, "digest");
+
+                if !should_attest {
+                    return Ok(None);
                 }
-                _ => return Err(anyhow!("Unknown param type: {}", param_components[3])),
-            };
 
-            info!(path = param_components[0], should_attest, "digest");
+                let enclave_path = PathBuf::from("/init-params/".to_owned() + param_components[0]);
+                // compute individual digest
+                let mut hasher = Sha256::new();
+                hasher.update(enclave_path.as_os_str().len().to_le_bytes());
+                hasher.update(enclave_path.as_os_str().as_encoded_bytes());
+                hasher.update(contents.len().to_le_bytes());
+                hasher.update(contents);
 
-            if !should_attest {
-                return Ok(None);
-            }
+                Ok(Some(hasher.finalize()))
+            })
+            .collect::<Result<Vec<_>>>()
+            .context("Failed to compute individual digest")?
+            .into_iter()
+            .flatten()
+            // accumulate further into a single hash
+            .fold(Sha256::new(), |mut hasher, param_hash| {
+                hasher.update(param_hash);
+                hasher
+            })
+            .finalize();
 
-            let enclave_path = PathBuf::from("/init-params/".to_owned() + param_components[0]);
-            // compute individual digest
-            let mut hasher = Sha256::new();
-            hasher.update(enclave_path.as_os_str().len().to_le_bytes());
-            hasher.update(enclave_path.as_os_str().as_encoded_bytes());
-            hasher.update(contents.len().to_le_bytes());
-            hasher.update(contents);
+        // Create and mount the init params digest into the container
+        let digest_file_path = format!("{}/init_param_digest", init_params_path);
+        let mut file = File::create(&digest_file_path)
+            .context("Failed to create temp init param digest file")?;
+        file.write_all(&digest)
+            .context("Failed to write to temp file")?;
 
-            Ok(Some(hasher.finalize()))
-        })
-        .collect::<Result<Vec<_>>>()
-        .context("Failed to compute individual digest")?
-        .into_iter()
-        .flatten()
-        // accumulate further into a single hash
-        .fold(Sha256::new(), |mut hasher, param_hash| {
-            hasher.update(param_hash);
-            hasher
-        })
-        .finalize();
+        let init_param_digest_host_path =
+            fs::canonicalize(&digest_file_path).context("Invalid init param digest path")?;
+        mount_args.lock().unwrap().append(&mut vec![
+            "-v".to_string(),
+            format!(
+                "{}:/app/init-params-digest",
+                init_param_digest_host_path.display()
+            ),
+        ]);
 
-    // Create and mount the init params digest into the container
-    let digest_file_path = format!("{}/init_param_digest", init_params_path);
-    let mut file =
-        File::create(&digest_file_path).context("Failed to create temp init param digest file")?;
-    file.write_all(&digest)
-        .context("Failed to write to temp file")?;
+        // Define memory configuration for the container based on user input
+        let mut config_args = vec![];
+        if args.container_memory.is_some() {
+            config_args.push(format!("--memory={}", args.container_memory.unwrap()));
+        }
 
-    let init_param_digest_host_path =
-        fs::canonicalize(&digest_file_path).context("Invalid init param digest path")?;
-    mount_args.lock().unwrap().append(&mut vec![
-        "-v".to_string(),
-        format!(
-            "{}:/app/init-params-digest",
-            init_param_digest_host_path.display()
-        ),
-    ]);
+        info!("Starting the dev container with user specified parameters");
+        let mut run_container = Command::new("docker")
+            .args([
+                "run",
+                "--privileged",
+                "--rm",
+                "-it",
+                "--name",
+                &args.job_name,
+            ])
+            .args(&port_args)
+            .args(&*mount_args.lock().unwrap())
+            .args(&config_args)
+            .arg(&args.dev_image)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .context("Failed to start container")?;
 
-    // Define memory configuration for the container based on user input
-    let mut config_args = vec![];
-    if args.container_memory.is_some() {
-        config_args.push(format!("--memory={}", args.container_memory.unwrap()));
+        let monitor_stats_task = thread::spawn(move || monitor_container_stats(&args.job_name));
+
+        let exit_status = run_container
+            .wait()
+            .context("Failed to wait on container")?;
+        info!("Dev container exited with status: {}", exit_status);
+
+        monitor_stats_task.join().unwrap();
+
+        // Clean up the temporary utf8 init params directory created for simulation
+        if let Err(err) = fs::remove_dir_all(&init_params_path) {
+            info!("Failed to remove {} directory: {}", init_params_path, err);
+        }
+
+        if args.cleanup_cache
+            && let Err(err) = fs::remove_dir_all(LOCAL_DEV_DIRECTORY)
+        {
+            info!(
+                "Failed to remove {} directory: {}",
+                LOCAL_DEV_DIRECTORY, err
+            );
+        }
+
+        Ok(())
     }
-
-    info!("Starting the dev container with user specified parameters");
-    let mut run_container = Command::new("docker")
-        .args([
-            "run",
-            "--privileged",
-            "--rm",
-            "-it",
-            "--name",
-            &args.job_name,
-        ])
-        .args(&port_args)
-        .args(&*mount_args.lock().unwrap())
-        .args(&config_args)
-        .arg(&args.dev_image)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .context("Failed to start container")?;
-
-    let monitor_stats_task = thread::spawn(move || monitor_container_stats(&args.job_name));
-
-    let exit_status = run_container
-        .wait()
-        .context("Failed to wait on container")?;
-    info!("Dev container exited with status: {}", exit_status);
-
-    monitor_stats_task.join().unwrap();
-
-    // Clean up the temporary utf8 init params directory created for simulation
-    if let Err(err) = fs::remove_dir_all(&init_params_path) {
-        info!("Failed to remove {} directory: {}", init_params_path, err);
-    }
-
-    if args.cleanup_cache
-        && let Err(err) = fs::remove_dir_all(LOCAL_DEV_DIRECTORY)
-    {
-        info!(
-            "Failed to remove {} directory: {}",
-            LOCAL_DEV_DIRECTORY, err
-        );
-    }
-
-    Ok(())
 }
 
 // Parse the docker-compose file and fetch the images specified

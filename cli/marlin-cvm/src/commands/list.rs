@@ -31,15 +31,17 @@ struct JobData {
     provider: String,
 }
 
-pub async fn list_jobs(args: ListArgs) -> Result<()> {
-    let wallet_address = args.address;
-    let count = args.count;
+impl ListArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        let wallet_address = args.address;
+        let count = args.count;
 
-    info!("Listing active jobs for wallet address: {}", wallet_address);
+        info!("Listing active jobs for wallet address: {}", wallet_address);
 
-    let client = Client::new();
-    let query = json!({
-        "query": r#"
+        let client = Client::new();
+        let query = json!({
+            "query": r#"
             query($owner: String!) {
                 allJobs(
                     filter: {
@@ -58,80 +60,81 @@ pub async fn list_jobs(args: ListArgs) -> Result<()> {
                 }
             }
         "#,
-        "variables": {
-            "owner": wallet_address,
+            "variables": {
+                "owner": wallet_address,
+            }
+        });
+
+        let response = client
+            .post(INDEXER_URL)
+            .json(&query)
+            .send()
+            .await
+            .context("Failed to send GraphQL query")?;
+
+        let data: Value = response
+            .json()
+            .await
+            .context("Failed to parse GraphQL response")?;
+
+        if let Some(errors) = data.get("errors") {
+            anyhow::bail!("GraphQL query failed: {:?}", errors);
         }
-    });
 
-    let response = client
-        .post(INDEXER_URL)
-        .json(&query)
-        .send()
-        .await
-        .context("Failed to send GraphQL query")?;
+        let nodes = data
+            .get("data")
+            .and_then(|data| data.get("allJobs"))
+            .and_then(|all_jobs| all_jobs.get("nodes"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
 
-    let data: Value = response
-        .json()
-        .await
-        .context("Failed to parse GraphQL response")?;
+        if nodes.is_empty() {
+            info!("No active jobs found for address: {}", wallet_address);
+            return Ok(());
+        }
 
-    if let Some(errors) = data.get("errors") {
-        anyhow::bail!("GraphQL query failed: {:?}", errors);
-    }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f64();
 
-    let nodes = data
-        .get("data")
-        .and_then(|data| data.get("allJobs"))
-        .and_then(|all_jobs| all_jobs.get("nodes"))
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-
-    if nodes.is_empty() {
-        info!("No active jobs found for address: {}", wallet_address);
-        return Ok(());
-    }
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs_f64();
-
-    let mut table = Table::new();
-    table.add_row(row![
-        "ID",
-        "RATE (USDC/hour)",
-        "BALANCE",
-        "TIME REMAINING",
-        "PROVIDER"
-    ]);
-
-    let processed_jobs: Vec<_> = nodes
-        .iter()
-        .filter_map(|node| process_job_data(node, now))
-        .take(count.unwrap_or(nodes.len().try_into().unwrap()) as usize)
-        .collect();
-
-    if processed_jobs.is_empty() {
-        info!(
-            "No active jobs with positive balance found for address: {}",
-            wallet_address
-        );
-        return Ok(());
-    }
-
-    processed_jobs.iter().for_each(|job| {
+        let mut table = Table::new();
         table.add_row(row![
-            job.id,
-            format!("{:.4} USDC", job.rate_per_hour),
-            format!("{:.4} USDC", job.current_balance),
-            format_time_remaining(job.time_remaining),
-            job.provider
+            "ID",
+            "RATE (USDC/hour)",
+            "BALANCE",
+            "TIME REMAINING",
+            "PROVIDER"
         ]);
-    });
 
-    table.printstd();
-    Ok(())
+        let processed_jobs: Vec<_> = nodes
+            .iter()
+            .filter_map(|node| process_job_data(node, now))
+            .take(count.unwrap_or(nodes.len().try_into().unwrap()) as usize)
+            .collect();
+
+        if processed_jobs.is_empty() {
+            info!(
+                "No active jobs with positive balance found for address: {}",
+                wallet_address
+            );
+            return Ok(());
+        }
+
+        processed_jobs.iter().for_each(|job| {
+            table.add_row(row![
+                job.id,
+                format!("{:.4} USDC", job.rate_per_hour),
+                format!("{:.4} USDC", job.current_balance),
+                format_time_remaining(job.time_remaining),
+                job.provider
+            ]);
+        });
+
+        table.printstd();
+        Ok(())
+    }
 }
 
 fn process_job_data(node: &Value, now: f64) -> Option<JobData> {

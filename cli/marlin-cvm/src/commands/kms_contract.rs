@@ -69,12 +69,15 @@ struct KmsVerifyArgs {
     image_id: String,
 }
 
-pub async fn kms_contract(args: KmsContractArgs) -> Result<()> {
-    match args.contract_cmd {
-        KmsContractCommands::Deploy(args) => kms_contract_deploy(args).await,
-        KmsContractCommands::Approve(args) => kms_contract_approve(args).await,
-        KmsContractCommands::Revoke(args) => kms_contract_revoke(args).await,
-        KmsContractCommands::Verify(args) => kms_contract_verify(args).await,
+impl KmsContractArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        match args.contract_cmd {
+            KmsContractCommands::Deploy(args) => kms_contract_deploy(args).await,
+            KmsContractCommands::Approve(args) => kms_contract_approve(args).await,
+            KmsContractCommands::Revoke(args) => kms_contract_revoke(args).await,
+            KmsContractCommands::Verify(args) => kms_contract_verify(args).await,
+        }
     }
 }
 

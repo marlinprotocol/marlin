@@ -30,63 +30,66 @@ pub struct WithdrawArgs {
     wallet: WalletArgs,
 }
 
-pub async fn withdraw_from_job(args: WithdrawArgs) -> Result<()> {
-    info!("Starting withdrawal...");
+impl WithdrawArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        info!("Starting withdrawal...");
 
-    let job_id = args.job_id;
-    let wallet_private_key = &args.wallet.load_required()?;
-    let amount = (args.amount * 1000000f64) as u64;
+        let job_id = args.job_id;
+        let wallet_private_key = &args.wallet.load_required()?;
+        let amount = (args.amount * 1000000f64) as u64;
 
-    let mut deployment_adapter =
-        get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
-            .context("Failed to create deployment adapter")?;
+        let mut deployment_adapter =
+            get_deployment_adapter(args.deployment, args.rpc, Some(wallet_private_key))
+                .context("Failed to create deployment adapter")?;
 
-    info!(
-        "Signer address: {:?}",
-        deployment_adapter
-            .get_sender_address()
+        info!(
+            "Signer address: {:?}",
+            deployment_adapter
+                .get_sender_address()
+                .await
+                .context("Should never happen, adapter does not have signer")?
+        );
+
+        // Check if job exists
+        let Some(job_data) = deployment_adapter
+            .get_job_data_if_exists(job_id)
             .await
-            .context("Should never happen, adapter does not have signer")?
-    );
+            .context("Failed to query job data")?
+        else {
+            return Err(anyhow!("Job {} does not exist", job_id));
+        };
 
-    // Check if job exists
-    let Some(job_data) = deployment_adapter
-        .get_job_data_if_exists(job_id)
-        .await
-        .context("Failed to query job data")?
-    else {
-        return Err(anyhow!("Job {} does not exist", job_id));
-    };
+        // Calculate current balance after accounting for elapsed time
+        let current_balance =
+            calculate_current_balance(job_data.balance, job_data.rate, job_data.last_settled)
+                .context("Failed to compute current balance")?;
 
-    // Calculate current balance after accounting for elapsed time
-    let current_balance =
-        calculate_current_balance(job_data.balance, job_data.rate, job_data.last_settled)
-            .context("Failed to compute current balance")?;
+        if current_balance == 0 {
+            info!("Cannot withdraw. Job is already expired.");
+            return Ok(());
+        }
 
-    if current_balance == 0 {
-        info!("Cannot withdraw. Job is already expired.");
-        return Ok(());
+        info!("Current balance: {:.6} USDC", format_usdc(current_balance));
+
+        if amount > current_balance {
+            return Err(anyhow!(
+                "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC",
+                format_usdc(amount),
+                format_usdc(current_balance),
+            ));
+        }
+
+        // Withdraw from job
+        info!("Withdrawing: {:.6} USDC", format_usdc(amount));
+        deployment_adapter
+            .job_withdraw(job_id, amount)
+            .await
+            .context("Failed to make withdrawal transaction")?;
+        info!("Withdrawal successful!");
+
+        Ok(())
     }
-
-    info!("Current balance: {:.6} USDC", format_usdc(current_balance));
-
-    if amount > current_balance {
-        return Err(anyhow!(
-            "Cannot withdraw {:.6} USDC: maximum withdrawable amount is {:.6} USDC",
-            format_usdc(amount),
-            format_usdc(current_balance),
-        ));
-    }
-
-    // Withdraw from job
-    info!("Withdrawing: {:.6} USDC", format_usdc(amount));
-    deployment_adapter
-        .job_withdraw(job_id, amount)
-        .await
-        .context("Failed to make withdrawal transaction")?;
-    info!("Withdrawal successful!");
-
-    Ok(())
 }
 
 // Calculate the current balance after accounting for time elapsed since last settlement

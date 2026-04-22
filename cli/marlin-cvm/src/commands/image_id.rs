@@ -27,9 +27,11 @@ pub struct ImageArgs {
     init_params: InitParamsArgs,
 }
 
-pub fn compute_image_id(args: ImageArgs) -> Result<()> {
-    let pcr_args = args.init_params.pcrs.clone();
-    let digest = args
+impl ImageArgs {
+    pub fn run(self) -> Result<()> {
+        let args = self;
+        let pcr_args = args.init_params.pcrs.clone();
+        let digest = args
         .init_params
         .load(args.preset.clone(), args.arch.clone())
         .context("Failed to load init params")?
@@ -50,27 +52,28 @@ pub fn compute_image_id(args: ImageArgs) -> Result<()> {
         })
         .unwrap_or(None);
 
-    let pcrs = pcr_args
-        .load_required(
-            args.preset
-                .as_ref()
-                .zip(args.arch.as_ref())
-                .and_then(|(preset, arch)| preset_to_pcr_preset(preset, arch)),
-            digest.as_ref().map(Vec::as_slice),
-        )
-        .context("Failed to load PCRs")?;
+        let pcrs = pcr_args
+            .load_required(
+                args.preset
+                    .as_ref()
+                    .zip(args.arch.as_ref())
+                    .and_then(|(preset, arch)| preset_to_pcr_preset(preset, arch)),
+                digest.as_ref().map(Vec::as_slice),
+            )
+            .context("Failed to load PCRs")?;
 
-    // compute image id
-    let mut hasher = Sha256::new();
-    // bitflags denoting what pcrs are part of the computation
-    // this one has 4-15
-    hasher.update((4..=15).fold(0u32, |acc, x| acc | (1 << x)).to_be_bytes());
-    hasher.update(pcrs.as_flattened());
-    let image_id: [u8; 32] = hasher.finalize().into();
+        // compute image id
+        let mut hasher = Sha256::new();
+        // bitflags denoting what pcrs are part of the computation
+        // this one has 4-15
+        hasher.update((4..=15).fold(0u32, |acc, x| acc | (1 << x)).to_be_bytes());
+        hasher.update(pcrs.as_flattened());
+        let image_id: [u8; 32] = hasher.finalize().into();
 
-    let hex_image_id = hex::encode(image_id);
+        let hex_image_id = hex::encode(image_id);
 
-    info!("Image ID: {}", hex_image_id);
+        info!("Image ID: {}", hex_image_id);
 
-    Ok(())
+        Ok(())
+    }
 }

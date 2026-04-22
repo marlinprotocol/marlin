@@ -52,17 +52,17 @@ async fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Simulate(args) => commands::simulate::simulate(args).await,
-        Commands::Verify(args) => commands::verify::verify(args).await,
-        Commands::Deploy(args) => commands::deploy::deploy(args).await,
-        Commands::List(args) => commands::list::list_jobs(args).await,
-        Commands::Update(args) => commands::update::update_job(args).await,
-        Commands::Deposit(args) => commands::deposit::deposit_to_job(args).await,
-        Commands::Close(args) => commands::close::close_job(args).await,
-        Commands::Withdraw(args) => commands::withdraw::withdraw_from_job(args).await,
-        Commands::ComputeImageId(args) => commands::image_id::compute_image_id(args),
-        Commands::KmsDerive(args) => commands::derive::kms_derive(args).await,
-        Commands::KmsContract(args) => commands::kms_contract::kms_contract(args).await,
+        Commands::Simulate(args) => args.run().await,
+        Commands::Verify(args) => args.run().await,
+        Commands::Deploy(args) => args.run().await,
+        Commands::List(args) => args.run().await,
+        Commands::Update(args) => args.run().await,
+        Commands::Deposit(args) => args.run().await,
+        Commands::Close(args) => args.run().await,
+        Commands::Withdraw(args) => args.run().await,
+        Commands::ComputeImageId(args) => args.run(),
+        Commands::KmsDerive(args) => args.run().await,
+        Commands::KmsContract(args) => args.run().await,
     };
 
     if let Err(e) = result {
