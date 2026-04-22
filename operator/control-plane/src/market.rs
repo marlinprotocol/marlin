@@ -4,8 +4,6 @@ use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result, bail};
-use base64::Engine;
-use base64::prelude::BASE64_STANDARD;
 use ciborium::Value;
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use indexer_framework::events::JobEvent;
@@ -224,7 +222,7 @@ async fn job_task(
             log = events_stream.recv(), if job_result == JobResult::Success => {
                 job_result = match log {
                     Some(log) => {
-                        match parse_event(log.event_name, log.event_data) {
+                        match parse_event(log.event_name, &log.event_data) {
                             Ok(event) => state.process_event(event, rates, gb_rates, address_whitelist, address_blacklist),
                             Err(result) => result
                         }
@@ -621,7 +619,7 @@ impl<'a> JobState<'a> {
                 JobResult::Success
             }
             JobEvent::MetadataUpdated(event) => {
-                info!(event.metadata, "METADATA_UPDATED");
+                info!("METADATA_UPDATED");
 
                 if let Err(err) = self.decode_metadata(&event.metadata, true) {
                     error!(id = event.job_id, ?err);
@@ -798,42 +796,42 @@ async fn fetch_job_events(
         .context("failed to load events")
 }
 
-fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, JobResult> {
+fn parse_event(event_name: JobEventName, event_data: &[u8]) -> Result<JobEvent, JobResult> {
     match event_name {
         JobEventName::Opened => Ok(JobEvent::Opened(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "OPENED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Closed => Ok(JobEvent::Closed(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "CLOSED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Deposited => Ok(JobEvent::Deposited(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "DEPOSITED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Settled => Ok(JobEvent::Settled(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "SETTLED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::MetadataUpdated => Ok(JobEvent::MetadataUpdated(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(
                     |err| error!(?err, data = ?event_data, "METADATA_UPDATED: Decode failure"),
                 )
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Withdrew => Ok(JobEvent::Withdrew(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "WITHDREW: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::RateRevised => Ok(JobEvent::RateRevised(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "RATE_REVISED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
