@@ -61,8 +61,9 @@ impl UpdateArgs {
             return Err(anyhow!("Job {} does not exist", job_id));
         };
 
-        let mut metadata = serde_json::from_str::<serde_json::Value>(&job_data.metadata)
-            .context("Failed to decode metadata as json")?;
+        let mut metadata =
+            serde_json::from_str::<serde_json::Value>(str::from_utf8(&job_data.metadata)?)
+                .context("Failed to decode metadata as json")?;
         info!(
             "Original metadata: {}",
             serde_json::to_string_pretty(&metadata)
@@ -90,7 +91,7 @@ impl UpdateArgs {
         // Update job
         info!("Updating metadata...");
         deployment_adapter
-            .job_metadata_update(job_id, serde_json::to_string(&metadata)?)
+            .job_metadata_update(job_id, serde_json::to_string(&metadata)?.into())
             .await
             .context("Failed to make metadata update transaction")?;
         info!("Update successful!");

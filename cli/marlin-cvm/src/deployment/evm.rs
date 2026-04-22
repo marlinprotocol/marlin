@@ -154,7 +154,7 @@ impl DeploymentAdapter for EvmAdapter {
         }
 
         Ok(Some(JobData {
-            metadata: job.metadata,
+            metadata: job.metadata.to_vec(),
             balance: job.balance,
             rate: job.rate,
             last_settled: job.lastSettled,
@@ -163,7 +163,7 @@ impl DeploymentAdapter for EvmAdapter {
 
     async fn job_create(
         &mut self,
-        metadata: &str,
+        metadata: Vec<u8>,
         operator: &str,
         rate: u64,
         balance: u64,
@@ -369,7 +369,7 @@ impl DeploymentAdapter for EvmAdapter {
         Ok(())
     }
 
-    async fn job_metadata_update(&mut self, job_id: u64, new_metadata: String) -> Result<()> {
+    async fn job_metadata_update(&mut self, job_id: u64, new_metadata: Vec<u8>) -> Result<()> {
         let signer = self.signer.clone().ok_or(anyhow!("Signer is required"))?;
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
@@ -383,7 +383,7 @@ impl DeploymentAdapter for EvmAdapter {
 
         info!("Sending jobMetadataUpdate transaction...");
         let tx = market
-            .jobMetadataUpdate(job_id, new_metadata)
+            .jobMetadataUpdate(job_id, new_metadata.into())
             .send()
             .await
             .context("Failed to send transaction")?;

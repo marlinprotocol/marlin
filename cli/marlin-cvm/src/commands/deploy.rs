@@ -213,7 +213,7 @@ impl DeployArgs {
 
         // Create job
         let job_id = deployment_adapter
-            .job_create(&metadata, &operator, total_rate, total_cost)
+            .job_create(metadata, &operator, total_rate, total_cost)
             .await
             .context("Failed to send create transaction")?;
         info!("Job created with ID: {}", job_id);
@@ -349,7 +349,7 @@ fn create_metadata(
     image: &str,
     name: &str,
     init_params: &str,
-) -> String {
+) -> Vec<u8> {
     serde_json::json!({
         "instance": instance,
         "region": region,
@@ -358,6 +358,7 @@ fn create_metadata(
         "init_params": init_params,
     })
     .to_string()
+    .into()
 }
 
 async fn wait_for_ip_address(url: &str, job_id: u64, region: &str) -> Result<String> {
