@@ -257,7 +257,7 @@ impl InitParamsArgs {
 
         // create final init params
         let init_params = InitParamsList {
-            digest: BASE64_STANDARD.encode(digest),
+            digest: digest.to_vec(),
             params,
         };
 
@@ -279,7 +279,7 @@ struct InitParam {
 
 #[derive(Serialize, Deserialize)]
 pub struct InitParamsList {
-    pub digest: String, // base64 encoded
+    pub digest: Vec<u8>,
     params: Vec<InitParam>,
 }
 

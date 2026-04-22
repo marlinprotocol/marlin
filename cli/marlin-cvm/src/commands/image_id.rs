@@ -38,13 +38,9 @@ impl ImageArgs {
         .map(|init_param_b64| -> Result<Vec<u8>> {
             let init_param_cbor = BASE64_STANDARD.decode(init_param_b64)
                 .context("Failed to decode init params from base64")?;
-
             let init_param: InitParamsList = ciborium::from_reader(init_param_cbor.as_slice())
                 .context("Failed to parse init params as cbor")?;
-            let digest = BASE64_STANDARD
-                .decode(init_param.digest)
-                .context("Failed to decode digest")?;
-            Ok(digest)
+            Ok(init_param.digest)
         })
         .transpose()
         .inspect_err(|e| {
