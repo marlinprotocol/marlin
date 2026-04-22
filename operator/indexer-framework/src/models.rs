@@ -1,5 +1,4 @@
 use diesel::prelude::*;
-use serde_json::Value;
 
 #[derive(Clone, Debug, diesel_derive_enum::DbEnum, PartialEq)]
 #[ExistingTypePath = "crate::schema::sql_types::EventName"]
@@ -21,7 +20,7 @@ pub struct JobEventRecord {
     pub id: i64,
     pub job_id: i64,
     pub event_name: JobEventName,
-    pub event_data: Value,
+    pub event_data: Vec<u8>,
 }
 
 /// A structured representation of the data to be inserted into the `job_events` table
@@ -30,5 +29,5 @@ pub struct JobEventRecord {
 pub struct NewJobEventRecord {
     pub job_id: i64,
     pub event_name: JobEventName,
-    pub event_data: Value,
+    pub event_data: Vec<u8>,
 }
