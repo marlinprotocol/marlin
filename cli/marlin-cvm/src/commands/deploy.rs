@@ -350,7 +350,7 @@ fn create_metadata(
     region: &str,
     image: &str,
     name: &str,
-    init_params: &str,
+    init_params: &[u8],
 ) -> Result<Vec<u8>> {
     let cbor = cbor!({
         "instance" => instance,

@@ -1,6 +1,5 @@
 use alloy::signers::k256::sha2::{Digest, Sha256};
 use anyhow::{Context, Result};
-use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Args;
 use tracing::{info, warn};
 
@@ -35,9 +34,7 @@ impl ImageArgs {
         .init_params
         .load(args.preset.clone(), args.arch.clone())
         .context("Failed to load init params")?
-        .map(|init_param_b64| -> Result<Vec<u8>> {
-            let init_param_cbor = BASE64_STANDARD.decode(init_param_b64)
-                .context("Failed to decode init params from base64")?;
+        .map(|init_param_cbor| -> Result<Vec<u8>> {
             let init_param: InitParamsList = ciborium::from_reader(init_param_cbor.as_slice())
                 .context("Failed to parse init params as cbor")?;
             Ok(init_param.digest)

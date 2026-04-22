@@ -10,7 +10,6 @@ use alloy::{
     signers::k256::sha2::{Digest, Sha256},
 };
 use anyhow::{Context, Result, bail};
-use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Args;
 use lazy_static::lazy_static;
 use libsodium_sys::{crypto_box_SEALBYTES, crypto_box_seal, sodium_init};
@@ -24,7 +23,7 @@ use super::pcr::PcrArgs;
 #[derive(Args, Debug)]
 #[group(multiple = true)]
 pub struct InitParamsArgs {
-    /// Base64 encoded init params
+    /// Hex encoded init params
     #[arg(
         long,
         help_heading = "Initialization parameters options",
@@ -73,10 +72,14 @@ pub struct InitParamsArgs {
 }
 
 impl InitParamsArgs {
-    pub fn load(self, preset: Option<String>, arch: Option<Arch>) -> Result<Option<String>> {
+    pub fn load(self, preset: Option<String>, arch: Option<Arch>) -> Result<Option<Vec<u8>>> {
         // check for encoded params
         if self.init_params_encoded.is_some() {
-            return Ok(self.init_params_encoded.clone());
+            return self
+                .init_params_encoded
+                .map(hex::decode)
+                .transpose()
+                .context("Failed to decode init params as hex");
         }
 
         // check if there are any init params
@@ -265,7 +268,7 @@ impl InitParamsArgs {
         ciborium::into_writer(&init_params, &mut cbor)
             .context("failed to serialize init params")?;
 
-        Ok(Some(BASE64_STANDARD.encode(&cbor)))
+        Ok(Some(cbor))
     }
 }
 
