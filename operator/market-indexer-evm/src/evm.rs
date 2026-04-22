@@ -74,7 +74,7 @@ impl ChainHandler for EvmProvider {
                             job_id: data.jobId,
                             owner: data.owner.to_checksum(None),
                             provider: data.provider.to_checksum(None),
-                            metadata: data.metadata,
+                            metadata: data.metadata.to_vec(),
                             timestamp: data.timestamp,
                         }));
                     }
@@ -136,7 +136,7 @@ impl ChainHandler for EvmProvider {
                         let data = decoded.data;
                         events.push(JobEvent::MetadataUpdated(JobMetadataUpdated {
                             job_id: data.jobId,
-                            metadata: data.metadata,
+                            metadata: data.metadata.to_vec(),
                             timestamp: data.timestamp,
                         }));
                     }
