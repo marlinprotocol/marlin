@@ -188,7 +188,7 @@ contract Market is
 
     /// @notice Struct representing a Job
     struct Job {
-        string metadata;
+        bytes metadata;
         address owner;
         address provider;
         uint64 rate;
@@ -220,7 +220,7 @@ contract Market is
         public
         view
         returns (
-            string memory metadata,
+            bytes memory metadata,
             address owner,
             address provider,
             uint64 rate,
@@ -254,7 +254,7 @@ contract Market is
     event MarketNoticePeriodUpdated(uint64 from, uint64 to);
     /// @notice Emitted when a job is opened
     event MarketJobOpened(
-        uint64 indexed jobId, uint64 timestamp, string metadata, address indexed owner, address indexed provider
+        uint64 indexed jobId, uint64 timestamp, bytes metadata, address indexed owner, address indexed provider
     );
     /// @notice Emitted when a job is settled
     event MarketJobSettled(uint64 indexed jobId, uint64 timestamp, uint64 amount, address indexed to);
@@ -267,7 +267,7 @@ contract Market is
     /// @notice Emitted when a job's rate is revised
     event MarketJobRateRevised(uint64 indexed jobId, uint64 timestamp, uint64 newRate);
     /// @notice Emitted when a job's metadata is updated
-    event MarketJobMetadataUpdated(uint64 indexed jobId, uint64 timestamp, string metadata);
+    event MarketJobMetadataUpdated(uint64 indexed jobId, uint64 timestamp, bytes metadata);
 
     function _now() internal view returns (uint64) {
         return uint64(block.timestamp);
@@ -337,7 +337,7 @@ contract Market is
         _emergencyWithdrawCredit(_to, _jobIds);
     }
 
-    function _jobOpen(string calldata _metadata, address _owner, address _provider, uint64 _rate, uint64 _balance)
+    function _jobOpen(bytes calldata _metadata, address _owner, address _provider, uint64 _rate, uint64 _balance)
         internal
     {
         JobsStorage storage $ = _getJobsStorage();
@@ -432,7 +432,7 @@ contract Market is
         emit MarketJobRateRevised(_jobId, _now(), _newRate);
     }
 
-    function _jobMetadataUpdate(uint64 _jobId, string calldata _metadata) internal {
+    function _jobMetadataUpdate(uint64 _jobId, bytes calldata _metadata) internal {
         _getJobsStorage().jobs[_jobId].metadata = _metadata;
         emit MarketJobMetadataUpdated(_jobId, _now(), _metadata);
     }
@@ -448,7 +448,7 @@ contract Market is
     /// @param   _provider  The provider of the job.
     /// @param   _rate      The rate of the job.
     /// @param   _balance   Amount of tokens to deposit into the job.
-    function jobOpen(string calldata _metadata, address _provider, uint64 _rate, uint64 _balance) external {
+    function jobOpen(bytes calldata _metadata, address _provider, uint64 _rate, uint64 _balance) external {
         _jobOpen(_metadata, _msgSender(), _provider, _rate, _balance);
     }
 
@@ -501,7 +501,7 @@ contract Market is
     /// @dev     Reverts if the metadata has not changed.
     /// @param   _jobId  The job to update the metadata of.
     /// @param   _metadata  The new metadata of the job.
-    function jobMetadataUpdate(uint64 _jobId, string calldata _metadata)
+    function jobMetadataUpdate(uint64 _jobId, bytes calldata _metadata)
         external
         onlyJobOwner(_jobId)
         onlyActiveJob(_jobId)
@@ -523,6 +523,8 @@ contract Market is
 
     function _safe64(uint256 _x) internal pure returns (uint64) {
         require(_x < type(uint64).max, MarketOutOfRange());
+        // SAFETY: range checked above
+        // forge-lint: disable-next-line(unsafe-typecast)
         return uint64(_x);
     }
 

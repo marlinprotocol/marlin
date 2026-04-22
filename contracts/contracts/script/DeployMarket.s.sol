@@ -19,7 +19,8 @@ contract DeployMarket is DeployScript {
         // deploy
         vm.startBroadcast();
         address _proxy = Upgrades.deployUUPSProxy(
-            "Market.sol", abi.encodeCall(Market.initialize, (_admin, _initialJobIndex, _noticePeriod, _token, _creditToken))
+            "Market.sol",
+            abi.encodeCall(Market.initialize, (_admin, _initialJobIndex, _noticePeriod, _token, _creditToken))
         );
         vm.stopBroadcast();
 
