@@ -245,7 +245,7 @@ impl InitParamsArgs {
 
                 let init_param = InitParam {
                     path: param_components[0].to_owned(),
-                    contents: BASE64_STANDARD.encode(final_contents),
+                    contents: final_contents,
                     should_attest,
                     should_decrypt: should_encrypt,
                 };
@@ -272,7 +272,7 @@ impl InitParamsArgs {
 #[derive(Serialize, Deserialize)]
 struct InitParam {
     path: String,
-    contents: String, // base64 encoded
+    contents: Vec<u8>,
     should_attest: bool,
     should_decrypt: bool,
 }
