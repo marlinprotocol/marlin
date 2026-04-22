@@ -261,10 +261,11 @@ impl InitParamsArgs {
             params,
         };
 
-        let json = serde_json::to_string_pretty(&init_params)
+        let mut cbor = Vec::new();
+        ciborium::into_writer(&init_params, &mut cbor)
             .context("failed to serialize init params")?;
 
-        Ok(Some(BASE64_STANDARD.encode(json)))
+        Ok(Some(BASE64_STANDARD.encode(&cbor)))
     }
 }
 

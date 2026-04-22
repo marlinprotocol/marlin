@@ -36,11 +36,11 @@ impl ImageArgs {
         .load(args.preset.clone(), args.arch.clone())
         .context("Failed to load init params")?
         .map(|init_param_b64| -> Result<Vec<u8>> {
-            let init_param_json = String::from_utf8(
-                BASE64_STANDARD.decode(init_param_b64).context("Failed to decode init params from base64")?
-            ).context("Failed to parse init params as string")?;
+            let init_param_cbor = BASE64_STANDARD.decode(init_param_b64)
+                .context("Failed to decode init params from base64")?;
 
-            let init_param: InitParamsList = serde_json::from_str(&init_param_json).context("Failed to parse init params as json")?;
+            let init_param: InitParamsList = ciborium::from_reader(init_param_cbor.as_slice())
+                .context("Failed to parse init params as cbor")?;
             let digest = BASE64_STANDARD
                 .decode(init_param.digest)
                 .context("Failed to decode digest")?;
