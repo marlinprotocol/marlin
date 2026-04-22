@@ -6,12 +6,12 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Context, Result, bail};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use ciborium::Value;
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use indexer_framework::events::JobEvent;
 use indexer_framework::models::{JobEventName, JobEventRecord};
 use indexer_framework::schema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::sleep;
 use tokio::time::{Duration, Instant};
@@ -466,11 +466,11 @@ impl<'a> JobState<'a> {
 
         match event {
             JobEvent::Opened(event) => {
-                info!(event.metadata, event.owner, event.provider, "OPENED");
+                info!(event.owner, event.provider, "OPENED");
 
                 // handle metadata
                 if let Err(err) = self
-                    .decode_metadata(event.metadata, false)
+                    .decode_metadata(&event.metadata, false)
                     .context("failed to decode metadata")
                 {
                     error!(?err);
@@ -623,7 +623,7 @@ impl<'a> JobState<'a> {
             JobEvent::MetadataUpdated(event) => {
                 info!(event.metadata, "METADATA_UPDATED");
 
-                if let Err(err) = self.decode_metadata(event.metadata, true) {
+                if let Err(err) = self.decode_metadata(&event.metadata, true) {
                     error!(id = event.job_id, ?err);
                     return JobResult::Failed;
                 }
@@ -638,12 +638,16 @@ impl<'a> JobState<'a> {
         }
     }
 
-    fn decode_metadata(&mut self, metadata: String, update: bool) -> Result<()> {
-        let metadata_json =
-            serde_json::from_str::<Value>(&metadata).context("Error reading metadata")?;
+    fn decode_metadata(&mut self, metadata: &[u8], update: bool) -> Result<()> {
+        let metadata_cbor = ciborium::from_reader::<Vec<(Value, Value)>, _>(metadata)
+            .context("Failed to decode metadata as cbor")?;
 
-        let Some(instance) = metadata_json["instance"].as_str() else {
-            bail!("Instance type not set");
+        let Some(instance) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "instance".into())
+            .and_then(|x| x.1.as_text())
+        else {
+            bail!("Instance type not set or is not a string");
         };
         if update && self.instance_type != instance {
             bail!("Instance type change not allowed");
@@ -652,7 +656,11 @@ impl<'a> JobState<'a> {
             info!(self.instance_type, "Instance type set");
         }
 
-        let Some(region) = metadata_json["region"].as_str() else {
+        let Some(region) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "region".into())
+            .and_then(|x| x.1.as_text())
+        else {
             bail!("Job region not set");
         };
         if update && self.region != region {
@@ -662,13 +670,19 @@ impl<'a> JobState<'a> {
             info!(self.region, "Job region set");
         }
 
-        let Some(image) = metadata_json["image"].as_str() else {
+        let Some(image) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "image".into())
+            .and_then(|x| x.1.as_text())
+        else {
             bail!("Image not found! Exiting job");
         };
         self.image = image.to_string();
 
-        let Ok(init_params) =
-            BASE64_STANDARD.decode(metadata_json["init_params"].as_str().unwrap_or(""))
+        let Some(init_params) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "init_params".into())
+            .and_then(|x| x.1.as_bytes())
         else {
             bail!("failed to decode init params");
         };
@@ -676,7 +690,7 @@ impl<'a> JobState<'a> {
         if init_params.len() > 8192 {
             bail!("init params should be under 8192 length");
         };
-        self.init_params = init_params.into_boxed_slice();
+        self.init_params = init_params.clone().into_boxed_slice();
 
         Ok(())
     }
