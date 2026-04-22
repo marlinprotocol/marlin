@@ -61,17 +61,17 @@ impl UpdateArgs {
             return Err(anyhow!("Job {} does not exist", job_id));
         };
 
-        let mut metadata =
-            serde_json::from_str::<serde_json::Value>(str::from_utf8(&job_data.metadata)?)
-                .context("Failed to decode metadata as json")?;
-        info!(
-            "Original metadata: {}",
-            serde_json::to_string_pretty(&metadata)
-                .context("Should never happen, failed to stringify a Value")?
-        );
+        let mut metadata = ciborium::from_reader::<Vec<(ciborium::Value, ciborium::Value)>, _>(
+            job_data.metadata.as_slice(),
+        )
+        .context("Failed to decode metadata as cbor map")?;
 
         if let Some(image) = image {
-            metadata["image"] = serde_json::Value::String(image);
+            if let Some(entry) = metadata.iter_mut().find(|v| v.0 == "image".into()) {
+                entry.1 = image.into();
+            } else {
+                metadata.push(("image".into(), image.into()));
+            }
         }
 
         if let Some(init_params) = args
@@ -79,19 +79,20 @@ impl UpdateArgs {
             .load(args.preset, args.arch)
             .context("Failed to load init params")?
         {
-            metadata["init_params"] = init_params.into();
+            if let Some(entry) = metadata.iter_mut().find(|v| v.0 == "init_params".into()) {
+                entry.1 = init_params.into();
+            } else {
+                metadata.push(("init_params".into(), init_params.into()));
+            }
         }
 
-        info!(
-            "Updated metadata: {}",
-            serde_json::to_string_pretty(&metadata)
-                .context("Should never happen, failed to stringify a Value")?
-        );
+        let mut cbor = Vec::new();
+        ciborium::into_writer(&metadata, &mut cbor).context("failed to serialize metadata")?;
 
         // Update job
         info!("Updating metadata...");
         deployment_adapter
-            .job_metadata_update(job_id, serde_json::to_string(&metadata)?.into())
+            .job_metadata_update(job_id, cbor)
             .await
             .context("Failed to make metadata update transaction")?;
         info!("Update successful!");

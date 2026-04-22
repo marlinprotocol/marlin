@@ -12,6 +12,7 @@ use crate::{
 };
 
 use anyhow::{Context, Result, anyhow};
+use ciborium::cbor;
 use clap::Args;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -209,7 +210,8 @@ impl DeployArgs {
                 .load(args.preset, args.arch)
                 .context("Failed to load init params")?
                 .unwrap_or("".into()),
-        );
+        )
+        .context("Failed to encode metadata")?;
 
         // Create job
         let job_id = deployment_adapter
@@ -349,16 +351,19 @@ fn create_metadata(
     image: &str,
     name: &str,
     init_params: &str,
-) -> Vec<u8> {
-    serde_json::json!({
-        "instance": instance,
-        "region": region,
-        "image": image,
-        "name": name,
-        "init_params": init_params,
+) -> Result<Vec<u8>> {
+    let cbor = cbor!({
+        "instance" => instance,
+        "region" => region,
+        "image" => image,
+        "name" => name,
+        "init_params" => init_params,
     })
-    .to_string()
-    .into()
+    .context("Should never happen, failed to create cbor metadata")?;
+    let mut serialized = Vec::new();
+    ciborium::into_writer(&cbor, &mut serialized)
+        .context("Should never happen, failed to serialize metadata")?;
+    Ok(serialized)
 }
 
 async fn wait_for_ip_address(url: &str, job_id: u64, region: &str) -> Result<String> {
