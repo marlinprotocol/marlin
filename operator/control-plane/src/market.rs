@@ -996,6 +996,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex};
 
+    use ciborium::cbor;
     use indexer_framework::models::JobEventRecord;
     use tokio::sync::mpsc;
     use tokio::time::{Duration, Instant, sleep};
@@ -1090,15 +1091,34 @@ mod tests {
         assert_eq!(aws.outcomes, test_results.outcomes);
     }
 
+    fn to_cbor(value: &ciborium::Value) -> Vec<u8> {
+        let mut serialized = Vec::new();
+        ciborium::into_writer(value, &mut serialized).unwrap();
+        serialized
+    }
+
     #[tokio::test(start_paused = true)]
     async fn test_instance_launch_after_delay_on_spin_up() {
         let start_time = Instant::now();
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (301, Action::Close(301)),
         ];
 
@@ -1146,9 +1166,23 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "init_params" => b"some params",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (301, Action::Close(301)),
         ];
 
@@ -1196,9 +1230,23 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "debug" => true,
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (301, Action::Close(301)),
         ];
 
@@ -1246,9 +1294,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (40, Action::Deposit(40, 500)),
             (60, Action::Withdraw(60, 500)),
             (100, Action::Settle(2, 6)),
@@ -1299,9 +1360,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-east-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-east-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1335,9 +1409,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"not_region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "not-region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1371,9 +1458,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"not_instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "not-instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1407,9 +1507,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.vsmall\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.vsmall",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1443,9 +1556,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"not_image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "not-image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1479,9 +1605,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,29000000)),
+            (0, Action::RateRevised(0, 29000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1515,9 +1654,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 0)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1553,9 +1705,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (350, Action::Withdraw(350, 30000)),
             (500, Action::Close(500)),
         ];
@@ -1604,9 +1769,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (350, Action::RateRevised(350, 29000000)),
             (450, Action::RateRevised(450, 31000000)),
         ];
@@ -1655,9 +1833,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1708,9 +1899,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1747,9 +1951,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1786,9 +2003,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -2002,10 +2232,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-fedcba",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2053,10 +2309,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "debug" => true,
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-fedcba",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2104,11 +2387,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.large\"}".to_string())),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2142,10 +2451,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "init_params" => "c29tZSBwYXJhbXM=",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2193,10 +2529,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2244,10 +2606,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-fedbca",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2307,11 +2695,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.large\"}".to_string())),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.large",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2359,10 +2773,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "init_params" => "c29tZSBwYXJhbXM=",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2422,10 +2863,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
