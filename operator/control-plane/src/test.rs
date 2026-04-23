@@ -176,13 +176,13 @@ impl InfraProvider for TestAws {
 
 #[derive(Clone)]
 pub enum Action {
-    Open(u64, String),
+    Open(u64, Vec<u8>),
     Close(u64),
     Settle(u64, u64),
     Deposit(u64, u64),
     Withdraw(u64, u64),
     RateRevised(u64, u64),
-    MetadataUpdated(u64, String),
+    MetadataUpdated(u64, Vec<u8>),
 }
 
 pub fn get_rates() -> Vec<RegionalRates> {
@@ -212,7 +212,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Opened,
-            event_data: serde_json::to_value(JobOpened {
+            event_data: postcard::to_allocvec(&JobOpened {
                 job_id: job_idx,
                 timestamp: timestamp,
                 metadata: metadata,
@@ -225,7 +225,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Closed,
-            event_data: serde_json::to_value(JobClosed {
+            event_data: postcard::to_allocvec(&JobClosed {
                 job_id: job_idx,
                 timestamp: timestamp,
             })
@@ -235,7 +235,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Settled,
-            event_data: serde_json::to_value(JobSettled {
+            event_data: postcard::to_allocvec(&JobSettled {
                 job_id: job_idx,
                 timestamp: timestamp,
                 amount: amount,
@@ -247,7 +247,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Deposited,
-            event_data: serde_json::to_value(JobDeposited {
+            event_data: postcard::to_allocvec(&JobDeposited {
                 job_id: job_idx,
                 timestamp: timestamp,
                 amount: amount,
@@ -259,7 +259,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::Withdrew,
-            event_data: serde_json::to_value(JobWithdrew {
+            event_data: postcard::to_allocvec(&JobWithdrew {
                 job_id: job_idx,
                 timestamp: timestamp,
                 amount: amount,
@@ -271,7 +271,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::RateRevised,
-            event_data: serde_json::to_value(JobRateRevised {
+            event_data: postcard::to_allocvec(&JobRateRevised {
                 job_id: job_idx,
                 timestamp: timestamp,
                 new_rate: rate,
@@ -282,7 +282,7 @@ pub fn get_event(topic: Action, id: i64, job_idx: u64) -> JobEventRecord {
             id: id,
             job_id: job_idx as i64,
             event_name: JobEventName::MetadataUpdated,
-            event_data: serde_json::to_value(JobMetadataUpdated {
+            event_data: postcard::to_allocvec(&JobMetadataUpdated {
                 job_id: job_idx,
                 timestamp: timestamp,
                 metadata: metadata,
