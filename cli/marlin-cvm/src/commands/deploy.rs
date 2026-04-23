@@ -12,7 +12,7 @@ use crate::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use ciborium::cbor;
+use ciborium::{Value, cbor};
 use clap::Args;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -357,7 +357,7 @@ fn create_metadata(
         "region" => region,
         "image" => image,
         "name" => name,
-        "init_params" => init_params,
+        "init_params" => Value::Bytes(init_params.to_vec()),
     })
     .context("Should never happen, failed to create cbor metadata")?;
     let mut serialized = Vec::new();
