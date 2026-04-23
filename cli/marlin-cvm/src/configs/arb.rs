@@ -1,5 +1,5 @@
 // Market Contract Addresses
-pub const MARKET_ADDRESS: &str = "0x02301739bF5c1AA8a6b484CaA4daE64803cbC207";
+pub const MARKET_ADDRESS: &str = "0xf9d89108aee23D43965112B5e7EB390674f6C736";
 pub const USDC_ADDRESS: &str = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
 // RPC URLs
