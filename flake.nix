@@ -71,6 +71,7 @@
       kms.root-server-enclave = import ./kms/root-server-enclave {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
+        gauge = enclaves.gauge.default;
         keygen-secp256k1 = initialization.keygen.secp256k1.service;
         attestation-server = attestation.server.standard.service;
         kms-root-server = kms.root-server.service;
