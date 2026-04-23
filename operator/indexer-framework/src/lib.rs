@@ -171,8 +171,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Opened,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobOpened event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobOpened event data")?,
                 });
             }
             JobEvent::Closed(event) => {
@@ -184,8 +184,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Closed,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobClosed event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobClosed event data")?,
                 });
             }
             JobEvent::Settled(event) => {
@@ -196,8 +196,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Settled,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobSettled event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobSettled event data")?,
                 });
             }
             JobEvent::Deposited(event) => {
@@ -208,8 +208,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Deposited,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobDeposited event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobDeposited event data")?,
                 });
             }
             JobEvent::Withdrew(event) => {
@@ -220,8 +220,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::Withdrew,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobWithdrew event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobWithdrew event data")?,
                 });
             }
             JobEvent::RateRevised(event) => {
@@ -232,8 +232,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::RateRevised,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobRateRevised event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobRateRevised event data")?,
                 });
             }
             JobEvent::MetadataUpdated(event) => {
@@ -244,8 +244,8 @@ fn transform_events_into_records(
                 job_event_records.push(NewJobEventRecord {
                     job_id: event.job_id as i64,
                     event_name: JobEventName::MetadataUpdated,
-                    event_data: serde_json::to_value(event)
-                        .context("Failed to JSON serialize JobMetadataUpdated event data")?,
+                    event_data: postcard::to_allocvec(event)
+                        .context("Failed to serialize JobMetadataUpdated event data")?,
                 });
             }
         };

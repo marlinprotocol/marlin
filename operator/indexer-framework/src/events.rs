@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct JobOpened {
     pub job_id: u64,
     pub timestamp: u64,
-    pub metadata: String,
+    pub metadata: Vec<u8>,
     pub owner: String,
     pub provider: String,
 }
@@ -36,7 +36,7 @@ pub struct JobSettled {
 pub struct JobMetadataUpdated {
     pub job_id: u64,
     pub timestamp: u64,
-    pub metadata: String,
+    pub metadata: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

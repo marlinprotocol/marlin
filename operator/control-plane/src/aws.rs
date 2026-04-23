@@ -230,11 +230,11 @@ impl Aws {
 
         Ok((
             true,
-            resp.allocation_id()
-                .ok_or(anyhow!("could not parse allocation id"))?
-                .to_string(),
             resp.public_ip()
                 .ok_or(anyhow!("could not parse public ip"))?
+                .to_string(),
+            resp.allocation_id()
+                .ok_or(anyhow!("could not parse allocation id"))?
                 .to_string(),
             None,
         ))

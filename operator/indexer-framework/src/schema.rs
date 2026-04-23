@@ -14,7 +14,7 @@ diesel::table! {
         id -> Int8,
         job_id -> Int8,
         event_name -> EventName,
-        event_data -> Jsonb,
+        event_data -> Bytea,
     }
 }
 

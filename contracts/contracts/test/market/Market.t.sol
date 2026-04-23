@@ -51,7 +51,7 @@ library Utils {
 abstract contract MarketTest is Test {
     function assertEq(Market _market, uint64 _jobId, Market.Job memory _job) internal {
         (
-            string memory _jobMetadata,
+            bytes memory _jobMetadata,
             address _jobOwner,
             address _jobProvider,
             uint64 _jobRate,
@@ -510,7 +510,7 @@ contract MarketTestJobOpen is MarketTest {
         assumeNotEqualAddress(_provider, address(credit))
     {}
 
-    function test_JobOpen_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_OnlyUSDC(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -555,7 +555,7 @@ contract MarketTestJobOpen is MarketTest {
         assertEq(market.jobIndex(), jobId + 1);
     }
 
-    function test_JobOpen_OnlyCredit(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_OnlyCredit(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -600,7 +600,7 @@ contract MarketTestJobOpen is MarketTest {
         assertEq(market.jobIndex(), jobId + 1);
     }
 
-    function test_JobOpen_USDCAndCredit(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_USDCAndCredit(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -650,7 +650,7 @@ contract MarketTestJobOpen is MarketTest {
         assertEq(market.jobIndex(), jobId + 1);
     }
 
-    function test_JobOpen_NotEnoughUSDC(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_NotEnoughUSDC(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -671,7 +671,7 @@ contract MarketTestJobOpen is MarketTest {
         vm.stopPrank();
     }
 
-    function test_JobOpen_NotEnoughCredit(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_NotEnoughCredit(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -721,7 +721,7 @@ contract MarketTestJobOpenNoCredit is MarketTest {
         assumeNotEqualAddress(_provider, address(market))
     {}
 
-    function test_JobOpen_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_OnlyUSDC(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -762,7 +762,7 @@ contract MarketTestJobOpenNoCredit is MarketTest {
         assertEq(market.jobIndex(), jobId + 1);
     }
 
-    function test_JobOpen_NotEnoughUSDC(address _user, address _provider, string memory _metadata) public {
+    function test_JobOpen_NotEnoughUSDC(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -816,7 +816,7 @@ contract MarketTestJobSettle is MarketTest {
         assumeNotEqualAddress(_provider, address(credit))
     {}
 
-    function test_JobSettle_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
+    function test_JobSettle_OnlyUSDC(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -857,7 +857,7 @@ contract MarketTestJobSettle is MarketTest {
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
     }
 
-    function test_JobSettle_OnlyCredit(address _user, address _provider, string memory _metadata) public {
+    function test_JobSettle_OnlyCredit(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -902,7 +902,7 @@ contract MarketTestJobSettle is MarketTest {
         assertEq(credit.balanceOf(_provider), 0);
     }
 
-    function test_JobSettle_USDCAndCredit(address _user, address _provider, string memory _metadata) public {
+    function test_JobSettle_USDCAndCredit(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -955,7 +955,7 @@ contract MarketTestJobSettle is MarketTest {
         assertEq(credit.balanceOf(_provider), 0);
     }
 
-    function test_JobSettle_NotEnoughBalance(address _user, address _provider, string memory _metadata) public {
+    function test_JobSettle_NotEnoughBalance(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -1037,7 +1037,7 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         assumeNotEqualAddress(_provider, address(market))
     {}
 
-    function test_JobSettle_OnlyUSDC(address _user, address _provider, string memory _metadata) public {
+    function test_JobSettle_OnlyUSDC(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -1078,7 +1078,7 @@ contract MarketTestJobSettleNoCredit is MarketTest {
         assertEq(usdc.balanceOf(_provider), _noticePeriodCost + _settleAmount);
     }
 
-    function test_JobSettle_NotEnoughBalance(address _user, address _provider, string memory _metadata) public {
+    function test_JobSettle_NotEnoughBalance(address _user, address _provider, bytes memory _metadata) public {
         _assumptions(_user, _provider);
 
         uint64 _initialBalance = Utils.usdc(50);
@@ -2295,7 +2295,7 @@ contract MarketTestJobMetadataUpdate is MarketTest {
     }
 
     function test_JobMetadataUpdate() public {
-        string memory _newMetadata = "efgh";
+        bytes memory _newMetadata = "efgh";
 
         vm.startPrank(user);
         vm.expectEmit();

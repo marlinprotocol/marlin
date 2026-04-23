@@ -1,0 +1,195 @@
+use alloy::{
+    network::{Ethereum, EthereumWallet},
+    primitives::{Address, FixedBytes},
+    providers::{Provider, ProviderBuilder, WalletProvider},
+    signers::local::PrivateKeySigner,
+    sol,
+};
+use anyhow::{Context, Result, anyhow};
+use clap::{Args, Parser, Subcommand};
+use tracing::info;
+
+use crate::{args::wallet::WalletArgs, configs::arb::RPC_URL};
+
+// Codegen from artifact.
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    KmsVerifiable,
+    "src/artifacts/KmsVerifiable.json"
+);
+
+/// KMS verify contract commands
+#[derive(Parser)]
+pub struct KmsContractArgs {
+    #[command(subcommand)]
+    contract_cmd: KmsContractCommands,
+}
+
+#[derive(Subcommand, Debug)]
+enum KmsContractCommands {
+    /// Deploy the KMS verify contract
+    Deploy(KmsContractDeployArgs),
+    /// Approve the image ID on KMS verify contract
+    Approve(KmsActionArgs),
+    /// Revoke the image ID on KMS verify contract
+    Revoke(KmsActionArgs),
+    /// Verify the image ID on KMS verify contract
+    Verify(KmsVerifyArgs),
+}
+
+#[derive(Args, Debug)]
+struct KmsContractDeployArgs {
+    #[command(flatten)]
+    wallet: WalletArgs,
+}
+
+#[derive(Args, Debug)]
+struct KmsActionArgs {
+    #[command(flatten)]
+    wallet: WalletArgs,
+
+    /// KMS verify contract address
+    #[arg(long)]
+    contract_address: String,
+
+    /// Image ID
+    #[arg(long)]
+    image_id: String,
+}
+
+#[derive(Args, Debug)]
+struct KmsVerifyArgs {
+    /// KMS verify contract address
+    #[arg(long)]
+    contract_address: String,
+
+    /// Image ID
+    #[arg(long)]
+    image_id: String,
+}
+
+impl KmsContractArgs {
+    pub async fn run(self) -> Result<()> {
+        let args = self;
+        match args.contract_cmd {
+            KmsContractCommands::Deploy(args) => kms_contract_deploy(args).await,
+            KmsContractCommands::Approve(args) => kms_contract_approve(args).await,
+            KmsContractCommands::Revoke(args) => kms_contract_revoke(args).await,
+            KmsContractCommands::Verify(args) => kms_contract_verify(args).await,
+        }
+    }
+}
+
+async fn kms_contract_deploy(args: KmsContractDeployArgs) -> Result<()> {
+    // get the provider
+    let provider = create_arb_provider(&args.wallet.load_required()?).await?;
+
+    // deploy the contract
+    let contract = KmsVerifiable::deploy(provider, vec![])
+        .await
+        .context("Failed to deploy contract")?;
+
+    info!("Contract deployed at: {}", contract.address());
+
+    // TODO: get the contract verified
+
+    Ok(())
+}
+
+async fn kms_contract_approve(args: KmsActionArgs) -> Result<()> {
+    // get the provider
+    let provider = create_arb_provider(&args.wallet.load_required()?).await?;
+
+    // create contract object
+    let contract = KmsVerifiable::new(args.contract_address.parse::<Address>()?, provider.clone());
+
+    // call the approve function
+    let tx_hash = contract
+        .approveImages(vec![args.image_id.parse::<FixedBytes<32>>()?])
+        .send()
+        .await?
+        .watch()
+        .await?;
+    info!("Transaction hash: {:?}", tx_hash);
+
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .ok_or_else(|| anyhow!("Transaction receipt not found"))?;
+
+    // Add logging to check transaction status
+    if !receipt.status() {
+        return Err(anyhow!("Transaction failed - check contract interaction"));
+    }
+
+    Ok(())
+}
+
+async fn kms_contract_revoke(args: KmsActionArgs) -> Result<()> {
+    // get the provider
+    let provider = create_arb_provider(&args.wallet.load_required()?).await?;
+
+    // create contract object
+    let contract = KmsVerifiable::new(args.contract_address.parse::<Address>()?, provider.clone());
+
+    // call the revoke function
+    let tx_hash = contract
+        .revokeImages(vec![args.image_id.parse::<FixedBytes<32>>()?])
+        .send()
+        .await?
+        .watch()
+        .await?;
+    info!("Transaction hash: {:?}", tx_hash);
+
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .ok_or_else(|| anyhow!("Transaction receipt not found"))?;
+
+    // Add logging to check transaction status
+    if !receipt.status() {
+        return Err(anyhow!("Transaction failed - check contract interaction"));
+    }
+
+    Ok(())
+}
+
+async fn kms_contract_verify(args: KmsVerifyArgs) -> Result<()> {
+    // get the provider
+    let provider =
+        ProviderBuilder::new().connect_http(RPC_URL.parse().context("Failed to parse RPC URL")?);
+    // create contract object
+    let contract = KmsVerifiable::new(args.contract_address.parse::<Address>()?, provider.clone());
+
+    // call the oysterKMSVerify function
+    let resp = contract
+        .oysterKMSVerify(args.image_id.parse::<FixedBytes<32>>()?)
+        .call()
+        .await?;
+    if resp {
+        info!("Image ID is verified");
+    } else {
+        info!("Image ID is not verified");
+    }
+
+    Ok(())
+}
+
+async fn create_arb_provider(
+    wallet_private_key: &str,
+) -> Result<impl Provider<Ethereum> + WalletProvider + Clone + use<>> {
+    let private_key = FixedBytes::<32>::from_slice(
+        &hex::decode(wallet_private_key).context("Failed to decode private key")?,
+    );
+
+    let signer = PrivateKeySigner::from_bytes(&private_key)
+        .context("Failed to create signer from private key")?;
+    let wallet = EthereumWallet::from(signer);
+
+    let provider = ProviderBuilder::new()
+        .wallet(wallet)
+        .connect_http(RPC_URL.parse().context("Failed to parse RPC URL")?);
+
+    Ok(provider)
+}

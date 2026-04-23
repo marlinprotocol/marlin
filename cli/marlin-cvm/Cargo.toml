@@ -1,0 +1,29 @@
+[package]
+name = "marlin-cvm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy = { version = "2.0.0", default-features = false, features = ["contract", "rpc-types", "reqwest", "reqwest-rustls-tls", "signers", "signer-local", "sol-types"] }
+anyhow = "1.0.102"
+async-trait = "0.1.89"
+chrono = "0.4.44"
+ciborium = "0.2.2"
+clap = { version = "4.6.0", features = ["derive"] }
+hex = "0.4.3"
+k256 = "0.13.4"
+lazy_static = "1.5.0"
+libsodium-sys-stable = "1.24.0"
+marlin-sdk = { version = "0.1.3", default-features = false, features = ["attestation"] }
+prettytable-rs = "0.10"
+reqwest = { version = "0.13.2", features = ["multipart", "json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+tokio = { version = "1.51", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"]}
+ureq = "3.3.0"
+
+[patch.crates-io]
+aws-nitro-enclaves-cose = { git = "https://github.com/awslabs/aws-nitro-enclaves-cose", optional = true }

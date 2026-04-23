@@ -3,15 +3,13 @@ use std::future::Future;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{Context, Result, bail};
-use base64::Engine;
-use base64::prelude::BASE64_STANDARD;
+use anyhow::{Context, Result, anyhow, bail};
+use ciborium::Value;
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use indexer_framework::events::JobEvent;
 use indexer_framework::models::{JobEventName, JobEventRecord};
 use indexer_framework::schema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::sleep;
 use tokio::time::{Duration, Instant};
@@ -71,7 +69,7 @@ pub async fn main_task(
         };
 
         // throttle the loop
-        if events.len() == 0 {
+        if events.is_empty() {
             info!("No new events, sleeping for a bit");
             sleep(Duration::from_secs(2)).await;
             continue;
@@ -224,7 +222,7 @@ async fn job_task(
             log = events_stream.recv(), if job_result == JobResult::Success => {
                 job_result = match log {
                     Some(log) => {
-                        match parse_event(log.event_name, log.event_data) {
+                        match parse_event(log.event_name, &log.event_data) {
                             Ok(event) => state.process_event(event, rates, gb_rates, address_whitelist, address_blacklist),
                             Err(result) => result
                         }
@@ -330,7 +328,7 @@ impl<'a> JobState<'a> {
             allowed_regions,
             balance: 5,
             last_settled: context.now_timestamp(),
-            rate: 1,
+            rate: 10u64.pow(EXTRA_DECIMALS),
             min_rate: u64::MAX,
             bandwidth: 0,
             image: String::new(),
@@ -466,11 +464,11 @@ impl<'a> JobState<'a> {
 
         match event {
             JobEvent::Opened(event) => {
-                info!(event.metadata, event.owner, event.provider, "OPENED");
+                info!(event.owner, event.provider, "OPENED");
 
                 // handle metadata
                 if let Err(err) = self
-                    .decode_metadata(event.metadata, false)
+                    .decode_metadata(&event.metadata, false)
                     .context("failed to decode metadata")
                 {
                     error!(?err);
@@ -599,10 +597,10 @@ impl<'a> JobState<'a> {
                         let gb_cost = entry.rate;
                         let bandwidth_rate = self.rate - self.min_rate;
 
-                        self.bandwidth = ((bandwidth_rate as u128).saturating_mul(1024 * 1024)
-                            / gb_cost as u128)
-                            .clamp(0, u64::MAX as u128)
-                            as u64;
+                        self.bandwidth =
+                            ((bandwidth_rate as u128).saturating_mul(1000 * 1000 * 1000)
+                                / gb_cost as u128)
+                                .clamp(0, u64::MAX as u128) as u64;
                         break;
                     }
                 }
@@ -621,9 +619,9 @@ impl<'a> JobState<'a> {
                 JobResult::Success
             }
             JobEvent::MetadataUpdated(event) => {
-                info!(event.metadata, "METADATA_UPDATED");
+                info!("METADATA_UPDATED");
 
-                if let Err(err) = self.decode_metadata(event.metadata, true) {
+                if let Err(err) = self.decode_metadata(&event.metadata, true) {
                     error!(id = event.job_id, ?err);
                     return JobResult::Failed;
                 }
@@ -638,12 +636,18 @@ impl<'a> JobState<'a> {
         }
     }
 
-    fn decode_metadata(&mut self, metadata: String, update: bool) -> Result<()> {
-        let metadata_json =
-            serde_json::from_str::<Value>(&metadata).context("Error reading metadata")?;
+    fn decode_metadata(&mut self, metadata: &[u8], update: bool) -> Result<()> {
+        let metadata_cbor = ciborium::from_reader::<Value, _>(metadata)
+            .context("Failed to decode metadata as cbor")?
+            .into_map()
+            .map_err(|_| anyhow!("Failed to decode metadata as a map"))?;
 
-        let Some(instance) = metadata_json["instance"].as_str() else {
-            bail!("Instance type not set");
+        let Some(instance) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "instance".into())
+            .and_then(|x| x.1.as_text())
+        else {
+            bail!("Instance type not set or is not a string");
         };
         if update && self.instance_type != instance {
             bail!("Instance type change not allowed");
@@ -652,7 +656,11 @@ impl<'a> JobState<'a> {
             info!(self.instance_type, "Instance type set");
         }
 
-        let Some(region) = metadata_json["region"].as_str() else {
+        let Some(region) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "region".into())
+            .and_then(|x| x.1.as_text())
+        else {
             bail!("Job region not set");
         };
         if update && self.region != region {
@@ -662,16 +670,25 @@ impl<'a> JobState<'a> {
             info!(self.region, "Job region set");
         }
 
-        let Some(image) = metadata_json["image"].as_str() else {
+        let Some(image) = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "image".into())
+            .and_then(|x| x.1.as_text())
+        else {
             bail!("Image not found! Exiting job");
         };
         self.image = image.to_string();
 
-        let Ok(init_params) =
-            BASE64_STANDARD.decode(metadata_json["init_params"].as_str().unwrap_or(""))
-        else {
-            bail!("failed to decode init params");
-        };
+        let init_params = metadata_cbor
+            .iter()
+            .find(|v| v.0 == "init_params".into())
+            .map(|x| {
+                x.1.clone()
+                    .into_bytes()
+                    .map_err(|_| anyhow!("Failed to decode init params"))
+            })
+            .transpose()?
+            .unwrap_or_default();
         // restrict to 8 KB to stay under aws limits
         if init_params.len() > 8192 {
             bail!("init params should be under 8192 length");
@@ -784,42 +801,42 @@ async fn fetch_job_events(
         .context("failed to load events")
 }
 
-fn parse_event(event_name: JobEventName, event_data: Value) -> Result<JobEvent, JobResult> {
+fn parse_event(event_name: JobEventName, event_data: &[u8]) -> Result<JobEvent, JobResult> {
     match event_name {
         JobEventName::Opened => Ok(JobEvent::Opened(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "OPENED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Closed => Ok(JobEvent::Closed(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "CLOSED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Deposited => Ok(JobEvent::Deposited(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "DEPOSITED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Settled => Ok(JobEvent::Settled(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "SETTLED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::MetadataUpdated => Ok(JobEvent::MetadataUpdated(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(
                     |err| error!(?err, data = ?event_data, "METADATA_UPDATED: Decode failure"),
                 )
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::Withdrew => Ok(JobEvent::Withdrew(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "WITHDREW: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
         JobEventName::RateRevised => Ok(JobEvent::RateRevised(
-            serde_json::from_value(event_data.clone())
+            postcard::from_bytes(event_data)
                 .inspect_err(|err| error!(?err, data = ?event_data, "RATE_REVISED: Decode failure"))
                 .map_err(|_| JobResult::Internal)?,
         )),
@@ -979,6 +996,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex};
 
+    use ciborium::{Value, cbor};
     use indexer_framework::models::JobEventRecord;
     use tokio::sync::mpsc;
     use tokio::time::{Duration, Instant, sleep};
@@ -1073,15 +1091,35 @@ mod tests {
         assert_eq!(aws.outcomes, test_results.outcomes);
     }
 
+    fn to_cbor(value: &ciborium::Value) -> Vec<u8> {
+        println!("V; {value:?}");
+        let mut serialized = Vec::new();
+        ciborium::into_writer(value, &mut serialized).unwrap();
+        serialized
+    }
+
     #[tokio::test(start_paused = true)]
     async fn test_instance_launch_after_delay_on_spin_up() {
         let start_time = Instant::now();
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (301, Action::Close(301)),
         ];
 
@@ -1105,7 +1143,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -1129,9 +1167,23 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "init_params" => Value::Bytes(b"some params".to_vec()),
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (301, Action::Close(301)),
         ];
 
@@ -1155,59 +1207,9 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
-                    contract_address: "xyz".into(),
-                    chain_id: "123".into(),
-                    instance_id: compute_instance_id(0),
-                }),
-                TestAwsOutcome::SpinDown(test::SpinDownOutcome {
-                    time: start_time + Duration::from_secs(301),
-                    job: job_id,
-                    region: "ap-south-1".into(),
-                }),
-            ],
-        };
-
-        run_test(start_time, logs, job_manager_params, test_results).await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_instance_launch_with_debug_mode_on_spin_up() {
-        let start_time = Instant::now();
-        let job_id = 1;
-
-        let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
-            (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (301, Action::Close(301)),
-        ];
-
-        let job_manager_params = JobManagerParams {
-            job_id: market::JobId {
-                id: job_id.clone(),
-                operator: "abc".into(),
-                contract: "xyz".into(),
-                chain: "123".into(),
-            },
-            allowed_regions: vec!["ap-south-1".to_owned()],
-            address_whitelist: vec![],
-            address_blacklist: vec![],
-        };
-
-        let test_results = TestResults {
-            res: JobResult::Done,
-            outcomes: vec![
-                TestAwsOutcome::SpinUp(test::SpinUpOutcome {
-                    time: start_time + Duration::from_secs(300),
-                    job: job_id.clone(),
-                    instance_type: "c6a.xlarge".into(),
-                    region: "ap-south-1".into(),
-                    bandwidth: 76,
-                    image: "ami-abcdef".into(),
-                    init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
                     instance_id: compute_instance_id(0),
@@ -1229,9 +1231,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (40, Action::Deposit(40, 500)),
             (60, Action::Withdraw(60, 500)),
             (100, Action::Settle(2, 6)),
@@ -1258,7 +1273,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -1282,9 +1297,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-east-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-east-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1318,9 +1346,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"not_region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "not-region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1354,9 +1395,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"not_instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "not-instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1390,9 +1444,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.vsmall\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.vsmall",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1426,9 +1493,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"not_image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "not-image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1462,9 +1542,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,29000000)),
+            (0, Action::RateRevised(0, 29000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1498,9 +1591,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 0)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (505, Action::Close(505)),
         ];
 
@@ -1536,9 +1642,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (350, Action::Withdraw(350, 30000)),
             (500, Action::Close(500)),
         ];
@@ -1563,7 +1682,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -1587,9 +1706,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (350, Action::RateRevised(350, 29000000)),
             (450, Action::RateRevised(450, 31000000)),
         ];
@@ -1614,7 +1746,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -1638,9 +1770,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1667,7 +1812,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -1691,9 +1836,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1730,9 +1888,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1769,9 +1940,22 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             (500, Action::Close(500)),
         ];
 
@@ -1798,7 +1982,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -1985,10 +2169,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-fedcba",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2012,59 +2222,8 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-fedcba".into(),
-                    init_params: [].into(),
-                    contract_address: "xyz".into(),
-                    chain_id: "123".into(),
-                    instance_id: compute_instance_id(0),
-                }),
-                TestAwsOutcome::SpinDown(test::SpinDownOutcome {
-                    time: start_time + Duration::from_secs(505),
-                    job: job_id,
-                    region: "ap-south-1".into(),
-                }),
-            ],
-        };
-
-        run_test(start_time, logs, job_manager_params, test_results).await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_debug_update_before_spin_up() {
-        let start_time = Instant::now();
-        let job_id = 1;
-
-        let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"debug\":true}".to_string())),
-            (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
-            (505, Action::Close(505)),
-        ];
-
-        let job_manager_params = JobManagerParams {
-            job_id: market::JobId {
-                id: job_id.clone(),
-                operator: "abc".into(),
-                contract: "xyz".into(),
-                chain: "123".into(),
-            },
-            allowed_regions: vec!["ap-south-1".to_owned()],
-            address_whitelist: vec![],
-            address_blacklist: vec![],
-        };
-
-        let test_results = TestResults {
-            res: JobResult::Done,
-            outcomes: vec![
-                TestAwsOutcome::SpinUp(test::SpinUpOutcome {
-                    time: start_time + Duration::from_secs(300),
-                    job: job_id.clone(),
-                    instance_type: "c6a.xlarge".into(),
-                    region: "ap-south-1".into(),
-                    bandwidth: 76,
-                    image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
                     chain_id: "123".into(),
@@ -2087,11 +2246,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.large\"}".to_string())),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.large",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2125,10 +2310,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "init_params" => Value::Bytes(b"some params".to_vec()),
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2152,7 +2364,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
@@ -2176,10 +2388,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (100, Action::MetadataUpdated(100, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                100,
+                Action::MetadataUpdated(
+                    100,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2203,7 +2441,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -2227,10 +2465,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-fedcba",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2254,7 +2518,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -2266,7 +2530,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-fedcba".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -2290,11 +2554,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
+            (0, Action::RateRevised(0, 31000000)),
             // instance type has also been updated in the metadata. should fail this job.
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-fedcba\",\"instance\":\"c6a.large\"}".to_string())),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.large",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2318,7 +2608,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -2342,10 +2632,37 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\",\"init_params\":\"c29tZSBwYXJhbXM=\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                            "init_params" => Value::Bytes(b"some params".to_vec()),
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2369,7 +2686,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -2381,7 +2698,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: b"some params".to_vec().into_boxed_slice(),
                     contract_address: "xyz".into(),
@@ -2405,10 +2722,36 @@ mod tests {
         let job_id = 1;
 
         let logs = vec![
-            (0, Action::Open(0, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (
+                0,
+                Action::Open(
+                    0,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (0, Action::Deposit(0, 31000)),
-            (0, Action::RateRevised(0,31000000)),
-            (400, Action::MetadataUpdated(400, "{\"region\":\"ap-south-1\",\"image\":\"ami-abcdef\",\"instance\":\"c6a.xlarge\"}".to_string())),
+            (0, Action::RateRevised(0, 31000000)),
+            (
+                400,
+                Action::MetadataUpdated(
+                    400,
+                    to_cbor(
+                        &cbor!({
+                            "region" => "ap-south-1",
+                            "image" => "ami-abcdef",
+                            "instance" => "c6a.xlarge",
+                        })
+                        .unwrap(),
+                    ),
+                ),
+            ),
             (505, Action::Close(505)),
         ];
 
@@ -2432,7 +2775,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
@@ -2444,7 +2787,7 @@ mod tests {
                     job: job_id.clone(),
                     instance_type: "c6a.xlarge".into(),
                     region: "ap-south-1".into(),
-                    bandwidth: 76,
+                    bandwidth: 9168,
                     image: "ami-abcdef".into(),
                     init_params: [].into(),
                     contract_address: "xyz".into(),
