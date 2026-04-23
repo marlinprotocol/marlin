@@ -69,7 +69,7 @@ pub async fn main_task(
         };
 
         // throttle the loop
-        if events.len() == 0 {
+        if events.is_empty() {
             info!("No new events, sleeping for a bit");
             sleep(Duration::from_secs(2)).await;
             continue;
