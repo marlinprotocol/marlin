@@ -6,7 +6,6 @@
     "MarketConfig": {
       "initialJobIndex": 0,
       "noticePeriod": 120
-    },
-    "Market": "0x02301739bF5c1AA8a6b484CaA4daE64803cbC207"
+    }
   }
 }
