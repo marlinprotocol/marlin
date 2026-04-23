@@ -996,7 +996,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex};
 
-    use ciborium::cbor;
+    use ciborium::{Value, cbor};
     use indexer_framework::models::JobEventRecord;
     use tokio::sync::mpsc;
     use tokio::time::{Duration, Instant, sleep};
@@ -1092,6 +1092,7 @@ mod tests {
     }
 
     fn to_cbor(value: &ciborium::Value) -> Vec<u8> {
+        println!("V; {value:?}");
         let mut serialized = Vec::new();
         ciborium::into_writer(value, &mut serialized).unwrap();
         serialized
@@ -1175,7 +1176,7 @@ mod tests {
                             "region" => "ap-south-1",
                             "image" => "ami-abcdef",
                             "instance" => "c6a.xlarge",
-                            "init_params" => b"some params",
+                            "init_params" => Value::Bytes(b"some params".to_vec()),
                         })
                         .unwrap(),
                     ),
@@ -2270,7 +2271,7 @@ mod tests {
                         &cbor!({
                             "region" => "ap-south-1",
                             "image" => "ami-abcdef",
-                            "instance" => "c6a.xlarge",
+                            "instance" => "c6a.large",
                         })
                         .unwrap(),
                     ),
@@ -2334,7 +2335,7 @@ mod tests {
                             "region" => "ap-south-1",
                             "image" => "ami-abcdef",
                             "instance" => "c6a.xlarge",
-                            "init_params" => "c29tZSBwYXJhbXM=",
+                            "init_params" => Value::Bytes(b"some params".to_vec()),
                         })
                         .unwrap(),
                     ),
@@ -2487,7 +2488,7 @@ mod tests {
                     to_cbor(
                         &cbor!({
                             "region" => "ap-south-1",
-                            "image" => "ami-fedbca",
+                            "image" => "ami-fedcba",
                             "instance" => "c6a.xlarge",
                         })
                         .unwrap(),
@@ -2656,7 +2657,7 @@ mod tests {
                             "region" => "ap-south-1",
                             "image" => "ami-abcdef",
                             "instance" => "c6a.xlarge",
-                            "init_params" => "c29tZSBwYXJhbXM=",
+                            "init_params" => Value::Bytes(b"some params".to_vec()),
                         })
                         .unwrap(),
                     ),
