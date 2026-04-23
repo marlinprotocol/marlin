@@ -3,7 +3,7 @@ use std::future::Future;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use ciborium::Value;
 use diesel::{Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use indexer_framework::events::JobEvent;
@@ -637,8 +637,10 @@ impl<'a> JobState<'a> {
     }
 
     fn decode_metadata(&mut self, metadata: &[u8], update: bool) -> Result<()> {
-        let metadata_cbor = ciborium::from_reader::<Vec<(Value, Value)>, _>(metadata)
-            .context("Failed to decode metadata as cbor")?;
+        let metadata_cbor = ciborium::from_reader::<Value, _>(metadata)
+            .context("Failed to decode metadata as cbor")?
+            .into_map()
+            .map_err(|_| anyhow!("Failed to decode metadata as a map"))?;
 
         let Some(instance) = metadata_cbor
             .iter()
