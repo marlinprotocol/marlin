@@ -679,18 +679,21 @@ impl<'a> JobState<'a> {
         };
         self.image = image.to_string();
 
-        let Some(init_params) = metadata_cbor
+        let init_params = metadata_cbor
             .iter()
             .find(|v| v.0 == "init_params".into())
-            .and_then(|x| x.1.as_bytes())
-        else {
-            bail!("failed to decode init params");
-        };
+            .map(|x| {
+                x.1.clone()
+                    .into_bytes()
+                    .map_err(|_| anyhow!("Failed to decode init params"))
+            })
+            .transpose()?
+            .unwrap_or_default();
         // restrict to 8 KB to stay under aws limits
         if init_params.len() > 8192 {
             bail!("init params should be under 8192 length");
         };
-        self.init_params = init_params.clone().into_boxed_slice();
+        self.init_params = init_params.into_boxed_slice();
 
         Ok(())
     }
