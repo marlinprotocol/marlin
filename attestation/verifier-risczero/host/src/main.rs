@@ -1,6 +1,6 @@
 use clap::Parser;
 use methods::{GUEST_ELF, GUEST_ID};
-use risc0_zkvm::{default_prover, is_dev_mode, ExecutorEnv, ProverOpts};
+use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
