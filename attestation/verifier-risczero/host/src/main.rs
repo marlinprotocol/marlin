@@ -38,9 +38,10 @@ fn main() {
         .unwrap();
 
     let prover = default_prover();
+    let prover_opts = ProverOpts::groth16();
     // Enable groth16
     let prove_info = prover
-        .prove_with_opts(env, GUEST_ELF, &ProverOpts::groth16())
+        .prove_with_opts(env, GUEST_ELF, &prover_opts)
         .unwrap();
 
     let receipt = prove_info.receipt;
@@ -49,7 +50,7 @@ fn main() {
 
     println!(
         "Seal: {}",
-        if is_dev_mode() {
+        if prover_opts.dev_mode() {
             "not available in dev mode".to_owned()
         } else {
             hex::encode(&receipt.inner.groth16().unwrap().seal)
