@@ -52,8 +52,8 @@ fn main() -> Result<()> {
     );
 
     println!(
-        "Base64 seed: {}",
-        BASE64_STANDARD.encode(&msg_bytes[0..bytes.len() - 161])
+        "Hex encoded seed: {}",
+        hex::encode(&msg_bytes[0..bytes.len() - 161])
     );
     println!(
         "Secp256k1 pubkey: {}",
