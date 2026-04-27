@@ -1,6 +1,5 @@
 use alloy_primitives::{Address, Signature};
 use anyhow::{Context, Result};
-use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Parser;
 
 #[derive(Parser)]
