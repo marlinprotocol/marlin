@@ -24,7 +24,7 @@
       (./. + "/../../enclaves/configs/init-params-fetcher.nix")
       keygen-secp256k1
       (attestation-server {
-        pub-key = "/root/secp256k1.pub";
+        public-key = "/root/secp256k1.pub";
         user-data = "/root/init-params";
       })
       (kms-root-server {
