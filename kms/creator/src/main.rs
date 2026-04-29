@@ -66,13 +66,13 @@ fn encrypt(
     // expected to be used for signing public KMS responses
     message_bytes.extend_from_slice(&to_secp256k1_public(derive_path_seed(
         *message,
-        b"oyster.kms.secp256k1",
+        b"marlin.kms.secp256k1",
     )));
     // add derived x25519 public key to the message
     // expected to be used for scallop auth
     message_bytes.extend_from_slice(&to_x25519_public(derive_path_seed(
         *message,
-        b"oyster.kms.x25519",
+        b"marlin.kms.x25519",
     )));
 
     // message signature
