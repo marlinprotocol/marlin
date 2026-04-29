@@ -32,7 +32,7 @@ fn encrypt(
 ) -> Result<String> {
     // encrypt
     let (ciphertext, auth_data) =
-        encrypt_for_dkg(message, &dkg_public_key, &conditions).context("encrypt failed")?;
+        encrypt_for_dkg(message, &dkg_public_key, conditions).context("encrypt failed")?;
 
     // calculate header hash
     let header_hash = keccak256(
