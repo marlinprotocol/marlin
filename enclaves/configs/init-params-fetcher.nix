@@ -12,6 +12,9 @@ in {
       Type = "oneshot";
       RemainAfterExit = true;
     };
+    # why do it like this?
+    # essentially more robust to do it this way
+    # in the face of errors and partial downloads
     script = ''
       set -euo pipefail
 
