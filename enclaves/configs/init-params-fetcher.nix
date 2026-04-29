@@ -7,13 +7,32 @@ in {
   systemd.services.${service-name} = {
     description = "Retrieve init params";
     wantedBy = ["multi-user.target"];
-    after = ["local-fs.target" "network.target"];
+    after = ["local-fs.target" "network-online.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = ''
-        ${pkgs.curl}/bin/curl http://169.254.169.254/latest/user-data -o /root/init-params
-      '';
     };
+    script = ''
+      set -euo pipefail
+
+      tmp=$(${pkgs.coreutils}/bin/mktemp /root/init-params.XXXXXX)
+      trap '${pkgs.coreutils}/bin/rm -f "$tmp"' EXIT
+
+      ${pkgs.curl}/bin/curl \
+        --fail \
+        --show-error \
+        --silent \
+        --location \
+        --retry 5 \
+        --retry-delay 2 \
+        --retry-connrefused \
+        --connect-timeout 5 \
+        --max-time 60 \
+        --output "$tmp" \
+        http://169.254.169.254/latest/user-data
+
+      ${pkgs.coreutils}/bin/mv "$tmp" /root/init-params
+      trap - EXIT
+    '';
   };
 }
