@@ -1,6 +1,5 @@
 use alloy_primitives::{Address, Signature};
 use anyhow::{Context, Result};
-use base64::{Engine, prelude::BASE64_STANDARD};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -52,8 +51,8 @@ fn main() -> Result<()> {
     );
 
     println!(
-        "Base64 seed: {}",
-        BASE64_STANDARD.encode(&msg_bytes[0..bytes.len() - 161])
+        "Hex encoded seed: {}",
+        hex::encode(&msg_bytes[0..bytes.len() - 161])
     );
     println!(
         "Secp256k1 pubkey: {}",

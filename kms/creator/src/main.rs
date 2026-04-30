@@ -16,6 +16,7 @@ use tokio::{
     fs::{read, read_to_string},
     net::TcpListener,
 };
+use zeroize::Zeroizing;
 
 #[derive(Clone)]
 struct AppState {
@@ -32,7 +33,7 @@ fn encrypt(
 ) -> Result<String> {
     // encrypt
     let (ciphertext, auth_data) =
-        encrypt_for_dkg(message, &dkg_public_key, &conditions).context("encrypt failed")?;
+        encrypt_for_dkg(message, &dkg_public_key, conditions).context("encrypt failed")?;
 
     // calculate header hash
     let header_hash = keccak256(
@@ -64,16 +65,13 @@ fn encrypt(
 
     // add derived secp256k1 public key to the message
     // expected to be used for signing public KMS responses
-    message_bytes.extend_from_slice(&to_secp256k1_public(derive_path_seed(
-        *message,
-        b"oyster.kms.secp256k1",
-    )));
+    let secp256k1_seed = Zeroizing::new(derive_path_seed(*message, b"marlin.kms.secp256k1"));
+    message_bytes.extend_from_slice(&to_secp256k1_public(*secp256k1_seed));
+
     // add derived x25519 public key to the message
     // expected to be used for scallop auth
-    message_bytes.extend_from_slice(&to_x25519_public(derive_path_seed(
-        *message,
-        b"oyster.kms.x25519",
-    )));
+    let x25519_seed = Zeroizing::new(derive_path_seed(*message, b"marlin.kms.x25519"));
+    message_bytes.extend_from_slice(&to_x25519_public(*x25519_seed));
 
     // message signature
     let signature = auth_signer
@@ -89,7 +87,7 @@ fn encrypt(
 // generate new seed and encrypt it against the DKG key
 async fn generate(State(state): State<AppState>) -> (StatusCode, String) {
     // generate seed
-    let mut seed = [0u8; 64];
+    let mut seed = Zeroizing::new([0u8; 64]);
     if OsRng.try_fill_bytes(seed.as_mut()).is_err() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

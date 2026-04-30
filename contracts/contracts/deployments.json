@@ -8,5 +8,16 @@
       "noticePeriod": 120
     },
     "Market": "0xf9d89108aee23D43965112B5e7EB390674f6C736"
+  },
+  "1": {
+    "KmsAdmin": "0xF5DcB86ee4BA3ee3D3CaB06315f6e71a47200063",
+    "RiscZeroVerifier": "0x8EaB2D97Dfce405A1692a21b3ff3A172d593D319",
+    "KmsConfig": {
+      "guestId": "0x669738603cd1638a00c8661494f04714749d969a6e706a725c94245858ca543d",
+      "rootKey": "0xfc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4",
+      "maxAgeMs": 1800000,
+      "imageId": "855f74ddba54cfd66c71b4b3750ab7a0b39c265add2c17a822e7daf505c32d3f"
+    },
+    "MarlinKmsImageV1": "0xa1D680B11dF808b285686c434C9F2B029F9425A3"
   }
 }

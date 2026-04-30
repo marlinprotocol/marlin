@@ -51,11 +51,51 @@ contract DeployScript is Script {
         console2.log(name, "deployed at", _value);
     }
 
-    function _getConfigUint64(string memory _configKey) internal returns (uint64) {
-        string memory _key = string.concat(".", chainIdKey, ".", name, "Config.", _configKey);
+    function _getConfigUint64(string memory _configKey, string memory _configName) internal returns (uint64) {
+        string memory _key = string.concat(".", chainIdKey, ".", _configName, "Config.", _configKey);
         if (!deployments.keyExists(_key)) {
-            revert(string.concat(name, " ", _configKey, " config not found"));
+            revert(string.concat(_configName, " ", _configKey, " config not found"));
         }
         return SafeCast.toUint64(deployments.readUint(_key));
+    }
+
+    function _getConfigUint64(string memory _configKey) internal returns (uint64) {
+        return _getConfigUint64(_configKey, name);
+    }
+
+    function _getConfigBytes32(string memory _configKey, string memory _configName) internal returns (bytes32) {
+        string memory _key = string.concat(".", chainIdKey, ".", _configName, "Config.", _configKey);
+        if (!deployments.keyExists(_key)) {
+            revert(string.concat(_configName, " ", _configKey, " config not found"));
+        }
+        return deployments.readBytes32(_key);
+    }
+
+    function _getConfigBytes32(string memory _configKey) internal returns (bytes32) {
+        return _getConfigBytes32(_configKey, name);
+    }
+
+    function _getConfigBytes(string memory _configKey, string memory _configName) internal returns (bytes memory) {
+        string memory _key = string.concat(".", chainIdKey, ".", _configName, "Config.", _configKey);
+        if (!deployments.keyExists(_key)) {
+            revert(string.concat(_configName, " ", _configKey, " config not found"));
+        }
+        return deployments.readBytes(_key);
+    }
+
+    function _getConfigBytes(string memory _configKey) internal returns (bytes memory) {
+        return _getConfigBytes(_configKey, name);
+    }
+
+    function _getConfigUint256(string memory _configKey, string memory _configName) internal returns (uint256) {
+        string memory _key = string.concat(".", chainIdKey, ".", _configName, "Config.", _configKey);
+        if (!deployments.keyExists(_key)) {
+            revert(string.concat(_configName, " ", _configKey, " config not found"));
+        }
+        return deployments.readUint(_key);
+    }
+
+    function _getConfigUint256(string memory _configKey) internal returns (uint256) {
+        return _getConfigUint256(_configKey, name);
     }
 }

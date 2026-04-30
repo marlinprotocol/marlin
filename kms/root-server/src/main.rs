@@ -123,10 +123,10 @@ async fn main() -> Result<()> {
     .try_into()
     .context("seed is not the right size")?;
 
-    let secret = to_x25519_secret(derive_path_seed(seed, b"oyster.kms.x25519"));
+    let secret = to_x25519_secret(derive_path_seed(seed, b"marlin.kms.x25519"));
     let signing_key = PrivateKeySigner::from_slice(&to_secp256k1_secret(derive_path_seed(
         seed,
-        b"oyster.kms.secp256k1",
+        b"marlin.kms.secp256k1",
     )))
     .context("failed to create signing key")?;
 
