@@ -29,6 +29,9 @@
       enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig crane;
       };
+      enclaves.kernels = import ./enclaves/kernels {
+        inherit nixpkgs systemConfig;
+      };
       enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
