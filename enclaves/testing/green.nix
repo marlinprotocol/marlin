@@ -2,6 +2,7 @@
 {
   nixpkgs,
   systemConfig,
+  kernels,
   nitrotpm-tools,
   gauge,
   keygen-x25519,
@@ -9,11 +10,15 @@
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  nixosConfig = {...}: {
+  nixosConfig = {lib, ...}: {
     imports = [
       # build as a green image
       (./. + "/../configs/green.nix")
     ];
+
+    boot.kernelPackages = lib.mkIf (system == "x86_64-linux") (
+      pkgs.linuxPackagesFor kernels.default
+    );
 
     # systemd service for testing
     systemd.services.hello = {

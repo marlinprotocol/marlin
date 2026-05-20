@@ -11,12 +11,14 @@
     "${modulesPath}/profiles/perlless.nix"
     # build as a one-shot appliance since it will never get updated
     "${modulesPath}/profiles/image-based-appliance.nix"
-    # build as a qemu guest so virtualization modules are included
-    "${modulesPath}/profiles/qemu-guest.nix"
   ];
 
   # NOTE: perlless.nix also sets initrd to be systemd based
   # ensure the setup is according to that
+
+  # The kernels used for these images build the required boot drivers in, so do
+  # not ask the initrd builder to resolve NixOS' broad default module list.
+  boot.initrd.includeDefaultModules = false;
 
   # state version
   system.stateVersion = "25.11";
