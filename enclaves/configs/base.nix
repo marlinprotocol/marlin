@@ -20,6 +20,13 @@
   # not ask the initrd builder to resolve NixOS' broad default module list.
   boot.initrd.includeDefaultModules = false;
 
+  # Disable storage features that are useful on general NixOS systems but not
+  # needed for these sealed dm-verity images.
+  services.lvm.enable = false;
+  boot.bcache.enable = false;
+  boot.initrd.services.bcache.enable = false;
+  programs.fuse.enable = false;
+
   # state version
   system.stateVersion = "25.11";
 
