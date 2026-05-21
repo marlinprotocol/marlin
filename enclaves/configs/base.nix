@@ -1,6 +1,10 @@
 # base config
 # build as minimal an image as possible
-{modulesPath, ...}: {
+{
+  lib,
+  modulesPath,
+  ...
+}: {
   # nixos has good presets to get started
   imports = [
     # use the minimal profile as the starting point
@@ -26,6 +30,10 @@
   boot.bcache.enable = false;
   boot.initrd.services.bcache.enable = false;
   programs.fuse.enable = false;
+
+  # The image does not need a system bus; disabling it also avoids pulling in
+  # the separate systemd-minimal package through dbus.
+  services.dbus.enable = lib.mkForce false;
 
   # state version
   system.stateVersion = "25.11";
