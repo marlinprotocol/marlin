@@ -164,6 +164,10 @@ in {
   # set this to tell nix we know what we are doing
   users.allowNoPasswordLogin = true;
 
+  # /usr is a read-only verity mount in this image, so nixos-init cannot create
+  # the conventional /usr/bin/env compatibility symlink during switch-root.
+  environment.usrbinenv = null;
+
   # Covered by bashless.nix; kept here as a record of the previous explicit trim.
   # programs.bash.completion.enable = false;
   # disable nano
