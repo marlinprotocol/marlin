@@ -1,118 +1,201 @@
-# Kernel core.
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y
+# Processor features.
+# Allow the kernel to schedule work across multiple CPUs.
 CONFIG_SMP=y
-CONFIG_INPUT=y
-CONFIG_PRINTK=y
-CONFIG_PRINTK_TIME=y
+
+# Character devices.
+# Provide pseudo-terminals for shells and services that allocate PTYs.
 CONFIG_UNIX98_PTYS=y
+
+# Userspace process primitives.
+# Provide futex syscalls used by pthreads, runtimes, and service managers.
 CONFIG_FUTEX=y
+
+# Timers and clocks.
+# Provide fine-grained timers for service timeouts, sleeps, and event loops.
 CONFIG_HIGH_RES_TIMERS=y
+# Provide the generic clock event framework used by kernel timer devices.
 CONFIG_GENERIC_CLOCKEVENTS=y
-CONFIG_NO_HZ=y
-CONFIG_NO_HZ_FULL=y
-CONFIG_POSIX_MQUEUE=y
+# Stop periodic scheduler ticks on idle CPUs to reduce unnecessary wakeups.
+CONFIG_NO_HZ_IDLE=y
+# Provide POSIX timer syscalls used by runtimes and services.
 CONFIG_POSIX_TIMERS=y
+
+# Kernel control interfaces.
+# Expose sysctl knobs through /proc/sys for boot-time and runtime tuning.
 CONFIG_PROC_SYSCTL=y
+
+# Shared memory.
+# Provide tmpfs-backed shared memory used by /dev/shm and memfd-style IPC.
 CONFIG_SHMEM=y
-CONFIG_KEYS=y
-CONFIG_HAVE_PERF_EVENTS=y
+
+# Performance observability.
+# Provide perf_event_open for profiling and performance observability.
 CONFIG_PERF_EVENTS=y
+# Expose per-task statistics for monitoring agents and accounting tools.
 CONFIG_TASKSTATS=y
+# Track task wait delays so monitoring can attribute CPU and I/O stalls.
 CONFIG_TASK_DELAY_ACCT=y
+# Include extended per-task accounting fields in taskstats reports.
 CONFIG_TASK_XACCT=y
+# Track per-task I/O counters for monitoring and debugging storage activity.
 CONFIG_TASK_IO_ACCOUNTING=y
 
+# Kernel logging.
+# Keep kernel log messages available for boot diagnostics and panic output.
+CONFIG_PRINTK=y
+# Include timestamps in kernel logs to make boot and failure timing visible.
+CONFIG_PRINTK_TIME=y
+
 # Modular kernel output.
+# TODO: Test the NixOS boot path without module loading.
 CONFIG_MODULES=y
-CONFIG_MODULE_UNLOAD=y
 
 # Executable formats.
 # required: CONFIG_BINFMT_ELF
+# Execute ELF binaries used by the runtime and application userspace.
 CONFIG_BINFMT_ELF=y
+# TODO: Test the NixOS image without shebang script execution support.
 CONFIG_BINFMT_SCRIPT=y
-CONFIG_BINFMT_MISC=y
 
-# UKI and systemd-stub boot.
+# Platform firmware.
 # required: CONFIG_EFI_STUB CONFIG_EFIVAR_FS
+# Read ACPI platform tables for device discovery and platform services.
 CONFIG_ACPI=y
+# Enable EFI runtime and firmware support required by the UKI boot path.
 CONFIG_EFI=y
+# Let EFI firmware load the kernel from the unified kernel image.
 CONFIG_EFI_STUB=y
+# TODO: Test whether the NixOS runtime needs efivarfs after UKI boot.
 CONFIG_EFIVAR_FS=y
+# Read GPT partition tables used by the image disk layout.
 CONFIG_EFI_PARTITION=y
 
 # NixOS initrd and early device nodes.
 # required: CONFIG_BLK_DEV_INITRD CONFIG_DEVTMPFS
+# Load the NixOS initrd that mounts the verified runtime store.
 CONFIG_BLK_DEV_INITRD=y
-CONFIG_RD_GZIP=y
-CONFIG_RD_XZ=y
+# Unpack the zstd-compressed initrd produced by the NixOS image config.
 CONFIG_RD_ZSTD=y
+# Provide kernel-managed /dev nodes needed during initrd and early boot.
 CONFIG_DEVTMPFS=y
+# Automatically mount devtmpfs so early userspace has device nodes.
 CONFIG_DEVTMPFS_MOUNT=y
 
 # Serial console.
+# Provide the TTY core required by the serial console.
 CONFIG_TTY=y
+# Drive the 8250-compatible serial port used for ttyS0 console I/O.
 CONFIG_SERIAL_8250=y
+# Allow ttyS0 to receive kernel console output from the console= parameter.
 CONFIG_SERIAL_8250_CONSOLE=y
+# TODO: Test QEMU and EC2 serial console boot without PCI 8250 probing.
 CONFIG_SERIAL_8250_PCI=y
+# Provide the common serial driver core used by 8250.
 CONFIG_SERIAL_CORE=y
+# Allow serial-core drivers to register kernel consoles.
 CONFIG_SERIAL_CORE_CONSOLE=y
-CONFIG_SERIAL_EARLYCON=y
 
-# QEMU PCI and virtio transport.
-# required: CONFIG_VIRTIO_CONSOLE CONFIG_VIRTIO_PCI
+# PCI support.
+# Discover PCI devices used by virtualized block, network, and console paths.
 CONFIG_PCI=y
+# Support MSI/MSI-X interrupts used by modern PCI devices.
 CONFIG_PCI_MSI=y
+# Provide IRQ-domain plumbing for PCI MSI interrupt allocation.
 CONFIG_PCI_MSI_IRQ_DOMAIN=y
+# Provide generic MSI interrupt support used by PCI MSI.
 CONFIG_GENERIC_MSI_IRQ=y
+# Provide IRQ-domain support for generic MSI interrupt routing.
 CONFIG_GENERIC_MSI_IRQ_DOMAIN=y
-CONFIG_VIRTIO=y
+
+# QEMU virtio support.
+# required: CONFIG_VIRTIO_PCI
+# Enable the virtio driver menu so QEMU virtio drivers can be selected.
 CONFIG_VIRTIO_MENU=y
+# Provide the core virtio bus used by QEMU virtual devices.
+CONFIG_VIRTIO=y
+# Attach QEMU virtio devices exposed through the PCI transport.
 CONFIG_VIRTIO_PCI=y
-CONFIG_VIRTIO_PCI_LEGACY=y
-CONFIG_VIRTIO_CONSOLE=y
+# Allow QEMU to reclaim unused guest memory within the fixed VM memory limit.
 CONFIG_VIRTIO_BALLOON=y
 
-# systemd filesystems and event APIs.
+# Runtime filesystems.
 # required: CONFIG_DMIID CONFIG_SECCOMP CONFIG_TMPFS
+# Mount procfs for process, kernel, and boot metadata used by NixOS userspace.
 CONFIG_PROC_FS=y
+# Mount sysfs for device discovery and systemd/udev boot integration.
 CONFIG_SYSFS=y
+# Provide tmpfs for the writable root and runtime state filesystems.
 CONFIG_TMPFS=y
+# Support extended attributes on tmpfs-backed writable runtime paths.
 CONFIG_TMPFS_XATTR=y
-CONFIG_TMPFS_POSIX_ACL=y
+
+# Userspace event APIs.
+# Provide signalfd for systemd and event loops to handle signals via fds.
 CONFIG_SIGNALFD=y
+# Provide timerfd so event loops can handle timers through file descriptors.
 CONFIG_TIMERFD=y
+# Provide epoll for scalable event loops used by services and runtimes.
 CONFIG_EPOLL=y
+# Provide file-handle syscalls used by systemd for cgroup and mount identity.
 CONFIG_FHANDLE=y
+
+# Filesystem notifications.
+# Provide the filesystem notification core used by inotify and fanotify.
 CONFIG_FSNOTIFY=y
+# Provide inotify watches used by systemd and services for file changes.
 CONFIG_INOTIFY_USER=y
-CONFIG_FANOTIFY=y
+
+# Automount support.
+# Provide autofs support required by systemd automount handling.
 CONFIG_AUTOFS_FS=y
+
+# Platform identity.
+# Expose DMI/SMBIOS identity used by systemd platform detection.
 CONFIG_DMIID=y
+
+# Service sandboxing.
+# Enable seccomp support used by systemd service hardening.
 CONFIG_SECCOMP=y
+# Enable BPF seccomp filters for systemd SystemCallFilter policies.
 CONFIG_SECCOMP_FILTER=y
 
 # systemd cgroups and BPF.
+# Provide the core BPF engine used by seccomp and cgroup filtering.
 CONFIG_BPF=y
+# Expose bpf(2) so userspace can load BPF programs for cgroup policies.
 CONFIG_BPF_SYSCALL=y
+# Provide cgroups required by systemd for service tracking and supervision.
 CONFIG_CGROUPS=y
+# Enable CPU scheduling controls and accounting for service cgroups.
 CONFIG_CGROUP_SCHED=y
+# Track and limit process counts for service cgroups.
 CONFIG_CGROUP_PIDS=y
+# Allow systemd to freeze and thaw service cgroups when managing processes.
 CONFIG_CGROUP_FREEZER=y
+# Let systemd restrict service access to device nodes through cgroups.
 CONFIG_CGROUP_DEVICE=y
+# Allow BPF programs to attach to cgroups for service-level policies.
 CONFIG_CGROUP_BPF=y
+# Enable memory accounting and limits for service cgroups.
 CONFIG_MEMCG=y
+# Enable block I/O accounting and controls for service cgroups.
 CONFIG_BLK_CGROUP=y
 
 # Local IPC.
+# Provide the networking core required by Unix domain sockets.
 CONFIG_NET=y
+# Provide Unix domain sockets used by systemd and local service IPC.
 CONFIG_UNIX=y
 
 # TPM2 devices exposed by QEMU.
 # required: CONFIG_TCG_CRB
+# Expose securityfs interfaces used by TPM and security subsystems.
 CONFIG_SECURITYFS=y
+# Provide the hardware RNG framework used by TPM-backed randomness.
 CONFIG_HW_RANDOM=y
+# Use the TPM as a hardware random number source.
 CONFIG_HW_RANDOM_TPM=y
+# Provide the core TPM driver framework.
 CONFIG_TCG_TPM=y
-CONFIG_TCG_TIS_CORE=y
-CONFIG_TCG_TIS=y
+# Drive TPM2 devices exposed through the CRB interface.
 CONFIG_TCG_CRB=y

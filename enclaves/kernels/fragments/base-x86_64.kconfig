@@ -1,25 +1,41 @@
 # Architecture.
+# Build the x86 kernel configuration tree for the x86_64 target.
 CONFIG_X86=y
+# Enable a 64-bit kernel for the x86_64 NixOS image.
 CONFIG_64BIT=y
+# Select the x86_64 architecture variant expected by the image userland.
 CONFIG_X86_64=y
+# Expose raw CPUID leaves for low-level CPU feature diagnostics.
 CONFIG_X86_CPUID=y
+# Expose model-specific registers for privileged CPU diagnostics.
 CONFIG_X86_MSR=y
+# Support modern x86 interrupt delivery for virtualized multi-vCPU systems.
 CONFIG_X86_X2APIC=y
+# Print detailed x86 boot messages while this minimal kernel is still being tuned.
 CONFIG_X86_VERBOSE_BOOTUP=y
+# Enable generic x86 guest support for virtualized targets.
 CONFIG_HYPERVISOR_GUEST=y
+# Enable KVM-compatible guest paths used by local virtualized targets.
 CONFIG_KVM_GUEST=y
+# Use x86 paravirtualized operations when a hypervisor exposes them.
 CONFIG_PARAVIRT=y
-CONFIG_NR_CPUS=240
-CONFIG_PVH=y
+# Cap supported vCPUs at a clean upper bound without allocating them upfront.
+CONFIG_NR_CPUS=256
+# Randomize the kernel load address as baseline x86 hardening.
 CONFIG_RANDOMIZE_BASE=y
+# Allow the x86 kernel to load at non-fixed addresses for ASLR and firmware placement.
 CONFIG_RELOCATABLE=y
 
 # x86_64 mitigations.
+# Enable the broad CPU vulnerability mitigation framework for guest hardening.
 CONFIG_CPU_MITIGATIONS=y
+# Enable Spectre-class speculative execution mitigations.
 CONFIG_SPECULATION_MITIGATIONS=y
-CONFIG_RETPOLINE=y
+# Avoid speculative indirect branches in the kernel for Spectre v2 mitigation.
 CONFIG_MITIGATION_RETPOLINE=y
+# Disable the fixed-address legacy vsyscall page to preserve ASLR hardening.
 CONFIG_LEGACY_VSYSCALL_NONE=y
 
 # x86 PCI transport.
+# Use memory-mapped PCI configuration space on x86_64 virtual platforms.
 CONFIG_PCI_MMCONFIG=y

@@ -137,6 +137,9 @@ in {
   # The kernels used for these images build the required boot drivers in, so do
   # not ask the initrd builder to resolve NixOS' broad default module list.
   boot.initrd.includeDefaultModules = false;
+  # Keep the initrd compressor aligned with the kernel decompressor enabled in
+  # the base kernel fragment.
+  boot.initrd.compressor = "zstd";
 
   # Disable storage features that are useful on general NixOS systems but not
   # needed for these sealed dm-verity images.
