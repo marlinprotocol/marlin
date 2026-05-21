@@ -20,6 +20,7 @@
       pkgs.linuxPackagesFor kernels.default
     );
 
+    /*
     # systemd service for testing
     systemd.services.hello = {
       description = "Hello";
@@ -27,7 +28,7 @@
       serviceConfig = {
         Type = "simple";
         ExecStart = pkgs.writeScript "loop.sh" ''
-          #!${pkgs.bash}/bin/bash
+          #!${pkgs.dash}/bin/dash
 
           while true; do
             echo "Hello from stdout!"
@@ -40,7 +41,9 @@
         StandardError = "journal+console";
       };
     };
+    */
 
+    /*
     # root ssh for testing
     services.openssh = {
       enable = true;
@@ -50,12 +53,14 @@
       };
     };
     users.users.root.initialPassword = "greenroot";
+    */
 
     # disable firewall while testing
     networking.firewall.enable = false;
 
-    # add tpm2 tools for debugging
-    environment.systemPackages = [pkgs.tpm2-tools];
+    # tpm2-tools pulls in bash wrapper scripts; keep it out while this image is
+    # built with the bashless profile.
+    # environment.systemPackages = [pkgs.tpm2-tools];
   };
   nixosSystem = nixpkgs.lib.nixosSystem {
     system = systemConfig.system;

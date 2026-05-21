@@ -44,13 +44,16 @@
   system.build.marlinRuntimeToplevel = let
     toplevel = config.system.build.toplevel;
     copiedFiles = [
-      "activate"
+      # bashless/image-based-appliance toplevels do not emit an activation
+      # script. Keep this commented unless runtime activation comes back.
+      # "activate"
       "extra-dependencies"
       "init"
       "init-interface-version"
       "kernel-params"
       "nixos-version"
-      "prepare-root"
+      # bashless/image-based-appliance toplevels do not emit prepare-root.
+      # "prepare-root"
       "system"
     ];
     linkedPaths = [
@@ -74,10 +77,11 @@
         ln -s "$(readlink "${toplevel}/$path")" "$out/$path"
       done
 
-      substituteInPlace "$out/activate" \
-        --replace-fail "${toplevel}" "$out"
-      substituteInPlace "$out/prepare-root" \
-        --replace-fail "${toplevel}" "$out"
+      # Rewrite these if we bring the copied files above back.
+      # substituteInPlace "$out/activate" \
+      #   --replace-fail "${toplevel}" "$out"
+      # substituteInPlace "$out/prepare-root" \
+      #   --replace-fail "${toplevel}" "$out"
     '';
 
   # image.repart.sectorSize = 4096;

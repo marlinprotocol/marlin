@@ -97,8 +97,10 @@ in {
     "${modulesPath}/profiles/minimal.nix"
     # it will not really be interactive
     "${modulesPath}/profiles/headless.nix"
-    # trim perl and anything which needs perl
-    "${modulesPath}/profiles/perlless.nix"
+    # trim bash, perl, and anything which needs them
+    "${modulesPath}/profiles/bashless.nix"
+    # bashless.nix includes perlless.nix.
+    # "${modulesPath}/profiles/perlless.nix"
     # build as a one-shot appliance since it will never get updated
     "${modulesPath}/profiles/image-based-appliance.nix"
   ];
@@ -127,10 +129,12 @@ in {
   # Disable storage features that are useful on general NixOS systems but not
   # needed for these sealed dm-verity images.
   services.lvm.enable = false;
-  boot.bcache.enable = false;
+  # Covered by bashless.nix; kept here as a record of the previous explicit trim.
+  # boot.bcache.enable = false;
   boot.initrd.services.bcache.enable = false;
-  programs.fuse.enable = false;
-  console.enable = false;
+  # Covered by bashless.nix; kept here as a record of the previous explicit trim.
+  # programs.fuse.enable = false;
+  # console.enable = false;
 
   # The image does not need a system bus; disabling it also avoids pulling in
   # the separate systemd-minimal package through dbus.
@@ -141,9 +145,11 @@ in {
 
   # forbid dependencies to ensure they truly do not get included
   # mainly to reduce image bloat
-  # see perlless.nix for an example
+  # see bashless.nix and perlless.nix for examples
   system.forbiddenDependenciesRegexes = [
-    # technically perlless.nix should forbid perl, add it here just to be sure
+    # bashless.nix and perlless.nix forbid these too; keep them here to make
+    # the image policy explicit.
+    "bash"
     "perl"
     "python"
   ];
@@ -157,8 +163,8 @@ in {
   # set this to tell nix we know what we are doing
   users.allowNoPasswordLogin = true;
 
-  # disable bash completions
-  programs.bash.completion.enable = false;
+  # Covered by bashless.nix; kept here as a record of the previous explicit trim.
+  # programs.bash.completion.enable = false;
   # disable nano
   programs.nano.enable = false;
   # disable sudo
