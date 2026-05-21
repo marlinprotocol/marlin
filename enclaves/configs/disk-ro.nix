@@ -40,6 +40,46 @@
   # ref: https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/image/repart-verity-store.nix#L92
   image.repart.name = config.system.image.id;
   image.repart.version = config.system.image.version;
+
+  system.build.marlinRuntimeToplevel = let
+    toplevel = config.system.build.toplevel;
+    copiedFiles = [
+      "activate"
+      "extra-dependencies"
+      "init"
+      "init-interface-version"
+      "kernel-params"
+      "nixos-version"
+      "prepare-root"
+      "system"
+    ];
+    linkedPaths = [
+      "etc"
+      "etc-basedir"
+      "etc-metadata-image"
+      "firmware"
+      "kernel-modules"
+      "sw"
+      "systemd"
+    ];
+  in
+    pkgs.runCommand "marlin-runtime-toplevel" {} ''
+      mkdir -p "$out/specialisation"
+
+      for file in ${toString copiedFiles}; do
+        cp -a "${toplevel}/$file" "$out/$file"
+      done
+
+      for path in ${toString linkedPaths}; do
+        ln -s "$(readlink "${toplevel}/$path")" "$out/$path"
+      done
+
+      substituteInPlace "$out/activate" \
+        --replace-fail "${toplevel}" "$out"
+      substituteInPlace "$out/prepare-root" \
+        --replace-fail "${toplevel}" "$out"
+    '';
+
   # image.repart.sectorSize = 4096;
   image.repart.partitions = {
     # esp partition
@@ -60,7 +100,7 @@
     };
     # data partition
     "20-store" = {
-      storePaths = [config.system.build.toplevel];
+      storePaths = lib.mkForce [config.system.build.marlinRuntimeToplevel];
       repartConfig = {
         Label = "store";
         Type = "usr-${systemConfig.repart_arch}";
@@ -87,7 +127,7 @@
       inherit (config.system.boot.loader) ukiFile;
 
       # We replicate the cmdline logic from the module
-      cmdline = "init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams}";
+      cmdline = "init=${config.system.build.marlinRuntimeToplevel}/init ${toString config.boot.kernelParams}";
 
       partitionTypes = {
         usr-verity = "usr-${systemConfig.repart_arch}-verity";
