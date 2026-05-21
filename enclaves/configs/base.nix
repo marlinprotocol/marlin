@@ -129,6 +129,7 @@ in {
   # Disable storage features that are useful on general NixOS systems but not
   # needed for these sealed dm-verity images.
   services.lvm.enable = false;
+  services.fstrim.enable = false;
   # Covered by bashless.nix; kept here as a record of the previous explicit trim.
   # boot.bcache.enable = false;
   boot.initrd.services.bcache.enable = false;
