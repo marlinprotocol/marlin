@@ -10,14 +10,20 @@
 }: let
   system = systemConfig.system;
   pkgs = nixpkgs.legacyPackages."${system}";
-  nixosConfig = {lib, ...}: {
+  nixosConfig = {
+    config,
+    lib,
+    ...
+  }: {
     imports = [
       # build as a green image
       (./. + "/../configs/green.nix")
     ];
 
     boot.kernelPackages = lib.mkIf (system == "x86_64-linux") (
-      pkgs.linuxPackagesFor kernels.default
+      pkgs.linuxPackagesFor (kernels.mkKernel {
+        fragments = config.marlin.kernel.fragments;
+      })
     );
 
     /*

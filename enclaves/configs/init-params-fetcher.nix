@@ -3,6 +3,8 @@
 {pkgs, ...} @ args: let
   service-name = args.service-name or "init-params-fetcher";
 in {
+  marlin.kernel.fragments = ["network"];
+
   # systemd service
   systemd.services.${service-name} = {
     description = "Retrieve init params";

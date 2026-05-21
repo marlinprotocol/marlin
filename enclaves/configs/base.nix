@@ -93,6 +93,16 @@ in {
 
   # nixos has good presets to get started
   imports = [
+    # allow image fragments to declare kernel feature requirements
+    ({lib, ...}: {
+      options.marlin.kernel.fragments = lib.mkOption {
+        type = with lib.types; listOf (enum ["base" "disk-ro" "network"]);
+        default = [];
+        description = ''
+          Kernel feature fragments required by this image configuration.
+        '';
+      };
+    })
     # use the minimal profile as the starting point
     "${modulesPath}/profiles/minimal.nix"
     # it will not really be interactive
@@ -104,6 +114,8 @@ in {
     # build as a one-shot appliance since it will never get updated
     "${modulesPath}/profiles/image-based-appliance.nix"
   ];
+
+  marlin.kernel.fragments = ["base"];
 
   # NOTE: perlless.nix also sets initrd to be systemd based
   # ensure the setup is according to that

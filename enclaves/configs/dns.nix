@@ -1,6 +1,8 @@
 # dns config
 # set up systemd-resolved with DoT
 {...}: {
+  marlin.kernel.fragments = ["network"];
+
   # set up systemd-resolved
   services.resolved = {
     # enable systemd-resolved

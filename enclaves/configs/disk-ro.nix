@@ -8,6 +8,8 @@
   systemConfig,
   ...
 }: {
+  marlin.kernel.fragments = ["disk-ro"];
+
   # nixos has good presets to get started
   imports = [
     # image.repart support
