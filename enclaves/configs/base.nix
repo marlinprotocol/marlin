@@ -3,8 +3,94 @@
 {
   lib,
   modulesPath,
+  pkgs,
   ...
-}: {
+}: let
+  runtimeSystemd = pkgs.systemd.override {
+    # Keep the runtime manager, not just libsystemd/libudev.
+    buildLibsOnly = false;
+
+    # TPM2 support is required by the image.
+    withTpm2Tss = true;
+    # Required by TPM-related systemd code and systemd-resolved DNS-over-TLS.
+    withOpenSSL = true;
+    # image-based-appliance uses systemd-networkd.
+    withNetworkd = true;
+    # dns.nix enables systemd-resolved with DNS-over-TLS.
+    withResolved = true;
+    # Keep module-loading support for udev/modules-load until the boot path is
+    # proven not to need it.
+    withKmod = true;
+    # NixOS account setup uses systemd-sysusers integration.
+    withSysusers = true;
+    # Keep NSS integration until the resolved/name-service path is tested.
+    withNss = true;
+    # Keep seccomp hardening for systemd services.
+    withLibseccomp = true;
+    # NixOS' udev module unconditionally builds and links udev/hwdb.bin.
+    withHwdb = true;
+    # NixOS PAM service definitions still reference pam_systemd.so.
+    withPam = true;
+    # Keep compression support for journal/runtime compatibility.
+    withCompression = true;
+
+    # The stage-2 runtime does not mount encrypted or verity devices. The initrd
+    # is pinned to full systemd below because it does need dm-verity support.
+    withCryptsetup = false;
+
+    # Not needed in the sealed appliance runtime.
+    withAcl = false;
+    withAnalyze = false;
+    withApparmor = false;
+    withAudit = false;
+    withBootloader = false;
+    withCoredump = false;
+    withDocumentation = false;
+    withEfi = false;
+    withFido2 = false;
+    withFirstboot = false;
+    withGcrypt = false;
+    withHomed = false;
+    withHostnamed = false;
+    withImportd = false;
+    withKernelInstall = false;
+    withKexectools = false;
+    withLibarchive = false;
+    withLibBPF = false;
+    withLibidn2 = false;
+    withLocaled = false;
+    withLogind = false;
+    withLogTrace = false;
+    withMachined = false;
+    withNspawn = false;
+    withOomd = false;
+    withPasswordQuality = false;
+    withPCRE2 = false;
+    withPolkit = false;
+    withPortabled = false;
+    withQrencode = false;
+    withRemote = false;
+    withRepart = false;
+    withSelinux = false;
+    withShellCompletions = false;
+    withSysupdate = false;
+    withTests = false;
+    withTimedated = false;
+    withTimesyncd = false;
+    withUkify = false;
+    withUserDb = false;
+    withUtmp = false;
+    withVConsole = false;
+    withVmspawn = false;
+  };
+in {
+  disabledModules = [
+    # This nixpkgs revision does not expose services.logind.enable. Drop the
+    # module so it cannot add logind/user-session units while the runtime
+    # systemd is built without logind.
+    "system/boot/systemd/logind.nix"
+  ];
+
   # nixos has good presets to get started
   imports = [
     # use the minimal profile as the starting point
@@ -19,6 +105,20 @@
 
   # NOTE: perlless.nix also sets initrd to be systemd based
   # ensure the setup is according to that
+  systemd.package = runtimeSystemd;
+  # The initrd mounts the dm-verity protected store and therefore needs the full
+  # systemd build even when the stage-2 runtime uses the reduced build above.
+  boot.initrd.systemd.package = pkgs.systemd;
+  systemd.coredump.enable = false;
+  systemd.oomd.enable = false;
+  systemd.services.systemd-timedated.enable = false;
+  systemd.services.systemd-update-utmp.enable = false;
+  services.timesyncd.enable = false;
+  systemd.suppressedSystemUnits = [
+    # NixOS' base upstream-unit list includes this even when systemd-nspawn is
+    # not built.
+    "systemd-nspawn@.service"
+  ];
 
   # The kernels used for these images build the required boot drivers in, so do
   # not ask the initrd builder to resolve NixOS' broad default module list.
@@ -30,6 +130,7 @@
   boot.bcache.enable = false;
   boot.initrd.services.bcache.enable = false;
   programs.fuse.enable = false;
+  console.enable = false;
 
   # The image does not need a system bus; disabling it also avoids pulling in
   # the separate systemd-minimal package through dbus.
