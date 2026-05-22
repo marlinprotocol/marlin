@@ -171,7 +171,7 @@
   # ref: https://github.com/aws/nitrotpm-attestation-samples/blob/main/nix/image/verity.nix#L82
   boot.kernelParams = [
     "systemd.verity=1"
-    "systemd.verity_root_options=panic-on-corruption"
+    "systemd.verity_usr_options=panic-on-corruption"
     "systemd.gpt_auto=0" # Disable systemd-gpt-auto-generator to prevent e.g. ESP mounting
   ];
 }
