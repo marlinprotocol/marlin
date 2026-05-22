@@ -27,12 +27,82 @@ CONFIG_RANDOMIZE_BASE=y
 CONFIG_RELOCATABLE=y
 
 # x86_64 mitigations.
+# required: CONFIG_CPU_MITIGATIONS CONFIG_MITIGATION_PAGE_TABLE_ISOLATION CONFIG_MITIGATION_RETPOLINE
+# required: CONFIG_MITIGATION_RETHUNK CONFIG_MITIGATION_UNRET_ENTRY CONFIG_MITIGATION_CALL_DEPTH_TRACKING
+# required: CONFIG_MITIGATION_IBPB_ENTRY CONFIG_MITIGATION_IBRS_ENTRY CONFIG_MITIGATION_SRSO
+# required: CONFIG_MITIGATION_RFDS CONFIG_MITIGATION_SPECTRE_BHI CONFIG_MITIGATION_MDS
+# required: CONFIG_MITIGATION_TAA CONFIG_MITIGATION_MMIO_STALE_DATA CONFIG_MITIGATION_L1TF
+# required: CONFIG_MITIGATION_RETBLEED CONFIG_MITIGATION_SPECTRE_V1 CONFIG_MITIGATION_SPECTRE_V2
+# required: CONFIG_MITIGATION_SRBDS CONFIG_MITIGATION_SSB CONFIG_MITIGATION_ITS CONFIG_MITIGATION_TSA
+# required: CONFIG_X86_KERNEL_IBT CONFIG_STACKPROTECTOR CONFIG_STACKPROTECTOR_STRONG CONFIG_VMAP_STACK
+# required: CONFIG_FORTIFY_SOURCE CONFIG_LIST_HARDENED CONFIG_SLAB_FREELIST_HARDENED
+# required: CONFIG_BPF_UNPRIV_DEFAULT_OFF CONFIG_PROC_MEM_NO_FORCE CONFIG_MSEAL_SYSTEM_MAPPINGS
 # Enable the broad CPU vulnerability mitigation framework for guest hardening.
 CONFIG_CPU_MITIGATIONS=y
-# Enable Spectre-class speculative execution mitigations.
-CONFIG_SPECULATION_MITIGATIONS=y
-# Avoid speculative indirect branches in the kernel for Spectre v2 mitigation.
+# Isolate kernel page tables from userspace mappings.
+CONFIG_MITIGATION_PAGE_TABLE_ISOLATION=y
+# Avoid speculative indirect branches in the kernel.
 CONFIG_MITIGATION_RETPOLINE=y
+# Compile kernel returns through speculation-safe thunks.
+CONFIG_MITIGATION_RETHUNK=y
+# Include AMD UNRET entry support for retbleed mitigation.
+CONFIG_MITIGATION_UNRET_ENTRY=y
+# Include Intel call-depth tracking support for RSB-underflow mitigation.
+CONFIG_MITIGATION_CALL_DEPTH_TRACKING=y
+# Include AMD IBPB-on-entry support.
+CONFIG_MITIGATION_IBPB_ENTRY=y
+# Include Intel IBRS-on-entry support.
+CONFIG_MITIGATION_IBRS_ENTRY=y
+# Include AMD speculative RAS overflow mitigation support.
+CONFIG_MITIGATION_SRSO=y
+# Enable Intel Register File Data Sampling mitigation.
+CONFIG_MITIGATION_RFDS=y
+# Enable Intel branch history injection mitigation.
+CONFIG_MITIGATION_SPECTRE_BHI=y
+# Enable Intel Microarchitectural Data Sampling mitigation.
+CONFIG_MITIGATION_MDS=y
+# Enable Intel TSX Asynchronous Abort mitigation.
+CONFIG_MITIGATION_TAA=y
+# Enable Intel MMIO stale-data mitigation.
+CONFIG_MITIGATION_MMIO_STALE_DATA=y
+# Enable Intel L1 Terminal Fault mitigation.
+CONFIG_MITIGATION_L1TF=y
+# Enable RETBleed mitigation.
+CONFIG_MITIGATION_RETBLEED=y
+# Enable Spectre v1 mitigation.
+CONFIG_MITIGATION_SPECTRE_V1=y
+# Enable Spectre v2 mitigation.
+CONFIG_MITIGATION_SPECTRE_V2=y
+# Enable Intel Special Register Buffer Data Sampling mitigation.
+CONFIG_MITIGATION_SRBDS=y
+# Enable Speculative Store Bypass mitigation.
+CONFIG_MITIGATION_SSB=y
+# Enable Intel Indirect Target Selection mitigation.
+CONFIG_MITIGATION_ITS=y
+# Enable AMD Transient Scheduler Attack mitigation.
+CONFIG_MITIGATION_TSA=y
+
+# x86_64 hardening.
+# Enable Intel indirect branch tracking for kernel control flow hardening.
+CONFIG_X86_KERNEL_IBT=y
+# Add compiler stack canaries to vulnerable kernel functions.
+CONFIG_STACKPROTECTOR=y
+# Use the stronger compiler stack protector heuristic.
+CONFIG_STACKPROTECTOR_STRONG=y
+# Place kernel stacks in vmalloc space with guard pages.
+CONFIG_VMAP_STACK=y
+# Detect compile-time-known string and memory operation overflows.
+CONFIG_FORTIFY_SOURCE=y
+# Check linked-list metadata integrity.
+CONFIG_LIST_HARDENED=y
+# Add allocator metadata hardening for slab freelists.
+CONFIG_SLAB_FREELIST_HARDENED=y
+# Disable unprivileged bpf(2) by default.
+CONFIG_BPF_UNPRIV_DEFAULT_OFF=y
+# Do not let /proc/pid/mem override mapping permissions.
+CONFIG_PROC_MEM_NO_FORCE=y
+# Seal userspace system mappings such as vdso and vvar.
+CONFIG_MSEAL_SYSTEM_MAPPINGS=y
 # Disable the fixed-address legacy vsyscall page to preserve ASLR hardening.
 CONFIG_LEGACY_VSYSCALL_NONE=y
 
