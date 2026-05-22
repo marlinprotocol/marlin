@@ -24,6 +24,13 @@ in
     kconfigSuffix = ".kconfig";
     knownKernelFragmentArchs = [kernelConfigArch];
     requiredOptionPrefix = "# required: ";
+    forbiddenConfigOptions = [
+      "CONFIG_CRYPTO_USER_API"
+      "CONFIG_CRYPTO_USER_API_HASH"
+      "CONFIG_CRYPTO_USER_API_SKCIPHER"
+      "CONFIG_CRYPTO_USER_API_RNG"
+      "CONFIG_CRYPTO_USER_API_AEAD"
+    ];
 
     fragmentPath = fileName: fragmentDir + "/${fileName}";
     removeSuffix = suffix: string:
@@ -109,11 +116,23 @@ in
       requiredConfigOptions = requiredConfigOptionsForFragments selectedFragments;
       requiredConfigOptionsShell =
         lib.concatMapStringsSep " \\\n          " lib.escapeShellArg requiredConfigOptions;
+      forbiddenConfigOptionsShell =
+        lib.concatMapStringsSep " \\\n          " lib.escapeShellArg forbiddenConfigOptions;
       checkRequiredConfigOptions = lib.optionalString (requiredConfigOptions != []) ''
         for option in \
           ${requiredConfigOptionsShell}
         do
           grep -q "^$option=y$" "$KCONFIG_CONFIG"
+        done
+      '';
+      checkForbiddenConfigOptions = ''
+        for option in \
+          ${forbiddenConfigOptionsShell}
+        do
+          if grep -Eq "^$option=(y|m)$" "$KCONFIG_CONFIG"; then
+            echo "$option must stay disabled" >&2
+            exit 1
+          fi
         done
       '';
     in
@@ -136,6 +155,7 @@ in
         make KCONFIG_ALLCONFIG=${marlinConfig} allnoconfig
 
         ${checkRequiredConfigOptions}
+        ${checkForbiddenConfigOptions}
 
         cp "$KCONFIG_CONFIG" "$out"
       '';

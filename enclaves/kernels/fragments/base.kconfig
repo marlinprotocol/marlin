@@ -128,6 +128,8 @@ CONFIG_SYSFS=y
 CONFIG_TMPFS=y
 # Support extended attributes on tmpfs-backed writable runtime paths.
 CONFIG_TMPFS_XATTR=y
+# Support POSIX ACL metadata expected by NixOS systemd-managed tmpfs paths.
+CONFIG_TMPFS_POSIX_ACL=y
 
 # Userspace event APIs.
 # Provide signalfd for systemd and event loops to handle signals via fds.
@@ -187,8 +189,8 @@ CONFIG_NET=y
 # Provide Unix domain sockets used by systemd and local service IPC.
 CONFIG_UNIX=y
 
-# TPM2 devices exposed by QEMU.
-# required: CONFIG_TCG_CRB
+# TPM2 device interfaces.
+# required: CONFIG_TCG_CRB CONFIG_TCG_TIS
 # Expose securityfs interfaces used by TPM and security subsystems.
 CONFIG_SECURITYFS=y
 # Provide the hardware RNG framework used by TPM-backed randomness.
@@ -199,3 +201,7 @@ CONFIG_HW_RANDOM_TPM=y
 CONFIG_TCG_TPM=y
 # Drive TPM2 devices exposed through the CRB interface.
 CONFIG_TCG_CRB=y
+# Provide shared support code for TPM TIS/FIFO interface drivers.
+CONFIG_TCG_TIS_CORE=y
+# Drive TPM2 devices exposed through the TIS/FIFO interface requested by initrd TPM setup.
+CONFIG_TCG_TIS=y
