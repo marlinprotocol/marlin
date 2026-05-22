@@ -19,8 +19,6 @@
   };
 
   config = {
-    marlin.kernel.fragments = ["base"];
-
     # NixOS' systemd module requires the AF_ALG hash userspace API by default,
     # but this image does not use kernel crypto from userspace. Keep that attack
     # surface disabled while preserving the rest of system.requiredKernelConfig.
@@ -52,12 +50,5 @@
         isDisabled
         ;
     });
-
-    # The kernels used for these images build the required boot drivers in, so do
-    # not ask the initrd builder to resolve NixOS' broad default module list.
-    boot.initrd.includeDefaultModules = false;
-    # Keep the initrd compressor aligned with the kernel decompressor enabled in
-    # the base kernel fragment.
-    boot.initrd.compressor = "zstd";
   };
 }

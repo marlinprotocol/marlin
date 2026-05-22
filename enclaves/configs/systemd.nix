@@ -66,13 +66,6 @@
   };
   runtimeSystemd = pkgs.systemd.override config.marlin.systemd.packageOptions;
 in {
-  disabledModules = [
-    # This nixpkgs revision does not expose services.logind.enable. Drop the
-    # module so it cannot add logind/user-session units while the runtime
-    # systemd is built without logind.
-    "system/boot/systemd/logind.nix"
-  ];
-
   options.marlin.systemd.packageOptions = lib.mkOption {
     type = with lib.types; attrsOf bool;
     default = {};
@@ -83,31 +76,8 @@ in {
   };
 
   config = {
-    marlin.systemd.packageOptions = lib.mkMerge [
-      (lib.mapAttrs (_: lib.mkDefault) runtimeSystemdMinimalOptions)
-      {
-        # Keep the runtime manager, not just libsystemd/libudev.
-        buildLibsOnly = false;
-
-        # TPM2 support is required by the base enclave image.
-        withTpm2Tss = true;
-        # Required by TPM-related systemd code.
-        withOpenSSL = true;
-        # Keep module-loading support for udev/modules-load until the boot path is
-        # proven not to need it.
-        withKmod = true;
-        # NixOS account setup uses systemd-sysusers integration.
-        withSysusers = true;
-        # Keep seccomp hardening for systemd services.
-        withLibseccomp = true;
-        # NixOS' udev module unconditionally builds and links udev/hwdb.bin.
-        withHwdb = true;
-        # NixOS PAM service definitions still reference pam_systemd.so.
-        withPam = true;
-        # Keep compression support for journal/runtime compatibility.
-        withCompression = true;
-      }
-    ];
+    marlin.systemd.packageOptions =
+      lib.mapAttrs (_: lib.mkDefault) runtimeSystemdMinimalOptions;
 
     # NOTE: perlless.nix also sets initrd to be systemd based
     # ensure the setup is according to that
@@ -115,17 +85,5 @@ in {
     # The initrd mounts the dm-verity protected store and therefore needs the full
     # systemd build even when the stage-2 runtime uses the reduced build above.
     boot.initrd.systemd.package = pkgs.systemd;
-
-    systemd.coredump.enable = false;
-    systemd.oomd.enable = false;
-    systemd.services.systemd-timedated.enable = false;
-    systemd.services.systemd-update-utmp.enable = false;
-    services.timesyncd.enable = false;
-
-    systemd.suppressedSystemUnits = [
-      # NixOS' base upstream-unit list includes this even when systemd-nspawn is
-      # not built.
-      "systemd-nspawn@.service"
-    ];
   };
 }
