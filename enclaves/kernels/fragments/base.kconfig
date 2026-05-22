@@ -2,6 +2,11 @@
 # Allow the kernel to schedule work across multiple CPUs.
 CONFIG_SMP=y
 
+# Kernel address layout.
+# required: CONFIG_RANDOMIZE_BASE
+# Randomize the kernel load address as baseline hardening.
+CONFIG_RANDOMIZE_BASE=y
+
 # Character devices.
 # Provide pseudo-terminals for shells and services that allocate PTYs.
 CONFIG_UNIX98_PTYS=y
@@ -108,7 +113,7 @@ CONFIG_GENERIC_MSI_IRQ=y
 CONFIG_GENERIC_MSI_IRQ_DOMAIN=y
 
 # Runtime filesystems.
-# required: CONFIG_DMIID CONFIG_SECCOMP CONFIG_TMPFS
+# required: CONFIG_DMI CONFIG_DMIID CONFIG_SECCOMP CONFIG_TMPFS
 # Mount procfs for process, kernel, and boot metadata used by NixOS userspace.
 CONFIG_PROC_FS=y
 # Mount sysfs for device discovery and systemd/udev boot integration.
@@ -141,6 +146,8 @@ CONFIG_INOTIFY_USER=y
 CONFIG_AUTOFS_FS=y
 
 # Platform identity.
+# Enable SMBIOS/DMI table discovery for platform identity.
+CONFIG_DMI=y
 # Expose DMI/SMBIOS identity used by systemd platform detection.
 CONFIG_DMIID=y
 
@@ -155,6 +162,8 @@ CONFIG_SECCOMP_FILTER=y
 CONFIG_BPF=y
 # Expose bpf(2) so userspace can load BPF programs for cgroup policies.
 CONFIG_BPF_SYSCALL=y
+# Disable unprivileged bpf(2) by default.
+CONFIG_BPF_UNPRIV_DEFAULT_OFF=y
 # Provide cgroups required by systemd for service tracking and supervision.
 CONFIG_CGROUPS=y
 # Enable CPU scheduling controls and accounting for service cgroups.
@@ -171,6 +180,27 @@ CONFIG_CGROUP_BPF=y
 CONFIG_MEMCG=y
 # Enable block I/O accounting and controls for service cgroups.
 CONFIG_BLK_CGROUP=y
+
+# Kernel hardening.
+# required: CONFIG_STACKPROTECTOR CONFIG_STACKPROTECTOR_STRONG CONFIG_VMAP_STACK
+# required: CONFIG_FORTIFY_SOURCE CONFIG_LIST_HARDENED CONFIG_SLAB_FREELIST_HARDENED
+# required: CONFIG_BPF_UNPRIV_DEFAULT_OFF CONFIG_PROC_MEM_NO_FORCE CONFIG_MSEAL_SYSTEM_MAPPINGS
+# Add compiler stack canaries to vulnerable kernel functions.
+CONFIG_STACKPROTECTOR=y
+# Use the stronger compiler stack protector heuristic.
+CONFIG_STACKPROTECTOR_STRONG=y
+# Place kernel stacks in vmalloc space with guard pages.
+CONFIG_VMAP_STACK=y
+# Detect compile-time-known string and memory operation overflows.
+CONFIG_FORTIFY_SOURCE=y
+# Check linked-list metadata integrity.
+CONFIG_LIST_HARDENED=y
+# Add allocator metadata hardening for slab freelists.
+CONFIG_SLAB_FREELIST_HARDENED=y
+# Do not let /proc/pid/mem override mapping permissions.
+CONFIG_PROC_MEM_NO_FORCE=y
+# Seal userspace system mappings such as vdso and vvar.
+CONFIG_MSEAL_SYSTEM_MAPPINGS=y
 
 # Local IPC.
 # Provide the networking core required by Unix domain sockets.

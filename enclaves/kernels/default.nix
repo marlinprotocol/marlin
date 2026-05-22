@@ -3,13 +3,32 @@
   systemConfig,
 }: let
   system = systemConfig.system;
-  pkgs = nixpkgs.legacyPackages."${system}";
+  supportedKernelArchitectures = {
+    "aarch64-linux" = {
+      kernelConfigArch = "arm64";
+      kernelMakeArch = "arm64";
+      kernelDescriptionArch = "arm64";
+    };
+    "x86_64-linux" = {
+      kernelConfigArch = "x86_64";
+      kernelMakeArch = "x86";
+      kernelDescriptionArch = "x86_64";
+    };
+  };
 in
-  if system != "x86_64-linux"
+  if !(builtins.hasAttr system supportedKernelArchitectures)
   then {}
   else let
+    pkgs = nixpkgs.legacyPackages."${system}";
     kernelVersion = "6.18.28";
     lib = pkgs.lib;
+    kernelArchitecture = supportedKernelArchitectures.${system};
+    inherit
+      (kernelArchitecture)
+      kernelConfigArch
+      kernelDescriptionArch
+      kernelMakeArch
+      ;
 
     linuxSrc = pkgs.fetchurl {
       url = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${kernelVersion}.tar.xz";
@@ -19,12 +38,14 @@ in
     defaultFragments = ["base" "disk-ro" "network"];
     defaultTarget = "ec2";
     knownTargets = ["qemu" "ec2"];
-    kernelConfigArch = "x86_64";
-    kernelMakeArch = "x86";
     fragmentDir = ./fragments;
     fragmentEntries = builtins.readDir fragmentDir;
     kconfigSuffix = ".kconfig";
-    knownKernelFragmentArchs = [kernelConfigArch];
+    knownKernelFragmentArchs =
+      lib.unique
+      (map
+        (systemName: supportedKernelArchitectures.${systemName}.kernelConfigArch)
+        (builtins.attrNames supportedKernelArchitectures));
     requiredOptionPrefix = "# required: ";
     forbiddenConfigOptions = [
       "CONFIG_CRYPTO_USER_API"
@@ -205,7 +226,7 @@ in
         inherit configfile;
         allowImportFromDerivation = true;
         extraMeta = {
-          description = "Minimal x86_64 ${checkedTarget} Linux kernel for Marlin green images";
+          description = "Minimal ${kernelDescriptionArch} ${checkedTarget} Linux kernel for Marlin green images";
         };
       };
 

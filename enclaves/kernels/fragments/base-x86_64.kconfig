@@ -21,8 +21,6 @@ CONFIG_KVM_GUEST=y
 CONFIG_PARAVIRT=y
 # Cap supported vCPUs at a clean upper bound without allocating them upfront.
 CONFIG_NR_CPUS=256
-# Randomize the kernel load address as baseline x86 hardening.
-CONFIG_RANDOMIZE_BASE=y
 # Allow the x86 kernel to load at non-fixed addresses for ASLR and firmware placement.
 CONFIG_RELOCATABLE=y
 
@@ -34,9 +32,6 @@ CONFIG_RELOCATABLE=y
 # required: CONFIG_MITIGATION_TAA CONFIG_MITIGATION_MMIO_STALE_DATA CONFIG_MITIGATION_L1TF
 # required: CONFIG_MITIGATION_RETBLEED CONFIG_MITIGATION_SPECTRE_V1 CONFIG_MITIGATION_SPECTRE_V2
 # required: CONFIG_MITIGATION_SRBDS CONFIG_MITIGATION_SSB CONFIG_MITIGATION_ITS CONFIG_MITIGATION_TSA
-# required: CONFIG_X86_KERNEL_IBT CONFIG_STACKPROTECTOR CONFIG_STACKPROTECTOR_STRONG CONFIG_VMAP_STACK
-# required: CONFIG_FORTIFY_SOURCE CONFIG_LIST_HARDENED CONFIG_SLAB_FREELIST_HARDENED
-# required: CONFIG_BPF_UNPRIV_DEFAULT_OFF CONFIG_PROC_MEM_NO_FORCE CONFIG_MSEAL_SYSTEM_MAPPINGS
 # Enable the broad CPU vulnerability mitigation framework for guest hardening.
 CONFIG_CPU_MITIGATIONS=y
 # Isolate kernel page tables from userspace mappings.
@@ -83,26 +78,9 @@ CONFIG_MITIGATION_ITS=y
 CONFIG_MITIGATION_TSA=y
 
 # x86_64 hardening.
+# required: CONFIG_X86_KERNEL_IBT
 # Enable Intel indirect branch tracking for kernel control flow hardening.
 CONFIG_X86_KERNEL_IBT=y
-# Add compiler stack canaries to vulnerable kernel functions.
-CONFIG_STACKPROTECTOR=y
-# Use the stronger compiler stack protector heuristic.
-CONFIG_STACKPROTECTOR_STRONG=y
-# Place kernel stacks in vmalloc space with guard pages.
-CONFIG_VMAP_STACK=y
-# Detect compile-time-known string and memory operation overflows.
-CONFIG_FORTIFY_SOURCE=y
-# Check linked-list metadata integrity.
-CONFIG_LIST_HARDENED=y
-# Add allocator metadata hardening for slab freelists.
-CONFIG_SLAB_FREELIST_HARDENED=y
-# Disable unprivileged bpf(2) by default.
-CONFIG_BPF_UNPRIV_DEFAULT_OFF=y
-# Do not let /proc/pid/mem override mapping permissions.
-CONFIG_PROC_MEM_NO_FORCE=y
-# Seal userspace system mappings such as vdso and vvar.
-CONFIG_MSEAL_SYSTEM_MAPPINGS=y
 # Disable the fixed-address legacy vsyscall page to preserve ASLR hardening.
 CONFIG_LEGACY_VSYSCALL_NONE=y
 

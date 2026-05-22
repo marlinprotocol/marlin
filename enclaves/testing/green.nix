@@ -23,12 +23,10 @@
 
       marlin.kernel.target = target;
 
-      boot.kernelPackages = lib.mkIf (system == "x86_64-linux") (
-        pkgs.linuxPackagesFor (kernels.mkKernel {
-          inherit target;
-          fragments = config.marlin.kernel.fragments;
-        })
-      );
+      boot.kernelPackages = pkgs.linuxPackagesFor (kernels.mkKernel {
+        inherit target;
+        fragments = config.marlin.kernel.fragments;
+      });
 
       /*
       # systemd service for testing
