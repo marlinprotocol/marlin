@@ -4,6 +4,9 @@
   service-name = args.service-name or "init-params-fetcher";
 in {
   marlin.kernel.fragments = ["network"];
+  marlin.systemd.packageOptions = {
+    withNetworkd = true;
+  };
 
   # systemd service
   systemd.services.${service-name} = {

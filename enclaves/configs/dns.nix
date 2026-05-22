@@ -2,6 +2,12 @@
 # set up systemd-resolved with DoT
 {...}: {
   marlin.kernel.fragments = ["network"];
+  marlin.systemd.packageOptions = {
+    withNetworkd = true;
+    withResolved = true;
+    withOpenSSL = true;
+    withNss = true;
+  };
 
   # set up systemd-resolved
   services.resolved = {
