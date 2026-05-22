@@ -1,0 +1,4 @@
+# QEMU read-only disk transport.
+# required: CONFIG_VIRTIO_BLK
+# Drive the virtio block disk that carries the read-only image partitions.
+CONFIG_VIRTIO_BLK=y

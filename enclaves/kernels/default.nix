@@ -17,6 +17,8 @@ in
     };
 
     defaultFragments = ["base" "disk-ro" "network"];
+    defaultTarget = "ec2";
+    knownTargets = ["qemu" "ec2"];
     kernelConfigArch = "x86_64";
     kernelMakeArch = "x86";
     fragmentDir = ./fragments;
@@ -40,10 +42,22 @@ in
     words = string:
       builtins.filter (word: word != "") (lib.splitString " " string);
     fragmentBaseName = fileName: removeSuffix kconfigSuffix fileName;
-    isArchSpecificKconfigFile = fileName:
+    variantSuffixes =
+      (map (arch: "-${arch}") knownKernelFragmentArchs)
+      ++ (map (target: "-${target}") knownTargets)
+      ++ lib.concatLists (
+        map
+        (arch: map (target: "-${arch}-${target}") knownTargets)
+        knownKernelFragmentArchs
+      );
+    isVariantKconfigFile = fileName:
       lib.any
-      (arch: lib.hasSuffix "-${arch}" (fragmentBaseName fileName))
-      knownKernelFragmentArchs;
+      (suffix: lib.hasSuffix suffix (fragmentBaseName fileName))
+      variantSuffixes;
+    validateTarget = target:
+      if builtins.elem target knownTargets
+      then target
+      else throw "Unknown kernel target: ${target}";
 
     knownFragments = map fragmentBaseName (
       builtins.filter
@@ -52,7 +66,7 @@ in
           fragmentEntries.${fileName}
           == "regular"
           && lib.hasSuffix kconfigSuffix fileName
-          && !(isArchSpecificKconfigFile fileName)
+          && !(isVariantKconfigFile fileName)
       )
       (builtins.attrNames fragmentEntries)
     );
@@ -74,16 +88,25 @@ in
       requiredOptions = requiredConfigOptionsForText text;
     };
 
-    fragmentFilesFor = fragment: let
+    fragmentFilesFor = target: fragment: let
+      checkedTarget = validateTarget target;
       archFragment = "${fragment}-${kernelConfigArch}.kconfig";
+      targetFragment = "${fragment}-${checkedTarget}.kconfig";
+      archTargetFragment = "${fragment}-${kernelConfigArch}-${checkedTarget}.kconfig";
     in
       ["${fragment}.kconfig"]
-      ++ lib.optional (builtins.pathExists (fragmentPath archFragment)) archFragment;
+      ++ lib.optional (builtins.pathExists (fragmentPath archFragment)) archFragment
+      ++ lib.optional (builtins.pathExists (fragmentPath targetFragment)) targetFragment
+      ++ lib.optional (builtins.pathExists (fragmentPath archTargetFragment)) archTargetFragment;
 
     kernelConfigFragments =
       lib.genAttrs knownFragments (fragment: readKernelConfigFragment "${fragment}.kconfig");
 
-    selectKernelConfigFragments = fragments: let
+    selectKernelConfigFragments = {
+      target,
+      fragments,
+    }: let
+      checkedTarget = validateTarget target;
       uniqueFragments = lib.unique fragments;
       unknownFragments =
         builtins.filter
@@ -96,22 +119,29 @@ in
     in
       if unknownFragments != []
       then throw "Unknown kernel config fragments: ${lib.concatStringsSep ", " unknownFragments}"
-      else map readKernelConfigFragment (builtins.concatLists (map fragmentFilesFor selectedFragments));
+      else map readKernelConfigFragment (builtins.concatLists (map (fragmentFilesFor checkedTarget) selectedFragments));
 
     renderKernelConfigFragment = fragment: "# Fragment: ${fragment.fileName}\n${fragment.text}";
-    renderKernelConfigFragments = fragments:
+    renderKernelConfigFragments = target: fragments:
       lib.concatStringsSep "\n\n" (
-        ["# Marlin green-image boot requirements on ${kernelConfigArch} QEMU."]
+        ["# Marlin green-image boot requirements on ${kernelConfigArch} ${target}."]
         ++ map renderKernelConfigFragment fragments
       )
       + "\n";
     requiredConfigOptionsForFragments = fragments:
       lib.unique (builtins.concatLists (map (fragment: fragment.requiredOptions) fragments));
 
-    mkConfig = {fragments ? defaultFragments}: let
-      selectedFragments = selectKernelConfigFragments fragments;
-      marlinConfig = pkgs.writeText "marlin-qemu-kconfig-fragments.config" (
-        renderKernelConfigFragments selectedFragments
+    mkConfig = {
+      target ? defaultTarget,
+      fragments ? defaultFragments,
+    }: let
+      checkedTarget = validateTarget target;
+      selectedFragments = selectKernelConfigFragments {
+        target = checkedTarget;
+        inherit fragments;
+      };
+      marlinConfig = pkgs.writeText "marlin-${checkedTarget}-kconfig-fragments.config" (
+        renderKernelConfigFragments checkedTarget selectedFragments
       );
       requiredConfigOptions = requiredConfigOptionsForFragments selectedFragments;
       requiredConfigOptionsShell =
@@ -136,7 +166,7 @@ in
         done
       '';
     in
-      pkgs.runCommand "marlin-qemu-linux-${kernelVersion}.config" {
+      pkgs.runCommand "marlin-${checkedTarget}-linux-${kernelVersion}.config" {
         src = linuxSrc;
         nativeBuildInputs = [
           pkgs.buildPackages.stdenv.cc
@@ -161,38 +191,63 @@ in
       '';
 
     mkKernel = {
+      target ? defaultTarget,
       fragments ? defaultFragments,
-      configfile ? mkConfig {inherit fragments;},
-    }:
+      configfile ? mkConfig {inherit target fragments;},
+    }: let
+      checkedTarget = validateTarget target;
+    in
       pkgs.linuxKernel.manualConfig {
-        pname = "marlin-qemu-linux";
+        pname = "marlin-${checkedTarget}-linux";
         version = kernelVersion;
         modDirVersion = kernelVersion;
         src = linuxSrc;
         inherit configfile;
         allowImportFromDerivation = true;
         extraMeta = {
-          description = "Minimal x86_64 QEMU Linux kernel for Marlin green images";
+          description = "Minimal x86_64 ${checkedTarget} Linux kernel for Marlin green images";
         };
       };
 
-    config = mkConfig {fragments = defaultFragments;};
-
-    kernel = mkKernel {
+    ec2Config = mkConfig {
+      target = "ec2";
       fragments = defaultFragments;
-      configfile = config;
     };
+    qemuConfig = mkConfig {
+      target = "qemu";
+      fragments = defaultFragments;
+    };
+
+    ec2 = mkKernel {
+      target = "ec2";
+      fragments = defaultFragments;
+      configfile = ec2Config;
+    };
+    qemu = mkKernel {
+      target = "qemu";
+      fragments = defaultFragments;
+      configfile = qemuConfig;
+    };
+
+    config = ec2Config;
+    kernel = ec2;
   in {
-    default = kernel;
+    default = ec2;
     inherit
       config
       defaultFragments
+      defaultTarget
+      ec2
+      ec2Config
       kernel
       kernelConfigFragments
       kernelVersion
       knownFragments
+      knownTargets
       linuxSrc
       mkConfig
       mkKernel
+      qemu
+      qemuConfig
       ;
   }

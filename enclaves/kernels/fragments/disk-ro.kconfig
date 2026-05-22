@@ -1,13 +1,11 @@
 # Read-only disk block devices.
-# required: CONFIG_BLK_DEV_LOOP CONFIG_VIRTIO_BLK
+# required: CONFIG_BLK_DEV_LOOP
 # Mount the NixOS /etc metadata EROFS image through the initrd loop path.
 CONFIG_BLK_DEV_LOOP=y
 # Enable the kernel block layer used by disk and device-mapper storage.
 CONFIG_BLOCK=y
 # Enable generic block-device support for loop and virtual disk drivers.
 CONFIG_BLK_DEV=y
-# Drive the virtio block disk that carries the read-only image partitions.
-CONFIG_VIRTIO_BLK=y
 
 # EROFS and dm-verity storage.
 # required: CONFIG_DM_VERITY CONFIG_EROFS_FS CONFIG_OVERLAY_FS CONFIG_CRYPTO_HMAC

@@ -1,0 +1,4 @@
+# EC2 Nitro read-only disk transport.
+# required: CONFIG_BLK_DEV_NVME
+# Drive the NVMe block device used by Nitro-backed EC2 root volumes.
+CONFIG_BLK_DEV_NVME=y

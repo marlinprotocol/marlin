@@ -95,12 +95,21 @@ in {
   imports = [
     # allow image fragments to declare kernel feature requirements
     ({lib, ...}: {
-      options.marlin.kernel.fragments = lib.mkOption {
-        type = with lib.types; listOf (enum ["base" "disk-ro" "network"]);
-        default = [];
-        description = ''
-          Kernel feature fragments required by this image configuration.
-        '';
+      options.marlin.kernel = {
+        fragments = lib.mkOption {
+          type = with lib.types; listOf (enum ["base" "disk-ro" "network"]);
+          default = [];
+          description = ''
+            Kernel feature fragments required by this image configuration.
+          '';
+        };
+        target = lib.mkOption {
+          type = lib.types.enum ["qemu" "ec2"];
+          default = "ec2";
+          description = ''
+            Kernel target used to select target-specific Kconfig fragments.
+          '';
+        };
       };
     })
     # use the minimal profile as the starting point

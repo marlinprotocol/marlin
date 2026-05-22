@@ -1,8 +1,7 @@
 # Network devices and IPv4.
-# required: CONFIG_VIRTIO_NET
 # Enable core network-device infrastructure for the image NIC.
 CONFIG_NET_CORE=y
-# Enable the network driver menu needed for virtio-net.
+# Enable the network driver menu needed for target NIC drivers.
 CONFIG_NETDEVICES=y
 # Enable Ethernet-class drivers so virtio-net can be selected.
 CONFIG_ETHERNET=y
@@ -10,5 +9,3 @@ CONFIG_ETHERNET=y
 CONFIG_PACKET=y
 # Enable IPv4 for metadata fetches and DNS-over-TLS connectivity.
 CONFIG_INET=y
-# Drive the virtio network interface used by networked enclave images.
-CONFIG_VIRTIO_NET=y
