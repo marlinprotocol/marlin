@@ -51,9 +51,10 @@ CONFIG_PRINTK=y
 # Include timestamps in kernel logs to make boot and failure timing visible.
 CONFIG_PRINTK_TIME=y
 
-# Modular kernel output.
-# TODO: Test the NixOS boot path without module loading.
-CONFIG_MODULES=y
+# Loadable kernel modules.
+# Green images build every required driver into the kernel and do not carry a
+# modules tree in the runtime image.
+# CONFIG_MODULES is not set
 
 # Executable formats.
 # required: CONFIG_BINFMT_ELF
@@ -76,7 +77,8 @@ CONFIG_EFIVAR_FS=y
 CONFIG_EFI_PARTITION=y
 
 # NixOS initrd and early device nodes.
-# required: CONFIG_BLK_DEV_INITRD CONFIG_DEVTMPFS
+# required: CONFIG_BLK_DEV_INITRD CONFIG_RD_ZSTD
+# required: CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT
 # Load the NixOS initrd that mounts the verified runtime store.
 CONFIG_BLK_DEV_INITRD=y
 # Unpack the zstd-compressed initrd produced by the NixOS image config.
@@ -209,7 +211,8 @@ CONFIG_NET=y
 CONFIG_UNIX=y
 
 # TPM2 device interfaces.
-# required: CONFIG_TCG_CRB CONFIG_TCG_TIS
+# required: CONFIG_SECURITYFS CONFIG_HW_RANDOM CONFIG_HW_RANDOM_TPM
+# required: CONFIG_TCG_TPM CONFIG_TCG_CRB CONFIG_TCG_TIS_CORE CONFIG_TCG_TIS
 # Expose securityfs interfaces used by TPM and security subsystems.
 CONFIG_SECURITYFS=y
 # Provide the hardware RNG framework used by TPM-backed randomness.

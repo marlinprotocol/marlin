@@ -48,6 +48,7 @@ in
         (builtins.attrNames supportedKernelArchitectures));
     requiredOptionPrefix = "# required: ";
     forbiddenConfigOptions = [
+      "CONFIG_MODULES"
       "CONFIG_CRYPTO_USER_API"
       "CONFIG_CRYPTO_USER_API_HASH"
       "CONFIG_CRYPTO_USER_API_SKCIPHER"
@@ -186,6 +187,13 @@ in
           fi
         done
       '';
+      checkNoLoadableModules = ''
+        if grep -Eq "^CONFIG_.*=m$" "$KCONFIG_CONFIG"; then
+          echo "Loadable kernel modules must stay disabled" >&2
+          grep -E "^CONFIG_.*=m$" "$KCONFIG_CONFIG" >&2
+          exit 1
+        fi
+      '';
     in
       pkgs.runCommand "marlin-${checkedTarget}-linux-${kernelVersion}.config" {
         src = linuxSrc;
@@ -207,6 +215,7 @@ in
 
         ${checkRequiredConfigOptions}
         ${checkForbiddenConfigOptions}
+        ${checkNoLoadableModules}
 
         cp "$KCONFIG_CONFIG" "$out"
       '';

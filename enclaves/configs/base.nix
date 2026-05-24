@@ -1,6 +1,7 @@
 # base config
 # build as minimal an image as possible
 {
+  config,
   lib,
   modulesPath,
   ...
@@ -39,9 +40,8 @@
     withTpm2Tss = true;
     # Required by TPM-related systemd code.
     withOpenSSL = true;
-    # Keep module-loading support for udev/modules-load until the boot path is
-    # proven not to need it.
-    withKmod = true;
+    # Green images have loadable kernel modules disabled.
+    withKmod = false;
     # NixOS account setup uses systemd-sysusers integration.
     withSysusers = true;
     # Keep seccomp hardening for systemd services.
@@ -57,6 +57,20 @@
   # The kernels used for these images build the required boot drivers in, so do
   # not ask the initrd builder to resolve NixOS' broad default module list.
   boot.initrd.includeDefaultModules = false;
+  boot.kernelModules = lib.mkForce [];
+  boot.initrd.availableKernelModules = lib.mkForce [];
+  boot.initrd.kernelModules = lib.mkForce [];
+  boot.modprobeConfig.enable = lib.mkForce false;
+  boot.hardwareScan = lib.mkForce false;
+  environment.etc."modules-load.d/nixos.conf".enable = lib.mkForce false;
+  boot.initrd.systemd.suppressedUnits = [
+    "systemd-modules-load.service"
+    "kmod-static-nodes.service"
+    "modprobe@.service"
+  ];
+  boot.initrd.systemd.suppressedStorePaths = [
+    "${config.boot.initrd.systemd.package}/lib/systemd/systemd-modules-load"
+  ];
   # Keep the initrd compressor aligned with the kernel decompressor enabled in
   # the base kernel fragment.
   boot.initrd.compressor = "zstd";
@@ -70,6 +84,9 @@
     # NixOS' base upstream-unit list includes this even when systemd-nspawn is
     # not built.
     "systemd-nspawn@.service"
+    "systemd-modules-load.service"
+    "kmod-static-nodes.service"
+    "modprobe@.service"
   ];
 
   # Disable storage features that are useful on general NixOS systems but not

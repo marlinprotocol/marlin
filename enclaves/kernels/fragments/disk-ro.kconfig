@@ -1,5 +1,5 @@
 # Read-only disk block devices.
-# required: CONFIG_BLK_DEV_LOOP
+# required: CONFIG_BLK_DEV_LOOP CONFIG_BLOCK CONFIG_BLK_DEV
 # Mount the NixOS /etc metadata EROFS image through the initrd loop path.
 CONFIG_BLK_DEV_LOOP=y
 # Enable the kernel block layer used by disk and device-mapper storage.
@@ -8,7 +8,9 @@ CONFIG_BLOCK=y
 CONFIG_BLK_DEV=y
 
 # EROFS and dm-verity storage.
-# required: CONFIG_DM_VERITY CONFIG_EROFS_FS CONFIG_OVERLAY_FS CONFIG_CRYPTO_HMAC
+# required: CONFIG_OVERLAY_FS CONFIG_MISC_FILESYSTEMS CONFIG_EROFS_FS CONFIG_EROFS_FS_XATTR
+# required: CONFIG_MD CONFIG_BLK_DEV_DM_BUILTIN CONFIG_BLK_DEV_DM CONFIG_DM_VERITY
+# required: CONFIG_CRYPTO CONFIG_CRYPTO_HMAC CONFIG_CRYPTO_SHA256
 # Mount the NixOS initrd /etc overlay above the read-only metadata image.
 CONFIG_OVERLAY_FS=y
 # Enable the filesystem menu that contains EROFS.

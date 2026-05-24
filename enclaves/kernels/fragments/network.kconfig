@@ -1,4 +1,6 @@
 # Network devices and IPv4.
+# required: CONFIG_NET_CORE CONFIG_NETDEVICES CONFIG_ETHERNET
+# required: CONFIG_PACKET CONFIG_INET
 # Enable core network-device infrastructure for the image NIC.
 CONFIG_NET_CORE=y
 # Enable the network driver menu needed for target NIC drivers.

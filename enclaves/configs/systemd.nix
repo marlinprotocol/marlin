@@ -82,8 +82,11 @@ in {
     # NOTE: perlless.nix also sets initrd to be systemd based
     # ensure the setup is according to that
     systemd.package = runtimeSystemd;
-    # The initrd mounts the dm-verity protected store and therefore needs the full
-    # systemd build even when the stage-2 runtime uses the reduced build above.
-    boot.initrd.systemd.package = pkgs.systemd;
+    # The initrd mounts the dm-verity protected store and therefore keeps the
+    # regular systemd feature set, minus kmod because these kernels cannot load
+    # modules.
+    boot.initrd.systemd.package = pkgs.systemd.override {
+      withKmod = false;
+    };
   };
 }

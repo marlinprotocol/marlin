@@ -63,7 +63,6 @@
       "etc-basedir"
       "etc-metadata-image"
       "firmware"
-      "kernel-modules"
       "sw"
       "systemd"
     ];
