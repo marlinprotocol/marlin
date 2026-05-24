@@ -65,6 +65,21 @@
     withVmspawn = false;
   };
   runtimeSystemd = pkgs.systemd.override config.marlin.systemd.packageOptions;
+  initrdSystemd =
+    (pkgs.systemd.override {
+      withKmod = false;
+    })
+    .overrideAttrs (oldAttrs: {
+      postInstall =
+        (oldAttrs.postInstall or "")
+        + ''
+          # NixOS' initrd udev module hard-codes this standard rule into the
+          # initial rule set. Keep the path valid without enabling udev/kmod
+          # module autoloading in green images.
+          mkdir -p "$out/lib/udev/rules.d"
+          : > "$out/lib/udev/rules.d/80-drivers.rules"
+        '';
+    });
 in {
   options.marlin.systemd.packageOptions = lib.mkOption {
     type = with lib.types; attrsOf bool;
@@ -85,8 +100,6 @@ in {
     # The initrd mounts the dm-verity protected store and therefore keeps the
     # regular systemd feature set, minus kmod because these kernels cannot load
     # modules.
-    boot.initrd.systemd.package = pkgs.systemd.override {
-      withKmod = false;
-    };
+    boot.initrd.systemd.package = initrdSystemd;
   };
 }

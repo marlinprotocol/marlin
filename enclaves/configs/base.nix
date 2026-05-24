@@ -4,6 +4,7 @@
   config,
   lib,
   modulesPath,
+  pkgs,
   ...
 }: {
   disabledModules = [
@@ -61,7 +62,11 @@
   boot.initrd.availableKernelModules = lib.mkForce [];
   boot.initrd.kernelModules = lib.mkForce [];
   boot.modprobeConfig.enable = lib.mkForce false;
-  boot.hardwareScan = lib.mkForce false;
+  # Do not set boot.hardwareScan=false here. On this nixpkgs revision, the
+  # systemd initrd udev builder copies 80-drivers.rules and then tries to add a
+  # /dev/null replacement for it, which fails if the rule path exists. Module
+  # autoloading is disabled instead by building systemd without kmod and by
+  # providing an empty initrd 80-drivers.rules placeholder.
   environment.etc."modules-load.d/nixos.conf".enable = lib.mkForce false;
   boot.initrd.systemd.suppressedUnits = [
     "systemd-modules-load.service"
@@ -71,6 +76,16 @@
   boot.initrd.systemd.suppressedStorePaths = [
     "${config.boot.initrd.systemd.package}/lib/systemd/systemd-modules-load"
   ];
+  boot.initrd.systemd.contents = {
+    "/lib".source = lib.mkForce (pkgs.runCommand "empty-initrd-lib" {} ''
+      mkdir -p "$out"
+    '');
+    "/etc/modules-load.d/nixos.conf".enable = lib.mkForce false;
+    "/etc/sysctl.d/nixos.conf".enable = lib.mkForce false;
+    "/etc/modprobe.d/systemd.conf".enable = lib.mkForce false;
+    "/etc/modprobe.d/ubuntu.conf".enable = lib.mkForce false;
+    "/etc/modprobe.d/debian.conf".enable = lib.mkForce false;
+  };
   # Keep the initrd compressor aligned with the kernel decompressor enabled in
   # the base kernel fragment.
   boot.initrd.compressor = "zstd";
