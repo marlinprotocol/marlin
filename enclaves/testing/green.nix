@@ -24,7 +24,7 @@
       marlin.kernel.target = target;
 
       boot.kernelPackages = pkgs.linuxPackagesFor (kernels.mkKernel {
-        inherit target;
+        target = config.marlin.kernel.target;
         fragments = config.marlin.kernel.fragments;
       });
 
