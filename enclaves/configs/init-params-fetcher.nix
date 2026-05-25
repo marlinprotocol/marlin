@@ -8,6 +8,12 @@ in {
     withNetworkd = true;
   };
 
+  # Opt back into runtime networkd for metadata access. DNS is not needed for
+  # the link-local metadata endpoint used below.
+  networking.useNetworkd = true;
+  networking.useDHCP = true;
+  systemd.network.enable = true;
+
   # systemd service
   systemd.services.${service-name} = {
     description = "Retrieve init params";

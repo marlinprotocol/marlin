@@ -28,6 +28,9 @@
     marlin.systemd.packageOptions = {
       withNetworkd = true;
     };
+    networking.useNetworkd = true;
+    networking.useDHCP = true;
+    systemd.network.enable = true;
 
     # disable firewall while testing
     networking.firewall.enable = false;

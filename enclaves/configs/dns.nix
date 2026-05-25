@@ -9,6 +9,11 @@
     withNss = true;
   };
 
+  # Opt back into the runtime network stack disabled by the shared base config.
+  networking.useNetworkd = true;
+  networking.useDHCP = true;
+  systemd.network.enable = true;
+
   # set up systemd-resolved
   services.resolved = {
     # enable systemd-resolved

@@ -97,6 +97,16 @@
     "systemd-nspawn@.service"
   ];
 
+  # Base images are offline by default. Profiles imported above prefer
+  # networkd to avoid the script/dhcpcd networking stack; override that default
+  # here, and let networked image fragments opt back in explicitly.
+  networking.useNetworkd = lib.mkOverride 900 false;
+  networking.useDHCP = lib.mkOverride 900 false;
+  networking.dhcpcd.enable = lib.mkOverride 900 false;
+  networking.resolvconf.enable = lib.mkOverride 900 false;
+  systemd.network.enable = lib.mkOverride 900 false;
+  services.resolved.enable = lib.mkOverride 900 false;
+
   # Disable storage features that are useful on general NixOS systems but not
   # needed for these sealed dm-verity images.
   services.lvm.enable = false;
