@@ -41,8 +41,6 @@
     withTpm2Tss = true;
     # Required by TPM-related systemd code.
     withOpenSSL = true;
-    # Green images have loadable kernel modules disabled.
-    withKmod = false;
     # NixOS account setup uses systemd-sysusers integration.
     withSysusers = true;
     # Keep seccomp hardening for systemd services.
@@ -58,16 +56,16 @@
   # The kernels used for these images build the required boot drivers in, so do
   # not ask the initrd builder to resolve NixOS' broad default module list.
   boot.initrd.includeDefaultModules = false;
-  boot.kernelModules = lib.mkForce [];
-  boot.initrd.availableKernelModules = lib.mkForce [];
-  boot.initrd.kernelModules = lib.mkForce [];
-  boot.modprobeConfig.enable = lib.mkForce false;
+  boot.kernelModules = [];
+  boot.initrd.availableKernelModules = [];
+  boot.initrd.kernelModules = [];
+  boot.modprobeConfig.enable = false;
   # Do not set boot.hardwareScan=false here. On this nixpkgs revision, the
   # systemd initrd udev builder copies 80-drivers.rules and then tries to add a
   # /dev/null replacement for it, which fails if the rule path exists. Module
   # autoloading is disabled instead by building systemd without kmod and by
   # providing an empty initrd 80-drivers.rules placeholder.
-  environment.etc."modules-load.d/nixos.conf".enable = lib.mkForce false;
+  environment.etc."modules-load.d/nixos.conf".enable = false;
   boot.initrd.systemd.suppressedUnits = [
     "systemd-modules-load.service"
     "kmod-static-nodes.service"
@@ -80,11 +78,11 @@
     "/lib".source = lib.mkForce (pkgs.runCommand "empty-initrd-lib" {} ''
       mkdir -p "$out"
     '');
-    "/etc/modules-load.d/nixos.conf".enable = lib.mkForce false;
-    "/etc/sysctl.d/nixos.conf".enable = lib.mkForce false;
-    "/etc/modprobe.d/systemd.conf".enable = lib.mkForce false;
-    "/etc/modprobe.d/ubuntu.conf".enable = lib.mkForce false;
-    "/etc/modprobe.d/debian.conf".enable = lib.mkForce false;
+    "/etc/modules-load.d/nixos.conf".enable = false;
+    "/etc/sysctl.d/nixos.conf".enable = false;
+    "/etc/modprobe.d/systemd.conf".enable = false;
+    "/etc/modprobe.d/ubuntu.conf".enable = false;
+    "/etc/modprobe.d/debian.conf".enable = false;
   };
   # Keep the initrd compressor aligned with the kernel decompressor enabled in
   # the base kernel fragment.
