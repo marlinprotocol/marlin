@@ -52,6 +52,22 @@
     # Keep compression support for journal/runtime compatibility.
     withCompression = true;
   };
+  marlin.systemd.initrdPackageOptions = {
+    # Keep the initrd manager, not just libsystemd/libudev.
+    buildLibsOnly = false;
+
+    # The initrd mounts the dm-verity protected store via systemd-veritysetup.
+    withCryptsetup = true;
+    # Keep EFI support so systemd's initrd generators remain available while
+    # systemd-boot stays disabled by the shared minimal defaults.
+    withEfi = true;
+    # NixOS' initrd udev path generation expects udev/hwdb support.
+    withHwdb = true;
+    # Keep seccomp hardening for initrd systemd services.
+    withLibseccomp = true;
+    # Match the zstd initrd compressor used by the base kernel fragment.
+    withCompression = true;
+  };
 
   # The kernels used for these images build the required boot drivers in, so do
   # not ask the initrd builder to resolve NixOS' broad default module list.
@@ -70,9 +86,14 @@
     "systemd-modules-load.service"
     "kmod-static-nodes.service"
     "modprobe@.service"
+    # NixOS includes this unconditionally in the systemd initrd unit set. The
+    # enclave initrd does not need a boot-status screen, and suppressing it lets
+    # the initrd systemd package stay qrencode-free.
+    "systemd-bsod.service"
   ];
   boot.initrd.systemd.suppressedStorePaths = [
     "${config.boot.initrd.systemd.package}/lib/systemd/systemd-modules-load"
+    "${config.boot.initrd.systemd.package}/lib/systemd/systemd-bsod"
   ];
   boot.initrd.systemd.contents = {
     "/lib".source = lib.mkForce (pkgs.runCommand "empty-initrd-lib" {} ''
