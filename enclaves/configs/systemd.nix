@@ -71,13 +71,8 @@
     .overrideAttrs (oldAttrs: {
     postInstall =
       (oldAttrs.postInstall or "")
-      + ''
-        # NixOS' initrd udev module hard-codes this standard rule into the
-        # initial rule set. Keep the path valid without enabling udev/kmod
-        # module autoloading in green images.
-        mkdir -p "$out/lib/udev/rules.d"
-        : > "$out/lib/udev/rules.d/80-drivers.rules"
-      '';
+      + "\n"
+      + config.marlin.systemd.initrdPackagePostInstall;
   });
 in {
   options.marlin.systemd.packageOptions = lib.mkOption {
@@ -98,6 +93,16 @@ in {
     '';
   };
 
+  options.marlin.systemd.initrdPackagePostInstall = lib.mkOption {
+    type = lib.types.lines;
+    default = "";
+    description = ''
+      Shell commands appended to the stage-1 initrd systemd package postInstall.
+      Config fragments can use this for package-local compatibility patches
+      without replacing the shared package override.
+    '';
+  };
+
   config = {
     marlin.systemd.packageOptions =
       lib.mapAttrs (_: lib.mkDefault) runtimeSystemdMinimalOptions;
@@ -108,8 +113,7 @@ in {
     # ensure the setup is according to that
     systemd.package = runtimeSystemd;
     # The initrd mounts the dm-verity protected store and keeps only the
-    # systemd features required for that stage. Keep the patched standard udev
-    # rule path valid without enabling module autoloading.
+    # systemd features required for that stage.
     boot.initrd.systemd.package = initrdSystemd;
   };
 }

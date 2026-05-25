@@ -4,7 +4,6 @@
   config,
   lib,
   modulesPath,
-  pkgs,
   ...
 }: {
   disabledModules = [
@@ -20,6 +19,8 @@
     (./. + "/systemd.nix")
     # kernel config
     (./. + "/kernel.nix")
+    # no kernel modules config
+    (./. + "/no-kernel-modules.nix")
     # use the minimal profile as the starting point
     "${modulesPath}/profiles/minimal.nix"
     # it will not really be interactive
@@ -69,41 +70,17 @@
     withCompression = true;
   };
 
-  # The kernels used for these images build the required boot drivers in, so do
-  # not ask the initrd builder to resolve NixOS' broad default module list.
-  boot.initrd.includeDefaultModules = false;
-  boot.kernelModules = [];
-  boot.initrd.availableKernelModules = [];
-  boot.initrd.kernelModules = [];
-  boot.modprobeConfig.enable = false;
-  # Do not set boot.hardwareScan=false here. On this nixpkgs revision, the
-  # systemd initrd udev builder copies 80-drivers.rules and then tries to add a
-  # /dev/null replacement for it, which fails if the rule path exists. Module
-  # autoloading is disabled instead by building systemd without kmod and by
-  # providing an empty initrd 80-drivers.rules placeholder.
-  environment.etc."modules-load.d/nixos.conf".enable = false;
+  # NixOS includes this unconditionally in the systemd initrd unit set. The
+  # enclave initrd does not need a boot-status screen, and suppressing it lets
+  # the initrd systemd package stay qrencode-free.
   boot.initrd.systemd.suppressedUnits = [
-    "systemd-modules-load.service"
-    "kmod-static-nodes.service"
-    "modprobe@.service"
-    # NixOS includes this unconditionally in the systemd initrd unit set. The
-    # enclave initrd does not need a boot-status screen, and suppressing it lets
-    # the initrd systemd package stay qrencode-free.
     "systemd-bsod.service"
   ];
   boot.initrd.systemd.suppressedStorePaths = [
-    "${config.boot.initrd.systemd.package}/lib/systemd/systemd-modules-load"
     "${config.boot.initrd.systemd.package}/lib/systemd/systemd-bsod"
   ];
   boot.initrd.systemd.contents = {
-    "/lib".source = lib.mkForce (pkgs.runCommand "empty-initrd-lib" {} ''
-      mkdir -p "$out"
-    '');
-    "/etc/modules-load.d/nixos.conf".enable = false;
     "/etc/sysctl.d/nixos.conf".enable = false;
-    "/etc/modprobe.d/systemd.conf".enable = false;
-    "/etc/modprobe.d/ubuntu.conf".enable = false;
-    "/etc/modprobe.d/debian.conf".enable = false;
   };
   # Keep the initrd compressor aligned with the kernel decompressor enabled in
   # the base kernel fragment.
@@ -118,9 +95,6 @@
     # NixOS' base upstream-unit list includes this even when systemd-nspawn is
     # not built.
     "systemd-nspawn@.service"
-    "systemd-modules-load.service"
-    "kmod-static-nodes.service"
-    "modprobe@.service"
   ];
 
   # Disable storage features that are useful on general NixOS systems but not
