@@ -4,14 +4,12 @@
   options.marlin.kernel = {
     fragments = lib.mkOption {
       type = with lib.types; listOf str;
-      default = [];
       description = ''
         Kernel feature fragments required by this image configuration.
       '';
     };
     target = lib.mkOption {
       type = lib.types.str;
-      default = "ec2";
       description = ''
         Kernel target used to select target-specific Kconfig fragments.
       '';

@@ -35,8 +35,6 @@ in
       hash = "sha256-CUl362LCDj0ZOf6BqSlYofmH8zlEblMvqGljsoBOMtw=";
     };
 
-    defaultFragments = ["base" "disk-ro" "network"];
-    defaultTarget = "ec2";
     knownTargets = ["qemu" "ec2"];
     fragmentDir = ./fragments;
     fragmentEntries = builtins.readDir fragmentDir;
@@ -121,9 +119,6 @@ in
       ++ lib.optional (builtins.pathExists (fragmentPath targetFragment)) targetFragment
       ++ lib.optional (builtins.pathExists (fragmentPath archTargetFragment)) archTargetFragment;
 
-    kernelConfigFragments =
-      lib.genAttrs knownFragments (fragment: readKernelConfigFragment "${fragment}.kconfig");
-
     selectKernelConfigFragments = {
       target,
       fragments,
@@ -154,8 +149,8 @@ in
       lib.unique (builtins.concatLists (map (fragment: fragment.requiredOptions) fragments));
 
     mkConfig = {
-      target ? defaultTarget,
-      fragments ? defaultFragments,
+      target,
+      fragments,
     }: let
       checkedTarget = validateTarget target;
       selectedFragments = selectKernelConfigFragments {
@@ -221,8 +216,8 @@ in
       '';
 
     mkKernel = {
-      target ? defaultTarget,
-      fragments ? defaultFragments,
+      target,
+      fragments,
       configfile ? mkConfig {inherit target fragments;},
     }: let
       checkedTarget = validateTarget target;
@@ -238,46 +233,11 @@ in
           description = "Minimal ${kernelDescriptionArch} ${checkedTarget} Linux kernel for Marlin green images";
         };
       };
-
-    ec2Config = mkConfig {
-      target = "ec2";
-      fragments = defaultFragments;
-    };
-    qemuConfig = mkConfig {
-      target = "qemu";
-      fragments = defaultFragments;
-    };
-
-    ec2 = mkKernel {
-      target = "ec2";
-      fragments = defaultFragments;
-      configfile = ec2Config;
-    };
-    qemu = mkKernel {
-      target = "qemu";
-      fragments = defaultFragments;
-      configfile = qemuConfig;
-    };
-
-    config = ec2Config;
-    kernel = ec2;
   in {
-    default = ec2;
     inherit
-      config
-      defaultFragments
-      defaultTarget
-      ec2
-      ec2Config
-      kernel
-      kernelConfigFragments
-      kernelVersion
       knownFragments
       knownTargets
-      linuxSrc
       mkConfig
       mkKernel
-      qemu
-      qemuConfig
       ;
   }
