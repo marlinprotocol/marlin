@@ -1,6 +1,8 @@
 # Processor features.
 # Allow the kernel to schedule work across multiple CPUs.
 CONFIG_SMP=y
+# Use the scheduler-controlled preemption model selected by Linux 7.x.
+CONFIG_PREEMPT_LAZY=y
 
 # Kernel address layout.
 # required: CONFIG_RANDOMIZE_BASE
@@ -107,12 +109,8 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 CONFIG_PCI=y
 # Support MSI/MSI-X interrupts used by modern PCI devices.
 CONFIG_PCI_MSI=y
-# Provide IRQ-domain plumbing for PCI MSI interrupt allocation.
-CONFIG_PCI_MSI_IRQ_DOMAIN=y
 # Provide generic MSI interrupt support used by PCI MSI.
 CONFIG_GENERIC_MSI_IRQ=y
-# Provide IRQ-domain support for generic MSI interrupt routing.
-CONFIG_GENERIC_MSI_IRQ_DOMAIN=y
 
 # Runtime filesystems.
 # required: CONFIG_DMI CONFIG_DMIID CONFIG_SECCOMP CONFIG_TMPFS

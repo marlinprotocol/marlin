@@ -34,14 +34,9 @@ CONFIG_UNMAP_KERNEL_AT_EL0=y
 CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY=y
 
 # arm64 hardening.
-# required: CONFIG_ARM64_HW_AFDBM CONFIG_ARM64_PAN CONFIG_ARM64_USE_LSE_ATOMICS
-# required: CONFIG_ARM64_PTR_AUTH CONFIG_ARM64_PTR_AUTH_KERNEL CONFIG_ARM64_BTI
+# required: CONFIG_ARM64_HW_AFDBM CONFIG_ARM64_PTR_AUTH CONFIG_ARM64_PTR_AUTH_KERNEL CONFIG_ARM64_BTI
 # Use hardware access/dirty page flag support when available.
 CONFIG_ARM64_HW_AFDBM=y
-# Enable Privileged Access Never support.
-CONFIG_ARM64_PAN=y
-# Use Large System Extension atomics when available.
-CONFIG_ARM64_USE_LSE_ATOMICS=y
 # Enable userspace pointer authentication support.
 CONFIG_ARM64_PTR_AUTH=y
 # Compile the kernel with pointer authentication support.

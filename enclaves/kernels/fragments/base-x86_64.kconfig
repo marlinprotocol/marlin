@@ -23,6 +23,8 @@ CONFIG_PARAVIRT=y
 CONFIG_NR_CPUS=256
 # Allow the x86 kernel to load at non-fixed addresses for ASLR and firmware placement.
 CONFIG_RELOCATABLE=y
+# Keep TSX disabled by default to preserve the pre-v7 hardening posture.
+CONFIG_X86_INTEL_TSX_MODE_OFF=y
 
 # x86_64 mitigations.
 # required: CONFIG_CPU_MITIGATIONS CONFIG_MITIGATION_PAGE_TABLE_ISOLATION CONFIG_MITIGATION_RETPOLINE

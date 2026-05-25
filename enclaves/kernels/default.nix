@@ -20,7 +20,7 @@ in
   then {}
   else let
     pkgs = nixpkgs.legacyPackages."${system}";
-    kernelVersion = "6.18.28";
+    kernelVersion = "7.0.10";
     lib = pkgs.lib;
     kernelArchitecture = supportedKernelArchitectures.${system};
     inherit
@@ -31,8 +31,8 @@ in
       ;
 
     linuxSrc = pkgs.fetchurl {
-      url = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${kernelVersion}.tar.xz";
-      hash = "sha256-82B4lINYbPiiC0qyv/526ta2LA2x7rDZFylEVsTXe3Q=";
+      url = "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${kernelVersion}.tar.xz";
+      hash = "sha256-CUl362LCDj0ZOf6BqSlYofmH8zlEblMvqGljsoBOMtw=";
     };
 
     defaultFragments = ["base" "disk-ro" "network"];
