@@ -1,0 +1,91 @@
+# Architecture.
+# Build the x86 kernel configuration tree for the x86_64 target.
+CONFIG_X86=y
+# Enable a 64-bit kernel for the x86_64 NixOS image.
+CONFIG_64BIT=y
+# Select the x86_64 architecture variant expected by the image userland.
+CONFIG_X86_64=y
+# Expose raw CPUID leaves for low-level CPU feature diagnostics.
+CONFIG_X86_CPUID=y
+# Expose model-specific registers for privileged CPU diagnostics.
+CONFIG_X86_MSR=y
+# Support modern x86 interrupt delivery for virtualized multi-vCPU systems.
+CONFIG_X86_X2APIC=y
+# Print detailed x86 boot messages while this minimal kernel is still being tuned.
+CONFIG_X86_VERBOSE_BOOTUP=y
+# Enable generic x86 guest support for virtualized targets.
+CONFIG_HYPERVISOR_GUEST=y
+# Enable KVM-compatible guest paths used by local virtualized targets.
+CONFIG_KVM_GUEST=y
+# Use x86 paravirtualized operations when a hypervisor exposes them.
+CONFIG_PARAVIRT=y
+# Cap supported vCPUs at a clean upper bound without allocating them upfront.
+CONFIG_NR_CPUS=256
+# Allow the x86 kernel to load at non-fixed addresses for ASLR and firmware placement.
+CONFIG_RELOCATABLE=y
+# Keep TSX disabled by default to preserve the pre-v7 hardening posture.
+CONFIG_X86_INTEL_TSX_MODE_OFF=y
+
+# x86_64 mitigations.
+# required: CONFIG_CPU_MITIGATIONS CONFIG_MITIGATION_PAGE_TABLE_ISOLATION CONFIG_MITIGATION_RETPOLINE
+# required: CONFIG_MITIGATION_RETHUNK CONFIG_MITIGATION_UNRET_ENTRY CONFIG_MITIGATION_CALL_DEPTH_TRACKING
+# required: CONFIG_MITIGATION_IBPB_ENTRY CONFIG_MITIGATION_IBRS_ENTRY CONFIG_MITIGATION_SRSO
+# required: CONFIG_MITIGATION_RFDS CONFIG_MITIGATION_SPECTRE_BHI CONFIG_MITIGATION_MDS
+# required: CONFIG_MITIGATION_TAA CONFIG_MITIGATION_MMIO_STALE_DATA CONFIG_MITIGATION_L1TF
+# required: CONFIG_MITIGATION_RETBLEED CONFIG_MITIGATION_SPECTRE_V1 CONFIG_MITIGATION_SPECTRE_V2
+# required: CONFIG_MITIGATION_SRBDS CONFIG_MITIGATION_SSB CONFIG_MITIGATION_ITS CONFIG_MITIGATION_TSA
+# Enable the broad CPU vulnerability mitigation framework for guest hardening.
+CONFIG_CPU_MITIGATIONS=y
+# Isolate kernel page tables from userspace mappings.
+CONFIG_MITIGATION_PAGE_TABLE_ISOLATION=y
+# Avoid speculative indirect branches in the kernel.
+CONFIG_MITIGATION_RETPOLINE=y
+# Compile kernel returns through speculation-safe thunks.
+CONFIG_MITIGATION_RETHUNK=y
+# Include AMD UNRET entry support for retbleed mitigation.
+CONFIG_MITIGATION_UNRET_ENTRY=y
+# Include Intel call-depth tracking support for RSB-underflow mitigation.
+CONFIG_MITIGATION_CALL_DEPTH_TRACKING=y
+# Include AMD IBPB-on-entry support.
+CONFIG_MITIGATION_IBPB_ENTRY=y
+# Include Intel IBRS-on-entry support.
+CONFIG_MITIGATION_IBRS_ENTRY=y
+# Include AMD speculative RAS overflow mitigation support.
+CONFIG_MITIGATION_SRSO=y
+# Enable Intel Register File Data Sampling mitigation.
+CONFIG_MITIGATION_RFDS=y
+# Enable Intel branch history injection mitigation.
+CONFIG_MITIGATION_SPECTRE_BHI=y
+# Enable Intel Microarchitectural Data Sampling mitigation.
+CONFIG_MITIGATION_MDS=y
+# Enable Intel TSX Asynchronous Abort mitigation.
+CONFIG_MITIGATION_TAA=y
+# Enable Intel MMIO stale-data mitigation.
+CONFIG_MITIGATION_MMIO_STALE_DATA=y
+# Enable Intel L1 Terminal Fault mitigation.
+CONFIG_MITIGATION_L1TF=y
+# Enable RETBleed mitigation.
+CONFIG_MITIGATION_RETBLEED=y
+# Enable Spectre v1 mitigation.
+CONFIG_MITIGATION_SPECTRE_V1=y
+# Enable Spectre v2 mitigation.
+CONFIG_MITIGATION_SPECTRE_V2=y
+# Enable Intel Special Register Buffer Data Sampling mitigation.
+CONFIG_MITIGATION_SRBDS=y
+# Enable Speculative Store Bypass mitigation.
+CONFIG_MITIGATION_SSB=y
+# Enable Intel Indirect Target Selection mitigation.
+CONFIG_MITIGATION_ITS=y
+# Enable AMD Transient Scheduler Attack mitigation.
+CONFIG_MITIGATION_TSA=y
+
+# x86_64 hardening.
+# required: CONFIG_X86_KERNEL_IBT
+# Enable Intel indirect branch tracking for kernel control flow hardening.
+CONFIG_X86_KERNEL_IBT=y
+# Disable the fixed-address legacy vsyscall page to preserve ASLR hardening.
+CONFIG_LEGACY_VSYSCALL_NONE=y
+
+# x86 PCI transport.
+# Use memory-mapped PCI configuration space on x86_64 virtual platforms.
+CONFIG_PCI_MMCONFIG=y

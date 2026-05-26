@@ -1,0 +1,4 @@
+# QEMU network device.
+# required: CONFIG_VIRTIO_NET
+# Drive the virtio network interface used by networked QEMU images.
+CONFIG_VIRTIO_NET=y

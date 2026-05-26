@@ -1,0 +1,45 @@
+# Architecture.
+# required: CONFIG_ARM64
+# Build the arm64 kernel configuration tree for the aarch64 target.
+CONFIG_ARM64=y
+
+# Address space layout.
+# required: CONFIG_ARM64_4K_PAGES CONFIG_ARM64_VA_BITS_48 CONFIG_ARM64_PA_BITS_48
+# Use the standard 4 KiB page size expected by the image userland.
+CONFIG_ARM64_4K_PAGES=y
+# Keep virtual addresses at 48 bits so pointer authentication keeps full PAC width.
+CONFIG_ARM64_VA_BITS_48=y
+# Keep physical addressing at 48 bits for broad virtual platform compatibility.
+CONFIG_ARM64_PA_BITS_48=y
+
+# Virtual platform boot and interrupts.
+# required: CONFIG_ARM_PSCI_FW CONFIG_ARM_ARCH_TIMER CONFIG_ARM_GIC
+# required: CONFIG_ARM_GIC_V3 CONFIG_ARM_GIC_V3_ITS
+# Use PSCI firmware calls for CPU bring-up and platform power operations.
+CONFIG_ARM_PSCI_FW=y
+# Use the architectural timer provided by arm64 virtual platforms.
+CONFIG_ARM_ARCH_TIMER=y
+# Enable the ARM generic interrupt controller.
+CONFIG_ARM_GIC=y
+# Support GICv3 interrupt controllers.
+CONFIG_ARM_GIC_V3=y
+# Support GICv3 interrupt translation services for MSI-capable devices.
+CONFIG_ARM_GIC_V3_ITS=y
+
+# arm64 mitigations.
+# required: CONFIG_UNMAP_KERNEL_AT_EL0 CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY
+# Unmap kernel mappings while running userspace.
+CONFIG_UNMAP_KERNEL_AT_EL0=y
+# Mitigate Spectre-style branch history attacks on exception entry.
+CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY=y
+
+# arm64 hardening.
+# required: CONFIG_ARM64_HW_AFDBM CONFIG_ARM64_PTR_AUTH CONFIG_ARM64_PTR_AUTH_KERNEL CONFIG_ARM64_BTI
+# Use hardware access/dirty page flag support when available.
+CONFIG_ARM64_HW_AFDBM=y
+# Enable userspace pointer authentication support.
+CONFIG_ARM64_PTR_AUTH=y
+# Compile the kernel with pointer authentication support.
+CONFIG_ARM64_PTR_AUTH_KERNEL=y
+# Enable Branch Target Identification support.
+CONFIG_ARM64_BTI=y

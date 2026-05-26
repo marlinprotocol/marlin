@@ -24,6 +24,14 @@
     system.image.id = "marlin-custom-attestations";
     system.image.version = "v0.1.0";
 
+    marlin.kernel.fragments = ["network"];
+    marlin.systemd.packageOptions = {
+      withNetworkd = true;
+    };
+    networking.useNetworkd = true;
+    networking.useDHCP = true;
+    systemd.network.enable = true;
+
     # disable firewall while testing
     networking.firewall.enable = false;
   };

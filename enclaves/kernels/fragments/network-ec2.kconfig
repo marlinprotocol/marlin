@@ -1,0 +1,6 @@
+# EC2 Nitro network device.
+# required: CONFIG_NET_VENDOR_AMAZON CONFIG_ENA_ETHERNET
+# Enable the Amazon Ethernet driver menu.
+CONFIG_NET_VENDOR_AMAZON=y
+# Drive the Elastic Network Adapter exposed by Nitro-backed EC2 instances.
+CONFIG_ENA_ETHERNET=y

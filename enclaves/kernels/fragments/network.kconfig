@@ -1,0 +1,13 @@
+# Network devices and IPv4.
+# required: CONFIG_NET_CORE CONFIG_NETDEVICES CONFIG_ETHERNET
+# required: CONFIG_PACKET CONFIG_INET
+# Enable core network-device infrastructure for the image NIC.
+CONFIG_NET_CORE=y
+# Enable the network driver menu needed for target NIC drivers.
+CONFIG_NETDEVICES=y
+# Enable Ethernet-class drivers so virtio-net can be selected.
+CONFIG_ETHERNET=y
+# Provide AF_PACKET sockets used by network configuration and link-layer tools.
+CONFIG_PACKET=y
+# Enable IPv4 for metadata fetches and DNS-over-TLS connectivity.
+CONFIG_INET=y

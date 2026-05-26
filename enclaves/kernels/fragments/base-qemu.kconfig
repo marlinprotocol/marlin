@@ -1,0 +1,10 @@
+# QEMU virtio support.
+# required: CONFIG_VIRTIO_PCI
+# Enable the virtio driver menu so QEMU virtio drivers can be selected.
+CONFIG_VIRTIO_MENU=y
+# Provide the core virtio bus used by QEMU virtual devices.
+CONFIG_VIRTIO=y
+# Attach QEMU virtio devices exposed through the PCI transport.
+CONFIG_VIRTIO_PCI=y
+# Allow QEMU to reclaim unused guest memory within the fixed VM memory limit.
+CONFIG_VIRTIO_BALLOON=y

@@ -29,6 +29,9 @@
       enclaves.gauge = import ./enclaves/gauge {
         inherit nixpkgs systemConfig crane;
       };
+      enclaves.kernels = import ./enclaves/kernels {
+        inherit nixpkgs systemConfig;
+      };
       enclaves.testing.custom-attestations = import ./enclaves/testing/custom-attestations.nix {
         inherit nixpkgs systemConfig;
         nitrotpm-tools = external.nitrotpm-tools.default;
@@ -37,6 +40,7 @@
       };
       enclaves.testing.green = import ./enclaves/testing/green.nix {
         inherit nixpkgs systemConfig;
+        kernels = enclaves.kernels;
         nitrotpm-tools = external.nitrotpm-tools.default;
         gauge = enclaves.gauge.default;
         keygen-x25519 = initialization.keygen.x25519.service;

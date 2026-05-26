@@ -1,0 +1,35 @@
+# Read-only disk block devices.
+# required: CONFIG_BLK_DEV_LOOP CONFIG_BLOCK CONFIG_BLK_DEV
+# Mount the NixOS /etc metadata EROFS image through the initrd loop path.
+CONFIG_BLK_DEV_LOOP=y
+# Enable the kernel block layer used by disk and device-mapper storage.
+CONFIG_BLOCK=y
+# Enable generic block-device support for loop and virtual disk drivers.
+CONFIG_BLK_DEV=y
+
+# EROFS and dm-verity storage.
+# required: CONFIG_OVERLAY_FS CONFIG_MISC_FILESYSTEMS CONFIG_EROFS_FS CONFIG_EROFS_FS_XATTR
+# required: CONFIG_MD CONFIG_BLK_DEV_DM_BUILTIN CONFIG_BLK_DEV_DM CONFIG_DM_VERITY
+# required: CONFIG_CRYPTO CONFIG_CRYPTO_HMAC CONFIG_CRYPTO_SHA256
+# Mount the NixOS initrd /etc overlay above the read-only metadata image.
+CONFIG_OVERLAY_FS=y
+# Enable the filesystem menu that contains EROFS.
+CONFIG_MISC_FILESYSTEMS=y
+# Mount the read-only /usr image and NixOS /etc metadata image as EROFS.
+CONFIG_EROFS_FS=y
+# Preserve extended metadata stored in the EROFS images.
+CONFIG_EROFS_FS_XATTR=y
+# Enable the MD/device-mapper menu needed for dm-verity.
+CONFIG_MD=y
+# Build device-mapper into the kernel for early verified-storage setup.
+CONFIG_BLK_DEV_DM_BUILTIN=y
+# Provide the device-mapper core used for /dev/mapper/usr.
+CONFIG_BLK_DEV_DM=y
+# Verify the read-only /usr EROFS partition against its verity hash tree.
+CONFIG_DM_VERITY=y
+# Enable the kernel crypto API used by dm-verity hashing.
+CONFIG_CRYPTO=y
+# Provide HMAC support required by the verified-storage crypto stack.
+CONFIG_CRYPTO_HMAC=y
+# Hash dm-verity blocks with SHA-256.
+CONFIG_CRYPTO_SHA256=y
