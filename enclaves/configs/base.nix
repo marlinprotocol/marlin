@@ -93,6 +93,15 @@
     # not built.
     "systemd-nspawn@.service"
   ];
+  # The kernel only keeps root cgroup support for systemd supervision. Disable
+  # default per-unit accounting so systemd does not depend on optional cgroup
+  # controllers or the cgroup-BPF IP accounting path.
+  systemd.settings.Manager = {
+    DefaultIOAccounting = false;
+    DefaultIPAccounting = false;
+    DefaultMemoryAccounting = false;
+    DefaultTasksAccounting = false;
+  };
 
   # Base images are offline by default. Profiles imported above prefer
   # networkd to avoid the script/dhcpcd networking stack; override that default

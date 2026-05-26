@@ -157,34 +157,15 @@ CONFIG_SECCOMP=y
 # Enable BPF seccomp filters for systemd SystemCallFilter policies.
 CONFIG_SECCOMP_FILTER=y
 
-# systemd cgroups and BPF.
-# Provide the core BPF engine used by seccomp and cgroup filtering.
-CONFIG_BPF=y
-# Expose bpf(2) so userspace can load BPF programs for cgroup policies.
-CONFIG_BPF_SYSCALL=y
-# Disable unprivileged bpf(2) by default.
-CONFIG_BPF_UNPRIV_DEFAULT_OFF=y
-# Provide cgroups required by systemd for service tracking and supervision.
+# systemd cgroups.
+# Keep the root cgroup hierarchy required by systemd for service tracking and
+# supervision, but do not enable optional controllers or cgroup-BPF policy.
 CONFIG_CGROUPS=y
-# Enable CPU scheduling controls and accounting for service cgroups.
-CONFIG_CGROUP_SCHED=y
-# Track and limit process counts for service cgroups.
-CONFIG_CGROUP_PIDS=y
-# Allow systemd to freeze and thaw service cgroups when managing processes.
-CONFIG_CGROUP_FREEZER=y
-# Let systemd restrict service access to device nodes through cgroups.
-CONFIG_CGROUP_DEVICE=y
-# Allow BPF programs to attach to cgroups for service-level policies.
-CONFIG_CGROUP_BPF=y
-# Enable memory accounting and limits for service cgroups.
-CONFIG_MEMCG=y
-# Enable block I/O accounting and controls for service cgroups.
-CONFIG_BLK_CGROUP=y
 
 # Kernel hardening.
 # required: CONFIG_STACKPROTECTOR CONFIG_STACKPROTECTOR_STRONG CONFIG_VMAP_STACK
 # required: CONFIG_FORTIFY_SOURCE CONFIG_LIST_HARDENED CONFIG_SLAB_FREELIST_HARDENED
-# required: CONFIG_BPF_UNPRIV_DEFAULT_OFF CONFIG_PROC_MEM_NO_FORCE CONFIG_MSEAL_SYSTEM_MAPPINGS
+# required: CONFIG_PROC_MEM_NO_FORCE CONFIG_MSEAL_SYSTEM_MAPPINGS
 # Add compiler stack canaries to vulnerable kernel functions.
 CONFIG_STACKPROTECTOR=y
 # Use the stronger compiler stack protector heuristic.
