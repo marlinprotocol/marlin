@@ -79,9 +79,6 @@
   boot.initrd.systemd.suppressedStorePaths = [
     "${config.boot.initrd.systemd.package}/lib/systemd/systemd-bsod"
   ];
-  boot.initrd.systemd.contents = {
-    "/etc/sysctl.d/nixos.conf".enable = false;
-  };
   # Keep the initrd compressor aligned with the kernel decompressor enabled in
   # the base kernel fragment.
   boot.initrd.compressor = "zstd";
@@ -111,16 +108,11 @@
   # needed for these sealed dm-verity images.
   services.lvm.enable = false;
   services.fstrim.enable = false;
-  # Covered by bashless.nix; kept here as a record of the previous explicit trim.
-  # boot.bcache.enable = false;
-  boot.initrd.services.bcache.enable = false;
-  # Covered by bashless.nix; kept here as a record of the previous explicit trim.
-  # programs.fuse.enable = false;
-  # console.enable = false;
 
   # The image does not need a system bus; disabling it also avoids pulling in
-  # the separate systemd-minimal package through dbus.
-  services.dbus.enable = lib.mkForce false;
+  # the separate systemd-minimal package through dbus. Keep this overridable for
+  # future fragments that intentionally add D-Bus based services.
+  services.dbus.enable = lib.mkOverride 90 false;
 
   # state version
   system.stateVersion = "25.11";
@@ -145,25 +137,16 @@
   # set this to tell nix we know what we are doing
   users.allowNoPasswordLogin = true;
 
-  # /usr is a read-only verity mount in this image, so nixos-init cannot create
-  # the conventional /usr/bin/env compatibility symlink during switch-root.
-  environment.usrbinenv = null;
-
-  # Covered by bashless.nix; kept here as a record of the previous explicit trim.
-  # programs.bash.completion.enable = false;
   # disable nano
   programs.nano.enable = false;
   # disable sudo
   security.sudo.enable = false;
-  # disable pam_p11 module
-  security.pam.p11.enable = false;
 
   # extra kernel params
   # ref: https://github.com/aws/nitrotpm-attestation-samples/blob/main/nix/image/verity.nix#L82
   boot.kernelParams = [
     # panic=X option already set by headless.nix
     # boot.panic_on_fail option already set by headless.nix
-    "lockdown=1"
     "console=ttyS0,115200n8"
     # "console=tty0"
     "random.trust_cpu=on"

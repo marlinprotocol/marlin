@@ -52,6 +52,10 @@
     };
   };
 
+  # /usr is a read-only verity mount, so nixos-init cannot create the
+  # conventional /usr/bin/env compatibility symlink during switch-root.
+  environment.usrbinenv = null;
+
   # Runtime toplevel stored on the verified /usr partition.
   #
   # config.system.build.toplevel is also the bootloader-facing system closure:

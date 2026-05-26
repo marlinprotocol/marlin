@@ -76,6 +76,7 @@
 
     # These files are only meaningful when module loading exists.
     "/etc/modules-load.d/nixos.conf".enable = false;
+    "/etc/sysctl.d/nixos.conf".enable = false;
     "/etc/modprobe.d/systemd.conf".enable = false;
     "/etc/modprobe.d/ubuntu.conf".enable = false;
     "/etc/modprobe.d/debian.conf".enable = false;
