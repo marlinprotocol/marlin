@@ -34,7 +34,10 @@
   ];
 
   # make attestation server spin up after keygen
-  systemd.services.attestation-server.after = ["keygen-x25519.service"];
+  systemd.services.attestation-server = {
+    requires = ["keygen-x25519.service"];
+    after = ["keygen-x25519.service"];
+  };
 
   # image id
   system.image.id = lib.mkDefault "marlin-green";
