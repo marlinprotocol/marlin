@@ -8,8 +8,6 @@
     withOpenSSL = true;
     withNss = true;
   };
-
-  # Opt back into the runtime network stack disabled by the shared base config.
   networking.useNetworkd = true;
   networking.useDHCP = true;
   systemd.network.enable = true;
@@ -22,18 +20,19 @@
     domains = ["~."];
     # disable fallbacks to prevent bypass
     fallbackDns = [];
+    llmnr = "false";
     # enable DoT to prevent MITM
     dnsovertls = "true";
   };
   # set up nameservers
   networking.nameservers = [
     # Quad9
-    "9.9.9.9"
+    "9.9.9.9#dns.quad9.net"
     # Cloudflare
-    "1.1.1.1"
-    "1.0.0.1"
+    "1.1.1.1#cloudflare-dns.com"
+    "1.0.0.1#cloudflare-dns.com"
     # Google
-    "8.8.8.8"
-    "8.8.4.4"
+    "8.8.8.8#dns.google"
+    "8.8.4.4#dns.google"
   ];
 }
