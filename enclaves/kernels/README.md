@@ -16,5 +16,6 @@ included automatically when they exist, in this order:
 - `<name>-<target>.kconfig`
 - `<name>-<arch>-<target>.kconfig`
 
-Supported targets are `qemu` and `ec2`. The top-level kernel attrs expose both
-targets as peers, and `default` is an alias for `ec2`.
+Supported targets are `qemu` and `ec2`. The top-level kernel attrs expose
+`knownFragments`, `knownTargets`, `mkConfig`, and `mkKernel`; callers choose the
+target explicitly when constructing a kernel config or package.

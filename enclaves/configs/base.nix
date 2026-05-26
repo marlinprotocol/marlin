@@ -19,6 +19,8 @@
     (./. + "/systemd.nix")
     # kernel config
     (./. + "/kernel.nix")
+    # kernel lockdown config
+    (./. + "/lockdown.nix")
     # no kernel modules config
     (./. + "/no-kernel-modules.nix")
     # use the minimal profile as the starting point

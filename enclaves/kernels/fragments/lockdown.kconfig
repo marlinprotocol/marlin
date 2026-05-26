@@ -1,0 +1,14 @@
+# Kernel lockdown LSM.
+# required: CONFIG_SECURITY CONFIG_SECURITY_LOCKDOWN_LSM CONFIG_SECURITY_LOCKDOWN_LSM_EARLY
+# required: CONFIG_LOCK_DOWN_KERNEL_FORCE_NONE
+# Enable the Linux security framework required by the lockdown LSM.
+CONFIG_SECURITY=y
+# Build the lockdown LSM so enclave images can restrict privileged kernel
+# modification and disclosure paths.
+CONFIG_SECURITY_LOCKDOWN_LSM=y
+# Register lockdown early so the boot-time lockdown= parameter is enforced
+# before later security initialization.
+CONFIG_SECURITY_LOCKDOWN_LSM_EARLY=y
+# Keep the kernel derivation shared across lockdown modes. The actual enclave
+# policy is selected by the measured UKI command line.
+CONFIG_LOCK_DOWN_KERNEL_FORCE_NONE=y
