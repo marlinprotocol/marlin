@@ -114,6 +114,12 @@
   # future fragments that intentionally add D-Bus based services.
   services.dbus.enable = lib.mkOverride 90 false;
 
+  # Reduce kernel address and log exposure inside the guest. NixOS already
+  # defaults kptr_restrict to 1; use the stricter mode so even privileged
+  # processes do not get raw kernel pointers from procfs-style interfaces.
+  boot.kernel.sysctl."kernel.kptr_restrict" = 2;
+  boot.kernel.sysctl."kernel.dmesg_restrict" = 1;
+
   # state version
   system.stateVersion = "25.11";
 
