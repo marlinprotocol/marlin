@@ -86,7 +86,7 @@
       } ''
         mkdir $out
         ${nitrotpm-tools}/bin/nitro-tpm-pcr-compute -i ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} > nitro-measurement.json
-        ${gauge}/bin/gauge ${nixosSystem.config.system.build.finalImage}/*.raw ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} gauge-measurement.json
+        ${gauge}/bin/gauge ${nixosSystem.config.system.build.image}/*.raw ${nixosSystem.config.system.build.uki}/${nixosSystem.config.system.boot.loader.ukiFile} gauge-measurement.json
         jq -s '
           # 1. The Deep Merge
           reduce .[] as $item ({}; . * $item)
@@ -103,7 +103,7 @@
     pkgs.symlinkJoin {
       name = "measured-${target}-image";
       paths = [
-        nixosSystem.config.system.build.finalImage
+        nixosSystem.config.system.build.image
         measurement
       ];
     };

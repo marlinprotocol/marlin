@@ -49,6 +49,7 @@
     "/nix/store" = {
       device = "/usr/nix/store";
       options = ["bind"];
+      fsType = "none";
     };
   };
 

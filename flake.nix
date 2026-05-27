@@ -4,7 +4,7 @@
     extra-trusted-public-keys = ["marlin.cachix.org-1:Qgb4N/YJ9iX+wExt/+fbdSqQ6/GHaSvQ5xnvz5QTeD0="];
   };
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-26.05";
     crane = {
       url = "github:ipetkov/crane";
     };
