@@ -26,23 +26,25 @@
   services.resolved = {
     enable = true;
 
-    # Route the DNS root through the global resolvers below. This keeps normal
-    # lookups on the explicit DoT resolver set instead of DHCP-provided link
-    # resolvers winning through the default-route path.
-    domains = ["~."];
+    settings.Resolve = {
+      # Route the DNS root through the global resolvers below. This keeps normal
+      # lookups on the explicit DoT resolver set instead of DHCP-provided link
+      # resolvers winning through the default-route path.
+      Domains = ["~."];
 
-    # Do not fall back to systemd's compiled-in public resolvers if the
-    # configured DoT resolvers fail.
-    fallbackDns = [];
+      # Do not fall back to systemd's compiled-in public resolvers if the
+      # configured DoT resolvers fail.
+      FallbackDNS = [];
 
-    # LLMNR is local multicast name resolution, separate from unicast DNS and
-    # not protected by DNS-over-TLS. Enclave images should not answer or issue
-    # those link-local hostname queries.
-    llmnr = "false";
+      # LLMNR is local multicast name resolution, separate from unicast DNS and
+      # not protected by DNS-over-TLS. Enclave images should not answer or issue
+      # those link-local hostname queries.
+      LLMNR = "false";
 
-    # Strict mode fails closed if a resolver does not support DNS-over-TLS or
-    # presents a certificate that does not match its configured server name.
-    dnsovertls = "true";
+      # Strict mode fails closed if a resolver does not support DNS-over-TLS or
+      # presents a certificate that does not match its configured server name.
+      DNSOverTLS = "true";
+    };
   };
 
   # Pin each resolver IP to its TLS server name. The name after # is used for
